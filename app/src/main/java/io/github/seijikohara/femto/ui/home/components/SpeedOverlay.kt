@@ -717,7 +717,10 @@ internal fun remainingDistanceText(
     locale: Locale = Locale.getDefault(),
 ): String =
     speedUnit.tripDistanceFromMeters(meters).let { distance ->
-        if (distance < WHOLE_DISTANCE_FROM) String.format(locale, "%.1f", distance) else "${distance.roundToInt()}"
+        // The threshold judges the value as shown, rounded to tenths: 9.96
+        // shows as 10.0, which belongs with the whole units.
+        val tenths = (distance * 10.0).roundToLong() / 10.0
+        if (tenths < WHOLE_DISTANCE_FROM) String.format(locale, "%.1f", tenths) else "${distance.roundToInt()}"
     }
 
 /**

@@ -22,6 +22,16 @@ class RouteRowFormatTest {
     }
 
     @Test
+    fun `a distance that rounds to ten shows whole kilometres`() {
+        assertEquals("10", remainingDistanceText(9_960.0, SpeedUnit.KILOMETERS_PER_HOUR, Locale.US))
+    }
+
+    @Test
+    fun `a distance just short of rounding to ten keeps its tenths`() {
+        assertEquals("9.9", remainingDistanceText(9_940.0, SpeedUnit.KILOMETERS_PER_HOUR, Locale.US))
+    }
+
+    @Test
     fun `miles follow the miles speed unit`() {
         assertEquals("2.0", remainingDistanceText(3_218.7, SpeedUnit.MILES_PER_HOUR, Locale.US))
     }
