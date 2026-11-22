@@ -42,11 +42,3 @@ internal fun storageDecision(
         else -> StorageDecision.OverLimit(total - limitBytes, limitBytes)
     }
 }
-
-/** Free space kept back for the system and the converter's temporary files. */
-internal const val FREE_SPACE_MARGIN_BYTES = 100_000_000L
-
-internal fun hasRoomFor(
-    remainingBytes: Long,
-    freeBytes: Long,
-): Boolean = freeBytes - FREE_SPACE_MARGIN_BYTES >= remainingBytes

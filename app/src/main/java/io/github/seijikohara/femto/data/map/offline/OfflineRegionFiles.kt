@@ -1,5 +1,8 @@
 package io.github.seijikohara.femto.data.map.offline
 
+import io.github.seijikohara.femto.data.common.ATOMIC_WRITE_TEMP_SUFFIX
+import io.github.seijikohara.femto.data.common.syncToDisk
+import io.github.seijikohara.femto.data.common.writeAtomically
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -8,8 +11,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.intOrNull
 import java.io.File
-import java.io.FileOutputStream
-import java.io.RandomAccessFile
 
 /** Bumped only by a format change; a record of another version is left alone and not listed. */
 internal const val REGION_RECORD_VERSION = 1
@@ -66,7 +67,6 @@ private const val PENDING_FILE_NAME = "pending.json"
 private const val DATA_SUFFIX = ".mbtiles"
 private const val RECORD_SUFFIX = ".json"
 private const val PART_SUFFIX = ".mbtiles.part"
-private const val TEMP_SUFFIX = ".tmp"
 
 /** What one record file on disk holds. */
 private sealed interface StoredRecord<out T> {
@@ -232,26 +232,15 @@ internal class OfflineRegionFiles(
             .filter { it.name.endsWith(PART_SUFFIX) }
             .filterNot { it.name.removeSuffix(PART_SUFFIX) == pendingKey }
             .forEach(File::delete)
-        (files.toList() + root.listFiles().orEmpty()).filter { it.name.endsWith(TEMP_SUFFIX) }.forEach(File::delete)
+        (files.toList() + root.listFiles().orEmpty())
+            .filter { it.name.endsWith(ATOMIC_WRITE_TEMP_SUFFIX) }
+            .forEach(File::delete)
     }
 
-    // A temp file plus a rename makes a record whole or absent, never half-written. The sync before the rename keeps
-    // a power cut from leaving a renamed but empty record, and a temp file that a failed write leaves goes at once.
     private fun writeAtomically(
         target: File,
         text: String,
-    ): Boolean {
-        val temp = File(target.parentFile, target.name + TEMP_SUFFIX)
-        return runCatching {
-            target.parentFile?.mkdirs()
-            FileOutputStream(temp).use { output ->
-                output.write(text.toByteArray(Charsets.UTF_8))
-                output.fd.sync()
-            }
-            temp.renameTo(target)
-        }.getOrDefault(false)
-            .also { written -> if (!written) temp.delete() }
-    }
+    ): Boolean = writeAtomically(target, text.toByteArray(Charsets.UTF_8))
 }
 
 private fun SavedRegionRecord.isFileOf(pending: PendingDownloadRecord): Boolean =
@@ -295,7 +284,3 @@ private fun <T> storedRecordOf(
 
 private fun JsonElement.recordVersionOrNull(): Int? =
     ((this as? JsonObject)?.get("version") as? JsonPrimitive)?.intOrNull
-
-// Flushes the file's bytes to the disk without truncating it; false for a missing file or a failed sync.
-private fun File.syncToDisk(): Boolean =
-    isFile && runCatching { RandomAccessFile(this, "rw").use { it.fd.sync() } }.isSuccess
