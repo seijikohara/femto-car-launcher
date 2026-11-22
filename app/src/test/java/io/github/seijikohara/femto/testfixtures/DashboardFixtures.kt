@@ -71,7 +71,7 @@ internal object DashboardFixtures {
  * [SelfMarkerAnchor]); both change only when the map style or marker design
  * does.
  *
- * The source is a device capture of this app rendering OpenFreeMap tiles
+ * The source is a render of this app's map page drawing OpenFreeMap tiles
  * (OpenStreetMap data, ODbL) — see app/src/test/resources/README.md.
  */
 @Composable
@@ -80,7 +80,7 @@ internal fun MapBackdrop(
     mapConfig: MapConfig,
 ) = Box(modifier = Modifier.fillMaxSize()) {
     Image(
-        // The app swaps the map style with the theme (Positron / Dark Matter),
+        // The app swaps the map style with the theme (Standard light / dark),
         // so the still has to swap too — a light map under dark glass chrome
         // would misrepresent the product, not just look odd.
         bitmap = if (darkTheme) DashboardFixtures.backdropDark else DashboardFixtures.backdrop,
