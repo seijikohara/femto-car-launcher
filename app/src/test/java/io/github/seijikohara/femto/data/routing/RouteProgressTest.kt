@@ -2,7 +2,9 @@ package io.github.seijikohara.femto.data.routing
 
 import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
+import io.github.seijikohara.femto.testfixtures.fakeParallelRoadsRoute
 import io.github.seijikohara.femto.testfixtures.fakeRoute
+import io.github.seijikohara.femto.testfixtures.fakeSameRoadOutAndBackRoute
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -59,10 +61,9 @@ class RouteProgressTest {
 
     @Test
     fun `where the line doubles back on itself the earlier pass wins`() {
-        val outAndBack =
-            RouteLine(fakeRoute(points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.0, 0.1), RoutePoint(0.0, 0.0))))
+        val sameRoad = RouteLine(fakeSameRoadOutAndBackRoute())
 
-        assertEquals(0.0, outAndBack.follow(RoutePoint(0.0, 0.0), LinePosition.Start).travelledMeters)
+        assertEquals(0.0, sameRoad.follow(RoutePoint(0.0, 0.0), LinePosition.Start).travelledMeters)
     }
 
     @Test
@@ -151,6 +152,45 @@ class RouteProgressTest {
     }
 
     @Test
+    fun `after a detour on the way back along the same road the way back goes on`() {
+        // Out and back on one carriageway, 5.5 km from the end: a fix 67 m off the road is as far from the way out
+        // as from the way back. Taken for the way out, it would turn every fix after it into a step back along the
+        // way out, and the distance left would grow all the way to the destination.
+        val sameRoad = RouteLine(fakeSameRoadOutAndBackRoute())
+        val beforeDetour = sameRoad.follow(RoutePoint(0.0, 0.05), MIDWAY)
+        val onDetour = sameRoad.follow(RoutePoint(0.0006, 0.0499), beforeDetour)
+
+        val rejoined = sameRoad.follow(RoutePoint(0.0, 0.0498), onDetour)
+
+        assertEquals(0.0498 * METERS_PER_DEGREE, sameRoad.progressAt(rejoined).remainingMeters, TOLERANCE_METERS)
+    }
+
+    @Test
+    fun `a fix off the same road counts on the pass the last fix was on`() {
+        val sameRoad = RouteLine(fakeSameRoadOutAndBackRoute())
+        val detour = RoutePoint(0.0006, 0.05)
+
+        val wayOut = sameRoad.follow(detour, LinePosition(0.049 * METERS_PER_DEGREE))
+        val wayBack = sameRoad.follow(detour, LinePosition(0.149 * METERS_PER_DEGREE))
+
+        assertEquals(0.05 * METERS_PER_DEGREE, wayOut.travelledMeters, TOLERANCE_METERS)
+        assertEquals(0.15 * METERS_PER_DEGREE, wayBack.travelledMeters, TOLERANCE_METERS)
+    }
+
+    @Test
+    fun `a fix exactly as far from two passes counts on the one the last fix was on`() {
+        // Midway between two parallel roads 222 m apart: 111 m from each, to the last bit.
+        val parallel = RouteLine(fakeParallelRoadsRoute())
+        val midway = RoutePoint(0.001, 0.05)
+
+        val wayOut = parallel.follow(midway, LinePosition(0.049 * METERS_PER_DEGREE))
+        val wayBack = parallel.follow(midway, LinePosition((0.1 + 0.002 + 0.049) * METERS_PER_DEGREE))
+
+        assertEquals(0.05 * METERS_PER_DEGREE, wayOut.travelledMeters, TOLERANCE_METERS)
+        assertEquals((0.1 + 0.002 + 0.05) * METERS_PER_DEGREE, wayBack.travelledMeters, TOLERANCE_METERS)
+    }
+
+    @Test
     fun `the progress flow starts with the whole route and carries each fix to the next`() =
         runTest {
             val outAndBack = fakeOutAndBackRoute()
@@ -181,7 +221,7 @@ class RouteProgressTest {
         const val OUT_AND_BACK_LEFT_AT_0_03_OUT = OUT_AND_BACK_METERS - 0.03 * METERS_PER_DEGREE
         const val OUT_AND_BACK_LEFT_AT_0_03_BACK = 0.03 * METERS_PER_DEGREE
 
-        // Halfway along fakeOutAndBackRoute: at its turn.
+        // Halfway along fakeOutAndBackRoute and fakeSameRoadOutAndBackRoute: at the turn.
         val MIDWAY = LinePosition(0.1 * METERS_PER_DEGREE)
     }
 }

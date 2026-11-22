@@ -135,6 +135,29 @@ internal fun fakeOutAndBackRoute(): Route =
         durationSeconds = 1_200,
     )
 
+/**
+ * A route east along the equator for 0.1° and back along the same line, as out and back on a road with one
+ * carriageway: every point of the line belongs to both passes. 22,239 m, its line's length, and 1,200 s.
+ */
+internal fun fakeSameRoadOutAndBackRoute(): Route =
+    fakeRoute(
+        points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.0, 0.1), RoutePoint(0.0, 0.0)),
+        distanceMeters = 22_239,
+        durationSeconds = 1_200,
+    )
+
+/**
+ * A route east along the equator for 0.1° and back 0.002° (about 222 m) north of it, as along two parallel roads: a
+ * point midway between the two is as far from one pass as from the other, and too far from both to count as on
+ * either.
+ */
+internal fun fakeParallelRoadsRoute(): Route =
+    fakeRoute(
+        points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.0, 0.1), RoutePoint(0.002, 0.1), RoutePoint(0.002, 0.0)),
+        distanceMeters = 22_461,
+        durationSeconds = 1_200,
+    )
+
 /** A short route in the routing tile E130_N30, as the planner returns one. */
 internal fun fakeRoute(
     points: List<RoutePoint> =

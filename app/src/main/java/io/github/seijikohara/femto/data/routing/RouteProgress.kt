@@ -8,8 +8,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.runningFold
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.sqrt
 
 /** The mean earth radius; the projection below only needs the scale of a metre per degree. */
 private const val EARTH_RADIUS_METERS = 6_371_008.8
@@ -28,6 +30,11 @@ private const val ON_LINE_SQUARED = ON_LINE_METERS * ON_LINE_METERS
 // this far back, which lets the readout dip that much without opening the way
 // back to an earlier pass of the same road.
 private const val BACKTRACK_METERS = 30.0
+
+// Two points of the line whose distances from a fix differ by less than this are equally near it. A route out and
+// back along a road with one carriageway repeats the same line, so a fix off that road is as far from one pass as
+// from the other, give or take the arithmetic.
+private const val SAME_DISTANCE_METERS = 1.0
 
 /** What is left of a route from one position on it. */
 internal data class RouteProgress(
@@ -85,8 +92,8 @@ internal class RouteLine(
      * point of the first stretch of line ahead that passes within [ON_LINE_METERS] of the fix. Where the route comes
      * back along the same road, the pass the vehicle is on comes first, so a fix that drifts toward the other pass stays
      * on its own. The search starts [BACKTRACK_METERS] behind [previous], for GPS noise. A fix no stretch ahead comes
-     * near — a detour, a gap in the fixes, a vehicle that turned back — goes to the nearest point of the whole line,
-     * the earlier pass on a tie.
+     * near — a detour, a gap in the fixes, a vehicle that turned back — goes to the nearest point of the whole line
+     * ([nearestOverall]).
      */
     fun follow(
         position: RoutePoint,
@@ -102,12 +109,29 @@ internal class RouteLine(
             .takeWhile { it.distanceSquared <= ON_LINE_SQUARED }
             .minByOrNull { it.distanceSquared }
             ?.let { LinePosition(it.travelled) }
-            ?: segments()
-                .map { nearestOn(it, x, y, from = 0.0) }
-                .minByOrNull { it.distanceSquared }
-                ?.let { LinePosition(it.travelled) }
-            ?: LinePosition.Start
+            ?: nearestOverall(x, y, previous)
     }
+
+    // The point of the whole line nearest (x, y). Where passes are equally near ([SAME_DISTANCE_METERS]), the one
+    // nearest [previous] along the line wins: after a detour on the way back along the road the route went out on,
+    // the nearest point alone cannot tell the passes apart, and the way out, once taken, would hold every later
+    // fix inside the search's backtrack, each a step further back along it.
+    private fun nearestOverall(
+        x: Double,
+        y: Double,
+        previous: LinePosition,
+    ): LinePosition =
+        segments()
+            .map { nearestOn(it, x, y, from = 0.0) }
+            .toList()
+            .let { matches ->
+                matches.minOfOrNull { it.distanceSquared }?.let { nearestSquared ->
+                    matches
+                        .filter { sqrt(it.distanceSquared) <= sqrt(nearestSquared) + SAME_DISTANCE_METERS }
+                        .minByOrNull { abs(it.travelled - previous.travelledMeters) }
+                }
+            }?.let { LinePosition(it.travelled) }
+            ?: LinePosition.Start
 
     /**
      * Return what is left of the route from [at]: the route's distance and duration scaled by the share of the line
