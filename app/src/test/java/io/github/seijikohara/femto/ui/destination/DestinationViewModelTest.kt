@@ -36,6 +36,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DestinationViewModelTest {
@@ -665,6 +666,86 @@ class DestinationViewModelTest {
             assertEquals(emptyList(), routing.feed.downloads)
         }
 
+    @Test
+    fun dismissing_a_download_leaves_no_active_route() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val gate = routing.feed.gateDownload()
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+            assertEquals(RouteStep.Downloading(TILE_BYTES / 2, TILE_BYTES), viewModel.uiState.value.route)
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+            assertNull(activeRoute.route.value)
+            assertEquals(emptyList(), routing.engine.requests)
+        }
+
+    @Test
+    fun a_progress_report_after_a_dismiss_leaves_the_entry_in_place() =
+        runTest {
+            // A blocking read can report once more after the cancel; the
+            // report must not bring the download back over the entry.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            routing.feed.gateOutlivesCancel = true
+            val gate = routing.feed.gateDownload()
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun dismissing_a_search_leaves_no_active_route() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            // The planner's file work waits on the test scheduler, so the
+            // search is under way until the test advances it.
+            assertEquals(RouteStep.Computing, viewModel.uiState.value.route)
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+            assertNull(activeRoute.route.value)
+        }
+
+    @Test
+    fun a_second_route_replaces_the_one_under_way() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            assertEquals(RouteStep.Computing, viewModel.uiState.value.route)
+
+            viewModel.onAction(DestinationAction.RouteTo(OTHER_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            // Only the second search ran: the first never reached the engine.
+            assertEquals(listOf(OTHER_DESTINATION.toRoutePoint()), routing.engine.requests.map { it.destination })
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+        }
+
+    private fun PlaceTarget.Point.toRoutePoint() = RoutePoint(latitude, longitude)
+
     private companion object {
         // A boot-clock reading well past zero, so an older fix stays positive.
         const val NOW_NANOS = 3_600_000_000_000L
@@ -673,6 +754,9 @@ class DestinationViewModelTest {
         // at NOW_NANOS, fresh unless a test moves the clock on.
         val ORIGIN = LastFix(PlaceTarget.Point(33.84, 132.77), elapsedRealtimeNanos = NOW_NANOS)
         val DESTINATION = PlaceTarget.Point(34.07, 133.0)
+
+        // Another destination in the same routing tile.
+        val OTHER_DESTINATION = PlaceTarget.Point(33.95, 132.9)
         const val TILE = "E130_N30"
         const val TILE_BYTES = 48_000_000L
     }

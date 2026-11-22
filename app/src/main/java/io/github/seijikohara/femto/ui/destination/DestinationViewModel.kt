@@ -32,6 +32,7 @@ import io.github.seijikohara.femto.data.voice.SpeechInput
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import io.github.seijikohara.femto.data.voice.VoiceState
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,6 +40,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -324,11 +327,19 @@ internal class DestinationViewModel(
 
     // One tile at a time, as the plan promises brouter.de; the progress adds
     // each finished tile's bytes to the one under way.
+    //
+    // The transport reports from its own thread, and a blocking read can still
+    // report after a cancel has put the entry back or started another route. A
+    // report counts only while this route's job is active, and the job is read
+    // inside the state's atomic update: a cancel always lands before the state
+    // it writes, so one that slips between the read and the write fails the
+    // update, whose retry then sees the job cancelled and drops the report.
     private suspend fun fetchThenRoute(
         ends: RouteEnds,
         names: List<String>,
         totalBytes: Long,
     ) {
+        val job = currentCoroutineContext().job
         var finishedBytes = 0L
         routeStep.value = RouteStep.Downloading(receivedBytes = 0L, totalBytes = totalBytes)
         for (name in names) {
@@ -336,7 +347,9 @@ internal class DestinationViewModel(
             val result =
                 tiles.fetch(name) { received, _ ->
                     tileBytes = received
-                    routeStep.value = RouteStep.Downloading(finishedBytes + received, totalBytes)
+                    routeStep.update { step ->
+                        if (job.isActive) RouteStep.Downloading(finishedBytes + received, totalBytes) else step
+                    }
                 }
             result.failureOrNull()?.let { return fail(it) }
             finishedBytes += tileBytes
