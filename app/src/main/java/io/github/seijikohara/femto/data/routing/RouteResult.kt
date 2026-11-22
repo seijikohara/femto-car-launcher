@@ -19,6 +19,12 @@ internal sealed interface RouteResult {
         val names: List<String>,
     ) : RouteResult
 
+    /**
+     * The origin or the destination lies in a tile the server has no data for, such as open sea: there is no road to
+     * start or end on, and no download can bring one.
+     */
+    data object NoRoadData : RouteResult
+
     /** A tile was built for another version of the lookup table than the app ships. */
     data object DataVersionMismatch : RouteResult
 

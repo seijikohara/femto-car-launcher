@@ -42,6 +42,29 @@ class RoutePlannerTest {
             assertEquals(RouteResult.Found(ROUTE), result)
         }
 
+    // The mid-Atlantic case: the precheck lets the tile through, and BRouter then cannot open it.
+    @Test
+    fun `a point on a tile without data has no road data`() =
+        runTest {
+            noDataRecord("E130_N30")
+            val engine = FakeRouteEngine(outcome = EngineOutcome.Error("datafile E130_N30.rd5 not found"))
+
+            val result = planner(engine).route(MATSUYAMA, IMABARI)
+
+            assertEquals(RouteResult.NoRoadData, result)
+        }
+
+    @Test
+    fun `a tile the engine could not open is missing when nothing says it has no data`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = EngineOutcome.Error("datafile E135_N30.rd5 not found"))
+
+            val result = planner(engine).route(MATSUYAMA, IMABARI)
+
+            assertEquals(RouteResult.MissingTiles(listOf("E135_N30")), result)
+        }
+
     @Test
     fun `a found track becomes a route in degrees`() =
         runTest {

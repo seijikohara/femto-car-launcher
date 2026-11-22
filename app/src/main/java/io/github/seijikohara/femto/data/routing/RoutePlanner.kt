@@ -48,7 +48,25 @@ internal class RoutePlanner(
                 .missingTiles(routingTilesAround(origin, destination))
                 .takeIf { it.isNotEmpty() }
                 ?.let(RouteResult::MissingTiles)
-                ?: search(origin, destination)
+                ?: search(origin, destination).withoutNoDataTiles()
+        }
+
+    // BRouter names the tile under the origin or the destination when it cannot open it, whether the tile is not
+    // installed or does not exist, and the check above lets a tile known to have no data through. No download brings
+    // such a tile, so a point on it has no road data rather than a missing tile.
+    private suspend fun RouteResult.withoutNoDataTiles(): RouteResult =
+        when (this) {
+            is RouteResult.MissingTiles -> {
+                tiles
+                    .withoutNoData(names)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let(RouteResult::MissingTiles)
+                    ?: RouteResult.NoRoadData
+            }
+
+            else -> {
+                this
+            }
         }
 
     // The time limit runs on the engine's dispatcher, beside the search it bounds.

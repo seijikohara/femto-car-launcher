@@ -177,6 +177,10 @@ internal class RoutingTileStore(
             }
         }
 
+    /** The names among [names] not known to have no data, installed or not; a name that is no tile name stays. */
+    suspend fun withoutNoData(names: List<String>): List<String> =
+        withContext(ioDispatcher) { names.filterNot { TileNamePattern.matches(it) && hasNoData(it) } }
+
     /** The installed tiles, by name. */
     suspend fun installedTiles(): List<InstalledRoutingTile> =
         withContext(ioDispatcher) {
