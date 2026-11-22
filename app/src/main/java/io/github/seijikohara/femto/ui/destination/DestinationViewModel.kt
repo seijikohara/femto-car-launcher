@@ -431,7 +431,10 @@ internal class DestinationViewModel(
     // update, whose retry then sees the job cancelled and drops the report.
     //
     // A rebuilt tile is replaced through the store's refresh, which asks once
-    // more and keeps the installed file until the new one is whole.
+    // more and keeps the installed file until the new one is whole. Newer data
+    // never blocks a route: a replacement that fails leaves the installed tile
+    // to route with, counted as checked so the next route does not ask at
+    // once. Only a missing tile whose fetch fails stops the route.
     private suspend fun fetchThenRoute(
         ends: RouteEnds,
         download: TileDownload,
@@ -448,13 +451,11 @@ internal class DestinationViewModel(
                     if (job.isActive) RouteStep.Downloading(finishedBytes + received, totalBytes) else step
                 }
             }
-            val failure =
-                if (name in download.fetch) {
-                    tiles.fetch(name, onProgress).failureOrNull()
-                } else {
-                    tiles.refresh(name, onProgress).failureOrNull()
-                }
-            failure?.let { return fail(it) }
+            if (name in download.fetch) {
+                tiles.fetch(name, onProgress).failureOrNull()?.let { return fail(it) }
+            } else if (tiles.refresh(name, onProgress).failed()) {
+                tiles.markChecked(name)
+            }
             finishedBytes += tileBytes
         }
         route(ends)
@@ -502,20 +503,17 @@ private fun downloadKind(
         else -> RouteDownload.MISSING_AND_NEWER
     }
 
-// Why a rebuilt tile's replacement stops the route, or null when the route
-// goes on: replaced, or no longer due or installed, in which case the route
-// reads what the device holds.
-private fun TileRefreshResult.failureOrNull(): RouteFailure? =
+// Whether a rebuilt tile's replacement failed, leaving the installed tile in
+// place: replaced, unchanged, or no longer due or installed is no failure.
+private fun TileRefreshResult.failed(): Boolean =
     when (this) {
         TileRefreshResult.UPDATED,
         TileRefreshResult.UNCHANGED,
         TileRefreshResult.NOT_DUE,
         TileRefreshResult.NOT_INSTALLED,
-        -> null
+        -> false
 
-        TileRefreshResult.NO_SPACE -> RouteFailure.NO_SPACE
-
-        TileRefreshResult.NETWORK_FAILED, TileRefreshResult.STORAGE_FAILED -> RouteFailure.DOWNLOAD_FAILED
+        TileRefreshResult.NETWORK_FAILED, TileRefreshResult.NO_SPACE, TileRefreshResult.STORAGE_FAILED -> true
     }
 
 private fun PlaceTarget.Point.toRoutePoint(): RoutePoint = RoutePoint(latitude = latitude, longitude = longitude)

@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.destination
 
+import io.github.seijikohara.femto.data.common.download.TransferResult
 import io.github.seijikohara.femto.data.geocoding.PlaceLookup
 import io.github.seijikohara.femto.data.location.CurrentFix
 import io.github.seijikohara.femto.data.location.LOCATION_STALE_THRESHOLD_MS
@@ -12,6 +13,7 @@ import io.github.seijikohara.femto.data.routing.ROUTING_TILE_CHECK_INTERVAL_MS
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.FakeCurrentFixSource
+import io.github.seijikohara.femto.testfixtures.FakeDownloadStop
 import io.github.seijikohara.femto.testfixtures.FakePlaceLocator
 import io.github.seijikohara.femto.testfixtures.FakeSavedPlacesStore
 import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
@@ -1109,6 +1111,79 @@ class DestinationViewModelTest {
 
             assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
             assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    @Test
+    fun a_failed_update_routes_with_the_stored_data_and_counts_as_checked() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.feed.stopsByUrl[routing.tileUrl(TILE)] = FakeDownloadStop(5L, TransferResult.Interrupted)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            val tile = routing.tiles.installedTiles().single()
+            assertEquals(1L, tile.sizeBytes, "the stored tile is the one routed with")
+            assertEquals(routing.nowEpochMs, tile.checkedAtEpochMs)
+        }
+
+    @Test
+    fun an_update_without_room_routes_with_the_stored_data() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            routing.freeBytes = 0L
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun with_missing_and_newer_data_a_failed_update_still_routes() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.offerTile(EAST_TILE, sizeBytes = EAST_TILE_BYTES)
+            routing.feed.stopsByUrl[routing.tileUrl(TILE)] = FakeDownloadStop(5L, TransferResult.Interrupted)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(listOf(TILE, EAST_TILE), routing.tiles.installedTiles().map { it.name })
+        }
+
+    @Test
+    fun with_missing_and_newer_data_a_failed_missing_tile_fails_the_route() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.offerTile(EAST_TILE, sizeBytes = EAST_TILE_BYTES)
+            routing.feed.stopsByUrl[routing.tileUrl(EAST_TILE)] = FakeDownloadStop(5L, TransferResult.Interrupted)
+            viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.DOWNLOAD_FAILED), viewModel.uiState.value.route)
         }
 
     @Test

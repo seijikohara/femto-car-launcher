@@ -51,6 +51,9 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
     var sentFile: RemoteFile? = null
     var stop: FakeDownloadStop? = null
 
+    /** How the download of one URL stops, ahead of [stop], so one file of several can fail. */
+    val stopsByUrl = mutableMapOf<String, FakeDownloadStop>()
+
     /** Whether a download held at [gateDownload]'s gate outlives its caller's cancel, as a blocking read does. */
     var gateOutlivesCancel: Boolean = false
 
@@ -105,7 +108,7 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
             if (!onRestart(file)) return TransferResult.Refused(file).also { part.delete() }
             restartGate?.await()
         }
-        val stop = stop
+        val stop = stopsByUrl[url] ?: stop
         val end = stop?.partBytes ?: file.sizeBytes
         if (stop != null && stop.partBytes == null) return stop.result.also { part.delete() }
         // The first write opens the part: from its start after a restart, after its bytes on a resume.
