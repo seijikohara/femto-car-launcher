@@ -51,3 +51,17 @@
 -keepclasseswithmembers class **$$serializer {
     *** INSTANCE;
 }
+
+# ---------------------------------------------------------------------------
+# BRouter (the :brouter module). A profile names its path model as a class
+# (car-vario.brf: `---model:btools.router.KinematicModel`), which
+# RoutingContext loads with Class.forName and creates through the no-argument
+# constructor. Nothing else references the models, so R8 would remove or
+# rename them. Every subclass is kept, so a profile that names another model
+# (KinematicNoCostModel, StdModel) keeps working. This is BRouter's only
+# reflection on the routing path (RoutingProfileFilesTest guards the profile).
+# Inert while release minify is off, like the rules above.
+# ---------------------------------------------------------------------------
+-keep class * extends btools.router.OsmPathModel {
+    <init>();
+}

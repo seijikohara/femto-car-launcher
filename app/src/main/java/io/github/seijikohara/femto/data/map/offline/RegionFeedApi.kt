@@ -45,9 +45,11 @@ private const val IDENTITY_ENCODING = "identity"
 private val ContentRangePattern = Regex("bytes (\\d+)-(\\d+)/(\\d+)")
 
 /**
- * Client for the region host: the index, a look at one file, and a resumable
- * download of a file of up to tens of gigabytes. Every request is pinned to
- * [hostPrefix]; a URL elsewhere is answered without a request.
+ * Client for the region host: the index, a look at one file, a check of a kept
+ * one, and a resumable download of a file of up to tens of gigabytes. Every
+ * request is pinned to [hostPrefix]; a URL elsewhere is answered without a
+ * request. The routing data reuses the file half on its own host, where the
+ * index, which lives on the region host, is never available.
  */
 internal class RegionFeedApi(
     private val client: OkHttpClient,
@@ -67,6 +69,14 @@ internal class RegionFeedApi(
     override suspend fun probe(url: String): ProbeResult =
         withContext(ioDispatcher) {
             if (url.startsWith(hostPrefix)) fetchProbe(url) else ProbeResult.Unavailable
+        }
+
+    override suspend fun revalidate(
+        url: String,
+        kept: RemoteFile,
+    ): RevalidationResult =
+        withContext(ioDispatcher) {
+            if (url.startsWith(hostPrefix)) fetchRevalidation(url, kept) else RevalidationResult.Unavailable
         }
 
     override suspend fun download(
@@ -120,6 +130,27 @@ internal class RegionFeedApi(
         } catch (e: IOException) {
             Log.w(TAG, "probe failed", e)
             ProbeResult.Unavailable
+        }
+
+    // A 200 to the conditional request still says "unchanged" when it describes
+    // the kept file: a server may ignore If-None-Match, and a kept file without a
+    // sendable ETag is checked with a plain look.
+    private fun fetchRevalidation(
+        url: String,
+        kept: RemoteFile,
+    ): RevalidationResult =
+        try {
+            client.newCall(revalidationRequest(url, kept)).execute().use { response ->
+                when (val code = response.code) {
+                    HTTP_NOT_MODIFIED -> RevalidationResult.NotModified
+                    HTTP_OK -> response.remoteFileOrNull()?.comparedWith(kept) ?: RevalidationResult.Unavailable
+                    HTTP_NOT_FOUND, HTTP_GONE -> RevalidationResult.Gone
+                    else -> RevalidationResult.Unavailable.also { Log.w(TAG, "revalidation HTTP $code") }
+                }
+            }
+        } catch (e: IOException) {
+            Log.w(TAG, "revalidation failed", e)
+            RevalidationResult.Unavailable
         }
 
     private suspend fun transfer(
@@ -264,6 +295,15 @@ internal class RegionFeedApi(
 
     private fun fileRequest(url: String): Request.Builder = requestTo(url).header("Accept-Encoding", IDENTITY_ENCODING)
 
+    private fun revalidationRequest(
+        url: String,
+        kept: RemoteFile,
+    ): Request =
+        fileRequest(url)
+            .head()
+            .apply { kept.etag?.sendableEtagOrNull()?.let { header("If-None-Match", it) } }
+            .build()
+
     private fun downloadRequest(
         url: String,
         resumeFrom: Long?,
@@ -319,6 +359,9 @@ private fun Response.remoteFileOrNull(): RemoteFile? =
                 lastModifiedEpochMs = headers.getInstant("Last-Modified")?.toEpochMilli(),
             )
         }
+
+private fun RemoteFile.comparedWith(kept: RemoteFile): RevalidationResult =
+    if (this == kept) RevalidationResult.NotModified else RevalidationResult.Changed(this)
 
 // OkHttp throws on a request header value with a character outside tab and
 // 0x20-0x7e, so an ETag that could not be sent back counts as absent: the

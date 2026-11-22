@@ -595,6 +595,57 @@ class RegionFeedApiTest {
             assertEquals(2, server.requestCount)
         }
 
+    // --- revalidate ---------------------------------------------------------
+
+    @Test
+    fun `a revalidation sends the kept etag in a conditional look`() =
+        runTest {
+            server.enqueue(MockResponse().setResponseCode(304))
+
+            val result = newApi().revalidate(fileUrl(), FILE)
+
+            assertEquals(RevalidationResult.NotModified, result)
+            val request = server.takeRequest()
+            assertEquals("HEAD", request.method)
+            assertEquals(ETAG, request.getHeader("If-None-Match"))
+        }
+
+    @Test
+    fun `a revalidation answered with the kept file is not modified`() =
+        runTest {
+            // A server that ignores If-None-Match, and a kept file whose ETag cannot be sent back.
+            server.enqueue(MockResponse().setHeader("Content-Length", 10).setHeader("ETag", ETAG))
+            server.enqueue(MockResponse().setHeader("Content-Length", 10))
+            val api = newApi()
+
+            val results =
+                listOf(
+                    api.revalidate(fileUrl(), FILE),
+                    api.revalidate(fileUrl(), FILE.copy(etag = null)),
+                )
+
+            assertEquals(List(2) { RevalidationResult.NotModified }, results)
+            assertNull(List(2) { server.takeRequest() }.last().getHeader("If-None-Match"))
+        }
+
+    @Test
+    fun `a revalidation answered with another file reports it`() =
+        runTest {
+            server.enqueue(MockResponse().setHeader("Content-Length", 12).setHeader("ETag", NEW_ETAG))
+
+            val result = newApi().revalidate(fileUrl(), FILE)
+
+            assertEquals(RevalidationResult.Changed(NEW_FILE), result)
+        }
+
+    @Test
+    fun `a revalidation of a missing file is gone`() =
+        runTest {
+            server.enqueue(MockResponse().setResponseCode(404))
+
+            assertEquals(RevalidationResult.Gone, newApi().revalidate(fileUrl(), FILE))
+        }
+
     // --- index --------------------------------------------------------------
 
     @Test

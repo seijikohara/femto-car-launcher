@@ -1,8 +1,10 @@
 package io.github.seijikohara.femto.data.map.offline
 
+import kotlinx.serialization.Serializable
 import java.io.File
 
-/** What the server says about one region file. */
+/** What the server says about one file. Serializable for the routing data, which keeps it beside each tile. */
+@Serializable
 internal data class RemoteFile(
     val sizeBytes: Long,
     /** As the server sent it, quotes and weak prefix included, so `If-Range` can carry it back unchanged. */
@@ -24,6 +26,23 @@ internal sealed interface ProbeResult {
 
     /** No answer, a redirect, or any other status. */
     data object Unavailable : ProbeResult
+}
+
+/** What a check of a kept file against the server found. */
+internal sealed interface RevalidationResult {
+    /** The server still has the file that was kept. */
+    data object NotModified : RevalidationResult
+
+    /** The server has another file now. */
+    data class Changed(
+        val file: RemoteFile,
+    ) : RevalidationResult
+
+    /** 404 or 410. */
+    data object Gone : RevalidationResult
+
+    /** No answer, a redirect, a changed file without a usable Content-Length, or any other status. */
+    data object Unavailable : RevalidationResult
 }
 
 internal sealed interface IndexResult {
@@ -63,17 +82,21 @@ internal sealed interface TransferResult {
 }
 
 /**
- * The transport the region repository consumes; a seam for JVM tests. Every
- * outcome is a value: nothing throws except cancellation.
+ * The transport for large files on one host: a look at a file, a check of a kept one, and a resumable download.
+ * Shared by the saved map regions and the routing data; a seam for JVM tests. Every outcome is a value: nothing
+ * throws except cancellation.
  */
-internal interface RegionFeed {
-    /** Fetch the region index into [target], revalidated against [etag] when one is given. */
-    suspend fun index(
-        target: File,
-        etag: String?,
-    ): IndexResult
-
+internal interface RemoteFileFeed {
     suspend fun probe(url: String): ProbeResult
+
+    /**
+     * Ask whether the server still has [kept], with a conditional request on its ETag. A kept file without an ETag
+     * that can be sent back is compared with what a plain look at the file finds.
+     */
+    suspend fun revalidate(
+        url: String,
+        kept: RemoteFile,
+    ): RevalidationResult
 
     /**
      * Download [url] into [part], resuming from the bytes it already holds when
@@ -88,4 +111,13 @@ internal interface RegionFeed {
         onRestart: suspend (RemoteFile) -> Boolean,
         onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
     ): TransferResult
+}
+
+/** The transport the region repository consumes: the file transport plus the region index. */
+internal interface RegionFeed : RemoteFileFeed {
+    /** Fetch the region index into [target], revalidated against [etag] when one is given. */
+    suspend fun index(
+        target: File,
+        etag: String?,
+    ): IndexResult
 }

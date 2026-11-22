@@ -38,3 +38,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Femto Car Launcher"
 include(":app")
+include(":brouter")

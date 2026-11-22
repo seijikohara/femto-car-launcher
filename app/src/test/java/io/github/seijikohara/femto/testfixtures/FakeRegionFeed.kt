@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.map.offline.IndexResult
 import io.github.seijikohara.femto.data.map.offline.ProbeResult
 import io.github.seijikohara.femto.data.map.offline.RegionFeed
 import io.github.seijikohara.femto.data.map.offline.RemoteFile
+import io.github.seijikohara.femto.data.map.offline.RevalidationResult
 import io.github.seijikohara.femto.data.map.offline.TransferResult
 import kotlinx.coroutines.CompletableDeferred
 import java.io.File
@@ -93,6 +94,12 @@ internal class FakeRegionFeed(
         probedUrls += url
         return probeAnswers[url] ?: ProbeResult.Unavailable
     }
+
+    // The region repository never revalidates a saved region, so no test of it needs an answer.
+    override suspend fun revalidate(
+        url: String,
+        kept: RemoteFile,
+    ): RevalidationResult = RevalidationResult.Unavailable
 
     override suspend fun download(
         url: String,
