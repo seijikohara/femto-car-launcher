@@ -61,6 +61,7 @@ import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
+import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.strongWeight
 import java.time.Instant
 import java.time.ZoneId
@@ -204,8 +205,10 @@ internal fun SpeedOverlay(
                     },
                 ).glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
                 .padding(
-                    horizontal = FemtoDimens.OverlayPaddingHorizontal,
-                    vertical = FemtoDimens.OverlayPaddingVertical,
+                    start = FemtoDimens.OverlayPaddingHorizontal,
+                    end = FemtoDimens.OverlayPaddingHorizontal,
+                    top = FemtoDimens.OverlayPaddingVertical - MetricRowTopAir,
+                    bottom = FemtoDimens.OverlayPaddingVertical,
                 ),
     ) {
         MetricRow(
@@ -301,6 +304,11 @@ private fun NowMetric(
         WidthReserve(
             sample = THREE_DIGIT_WIDTH_SAMPLE,
             style = heroStyle,
+            // Pinned to the 40sp line: fallback line spacing otherwise grows the
+            // line to the fallback faces' metrics (48dp), and the extra air above
+            // and below the digits made this row look padded twice as deep as
+            // the address row.
+            modifier = Modifier.singleLineBox(heroStyle),
             contentAlignment = Alignment.CenterEnd,
         ) {
             Text(
@@ -316,13 +324,23 @@ private fun NowMetric(
     UnitSuffix(unit, modifier = Modifier.alignByBaseline())
 }
 
+// The metric row's vertical rules; also the height the reset control reports
+// (see [ResetReportedHeight]).
+private val SeparatorHeight = 36.dp
+
+// The air the metric row's line boxes carry above their ink (the small metric
+// labels sit about 3dp below their box), taken off the card's top padding so
+// the gap from the card's top edge to the first ink matches the address row's
+// gap to the bottom edge.
+private val MetricRowTopAir = 3.dp
+
 @Composable
 private fun Separator() =
     Box(
         modifier =
             Modifier
                 .width(1.dp)
-                .height(36.dp)
+                .height(SeparatorHeight)
                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha)),
     )
 
@@ -504,18 +522,23 @@ private fun WidthReserve(
     content()
 }
 
-// The reset control's reported layout width: the full MinTouchTarget circle
-// claimed a metric cell's worth of mostly-empty width at the row's end. The
-// tap target itself must not shrink (AGENTS.md#automotive-overrides — no
-// persisted exception here, and a mis-tap while driving resets the trip), so
-// the 64 dp circle is kept and only its REPORTED width narrows; the overhang
-// lands symmetrically in the row gap and the card's end padding, both dead
-// space where a stray tap already sat next to the button.
+// The reset control's tap target: 48 dp, a deliberate exception to the 64 dp
+// automotive floor (AGENTS.md#automotive-overrides), decided 2026-11-22. A
+// 64 dp target set the metric row's height and left a band of about 22 dp
+// above and below the speed, three times the address row's; at 48 dp the
+// metric row hugs its numerals like the address row does.
+private val ResetTapTarget = 48.dp
+
+// The reset control's reported layout size, smaller than its tap target so the
+// control neither claims a metric cell's worth of width at the row's end nor
+// sets the row's height. The overhang lands in the row gap, the card's end
+// padding and the card's vertical padding, all dead space inside the card.
 private val ResetReportedWidth = 40.dp
+private val ResetReportedHeight = SeparatorHeight
 
 // Trailing reset control for the trip metrics, anchored to the overlay's
-// top-right (the end of the metric row). Full MinTouchTarget tap size (see
-// [ResetReportedWidth] for why the layout width is narrower).
+// top-right (the end of the metric row). See [ResetTapTarget] for its size and
+// [ResetReportedWidth] for why its layout size is smaller.
 @Composable
 private fun ResetButton(
     onReset: () -> Unit,
@@ -525,11 +548,15 @@ private fun ResetButton(
         modifier
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
-                val reported = ResetReportedWidth.roundToPx().coerceAtMost(placeable.width)
-                layout(reported, placeable.height) {
-                    placeable.placeRelative((reported - placeable.width) / 2, 0)
+                val reportedWidth = ResetReportedWidth.roundToPx().coerceAtMost(placeable.width)
+                val reportedHeight = ResetReportedHeight.roundToPx().coerceAtMost(placeable.height)
+                layout(reportedWidth, reportedHeight) {
+                    placeable.placeRelative(
+                        (reportedWidth - placeable.width) / 2,
+                        (reportedHeight - placeable.height) / 2,
+                    )
                 }
-            }.size(FemtoDimens.MinTouchTarget)
+            }.size(ResetTapTarget)
             .clip(CircleShape)
             .clickable(onClick = onReset),
     contentAlignment = Alignment.Center,
