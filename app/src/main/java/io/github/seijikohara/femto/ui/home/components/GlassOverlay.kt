@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.border
+import androidx.compose.foundation.preferKeepClear
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -89,6 +90,11 @@ private val GlassBorderWidth = 1.dp
  * theme lifts the panel off the dark map with a faint white glow (a black shadow
  * would sink into the dark backdrop). The border is the same hairline as the dock
  * / speed-panel dividers — `outlineVariant` at [FemtoDimens.DividerAlpha].
+ *
+ * Every glass surface is also a keep-clear area: the system then moves another
+ * app's picture-in-picture window off the cards, the overlays and the dock into
+ * the open map, where it honours app keep-clear areas (Android 13 QPR3 and later).
+ * An ordinary app cannot place or size that window any other way (#390).
  */
 @Composable
 internal fun Modifier.glassChrome(
@@ -97,6 +103,7 @@ internal fun Modifier.glassChrome(
     glassConfig: GlassConfig,
 ): Modifier =
     this
+        .preferKeepClear()
         .then(
             if (glassConfig.shadowEnabled && glassConfig.shadowSize > 0.dp) {
                 // Theme is read only on the enabled path, so a default (shadow-off)
