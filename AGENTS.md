@@ -44,6 +44,8 @@ app/src/
 
 `scripts/` (top level) holds maintainer scripts that regenerate committed data; each says in its header what it writes. `update-shortbread-regions.mjs` refreshes `app/src/main/assets/map/offline/shortbread-regions.json`, the list of regions the app offers for saving. `build-standard-map-styles.mjs` regenerates the Standard map scheme's `app/src/main/assets/map/standard-*.json` from the bundled bases and the palette it holds.
 
+`brouter/` (top level) is the `:brouter` Gradle module: the BRouter routing engine, vendored unmodified; `brouter/README.md` names the upstream tag and how to update it.
+
 Trivial stateless screens need only `<Area>Screen.kt` — see `.claude/rules/compose.md`.
 
 ## Rules
