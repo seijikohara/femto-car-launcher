@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalCoroutinesApi::class)
+@file:OptIn(ExperimentalCoroutinesApi::class) // flatMapLatest in activeRoute.
 
 package io.github.seijikohara.femto.ui.home
 
