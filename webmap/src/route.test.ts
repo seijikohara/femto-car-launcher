@@ -7,6 +7,7 @@ import {
     ROUTE_SOURCE_ID,
     type RouteLine,
     type RouteMap,
+    routeInsertIndex,
     showRoute,
 } from "./route";
 
@@ -104,19 +105,37 @@ function fakeMap(initialLayers: LayerSpecification[]): RouteMap & {
     return fake;
 }
 
+// Shaped like the Dark Matter base: a water label early on, under the roads
+// and buildings, then the trailing block of labels.
 const LABELED: LayerSpecification[] = [
     { id: "bg", type: "background" },
+    { id: "water_name", type: "symbol", source: "openmaptiles", "source-layer": "water_name" },
+    { id: "building", type: "fill", source: "openmaptiles", "source-layer": "building" },
     { id: "road", type: "line", source: "openmaptiles", "source-layer": "transportation" },
     { id: "road-label", type: "symbol", source: "openmaptiles", "source-layer": "transportation" },
     { id: "place-label", type: "symbol", source: "openmaptiles", "source-layer": "place" },
 ];
 
+describe("routeInsertIndex", () => {
+    it("points right after the last non-symbol layer", () => {
+        expect(routeInsertIndex(LABELED)).toBe(4);
+    });
+
+    it("points past the end when no label follows the last drawn layer", () => {
+        const unlabeled = LABELED.filter((l) => l.type !== "symbol");
+        expect(routeInsertIndex(unlabeled)).toBe(unlabeled.length);
+        expect(routeInsertIndex([])).toBe(0);
+    });
+});
+
 describe("showRoute", () => {
-    it("adds the casing under the line, beneath the first label layer", () => {
+    it("adds the casing under the line, above every road and building, below the trailing labels", () => {
         const map = fakeMap(LABELED);
         showRoute(map, route());
         expect(map.getLayersOrder()).toEqual([
             "bg",
+            "water_name",
+            "building",
             "road",
             ROUTE_CASING_LAYER_ID,
             ROUTE_LINE_LAYER_ID,

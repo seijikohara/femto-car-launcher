@@ -6,7 +6,8 @@ import {
     isNetworkStatus,
     ScriptLoadError,
 } from "./load-outcome";
-import { TERRAIN_SOURCE_ID } from "./style";
+import { ROUTE_SOURCE_ID } from "./route";
+import { NON_TILE_HOST_SOURCE_IDS, TERRAIN_SOURCE_ID } from "./style";
 
 const TILE_HOST = "https://tiles.openfreemap.org";
 // The bundled styles' vector source, served by the tile host.
@@ -50,14 +51,14 @@ function fakeReporter() {
 }
 
 // A no-tile watchdog wired the way osm.ts wires it (one tile host, the
-// terrain DEM ignored), with a style that has loaded unless the test says
-// otherwise.
+// terrain DEM and the route line ignored), with a style that has loaded
+// unless the test says otherwise.
 function noTileHarness(options: { styleLoaded?: boolean } = {}) {
     const { schedule, advance } = fakeTimers();
     const { events, reporter } = fakeReporter();
     const watchdog = createNoTileWatchdog({
         tileHost: TILE_HOST,
-        ignoredSourceIds: [TERRAIN_SOURCE_ID],
+        ignoredSourceIds: NON_TILE_HOST_SOURCE_IDS,
         graceMs: GRACE_MS,
         styleLoaded: () => options.styleLoaded ?? true,
         reporter,
@@ -194,6 +195,16 @@ describe("createNoTileWatchdog", () => {
         const h = noTileHarness();
         h.watchdog.onError(TILEJSON_FAILURE, 0);
         h.watchdog.onTile(TERRAIN_SOURCE_ID);
+        h.advance(GRACE_MS);
+        expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`]);
+    });
+
+    it("does not count a route line tile as the tile host answering", () => {
+        // The route's tiles are cut on the device from the host's GeoJSON, so
+        // they arrive on a page whose tile host is dead.
+        const h = noTileHarness();
+        h.watchdog.onError(TILEJSON_FAILURE, 0);
+        h.watchdog.onTile(ROUTE_SOURCE_ID);
         h.advance(GRACE_MS);
         expect(h.events).toEqual([`fatal=tile-host-unreachable: ${TILEJSON_FAILURE}`]);
     });

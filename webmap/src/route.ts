@@ -121,20 +121,35 @@ export interface RouteMap {
     getLayersOrder(): string[];
 }
 
+// Where the route's layers go in a style's layer list: directly after its last
+// non-symbol layer, so the line sits above every road, bridge and building
+// fill and below the trailing block of labels; on top when the style has no
+// label after its last drawn layer. Not beneath the first symbol layer, which
+// the 3D buildings use: the Dark Matter base (dark.json, standard-dark.json)
+// opens with water labels, so that position would put the route under every
+// road and building of the dark map.
+export function routeInsertIndex(layers: readonly { type: string }[]): number {
+    // A reduce, not findLastIndex: that is ES2023, past the tsconfig lib.
+    return layers.reduce((last, l, i) => (l.type === "symbol" ? last : i), -1) + 1;
+}
+
 // Replace the route on a loaded style: remove the current line (layers before
-// their source, which MapLibre requires), then, for a route, add it beneath the
-// first label layer — the place injectFeatures gives it on a style swap — or on
-// top when the style has no labels. Removal is guarded by presence, since
-// MapLibre reports removing a missing layer as a map error. Throws, before
-// adding anything, while a swapped-in style is still loading; the caller leaves
-// the route to that swap, whose injectFeatures reads the same state.
+// their source, which MapLibre requires), then, for a route, add it at
+// routeInsertIndex — the place injectFeatures gives it on a style swap.
+// Removal is guarded by presence, since MapLibre reports removing a missing
+// layer as a map error. Throws, before adding anything, while a swapped-in
+// style is still loading; the caller leaves the route to that swap, whose
+// injectFeatures reads the same state.
 export function showRoute(map: RouteMap, route: RouteLine | null): void {
     for (const id of ROUTE_LAYER_IDS) {
         if (map.getLayer(id)) map.removeLayer(id);
     }
     if (map.getSource(ROUTE_SOURCE_ID)) map.removeSource(ROUTE_SOURCE_ID);
     if (!route) return;
-    const beforeId = map.getLayersOrder().find((id) => map.getLayer(id)?.type === "symbol");
+    const order = map.getLayersOrder();
+    const types = order.map((id) => ({ type: map.getLayer(id)?.type ?? "" }));
+    // Undefined (the index past the end) adds on top.
+    const beforeId: string | undefined = order[routeInsertIndex(types)];
     map.addSource(ROUTE_SOURCE_ID, routeSource(route));
     for (const layer of routeLayers(route)) map.addLayer(layer, beforeId);
 }

@@ -8,6 +8,7 @@ import {
     ROUTE_LAYER_IDS,
     ROUTE_SOURCE_ID,
     type RouteLine,
+    routeInsertIndex,
     routeLayers,
     routeSource,
 } from "./route";
@@ -69,6 +70,13 @@ export const DEFAULT_TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejs
 // Its tiles come from the DEM host, not the tile host, so the no-tile
 // watchdog (load-outcome.ts) must not count them.
 export const TERRAIN_SOURCE_ID = "terrainSource";
+
+// The sources the page injects whose tiles say nothing about the tile host:
+// the terrain DEM comes from its own host, and the route line's tiles are cut
+// on the device from the host's GeoJSON. The no-tile watchdog
+// (load-outcome.ts) ignores them, or a page without map data would report
+// its success signal from either.
+export const NON_TILE_HOST_SOURCE_IDS: readonly string[] = [TERRAIN_SOURCE_ID, ROUTE_SOURCE_ID];
 
 // The origin the bundled styles and the hosted style URLs are written against.
 // The launcher may serve the same layout from another host (a self-hosted
@@ -215,14 +223,6 @@ function setPaint(layer: LayerSpecification, key: string, value: unknown): void 
     mutable.paint[key] = value;
 }
 
-// Insert [layers] beneath the style's first label (symbol) layer, so labels
-// stay readable on top of what the page adds; on top when the style has none.
-function insertBelowLabels(style: StyleSpecification, layers: LayerSpecification[]): void {
-    const firstSymbol = style.layers.findIndex((l) => l.type === "symbol");
-    if (firstSymbol < 0) style.layers.push(...layers);
-    else style.layers.splice(firstSymbol, 0, ...layers);
-}
-
 // MapLibre transformStyle body: merge the active feature layers/sources into a
 // freshly-loaded base style. OFF features are simply not injected, so toggling
 // off and re-setting the style removes them cleanly.
@@ -282,6 +282,8 @@ export function injectFeatures(
     // for the first features push (which always carries the theme colour).
     const buildingColor = styleBuildingColorOrNull(nextStyle) ?? features.buildingColor;
     if (features.buildings && features.buildingColor && src) {
+        // Insert beneath the first label (symbol) layer so labels stay on top.
+        const firstSymbol = nextStyle.layers.find((l) => l.type === "symbol");
         const buildings = {
             id: "femto-3d-buildings",
             source: src,
@@ -312,14 +314,16 @@ export function injectFeatures(
                 "fill-extrusion-opacity": BUILDING_EXTRUSION_OPACITY,
             },
         } as LayerSpecification;
-        insertBelowLabels(nextStyle, [buildings]);
+        if (firstSymbol)
+            nextStyle.layers.splice(nextStyle.layers.indexOf(firstSymbol), 0, buildings);
+        else nextStyle.layers.push(buildings);
     }
     // After the buildings, so the line stays visible where it passes behind an
-    // extrusion.
+    // extrusion; routeInsertIndex says why it does not share their position.
     const route = features.route;
     if (route) {
         nextStyle.sources[ROUTE_SOURCE_ID] = routeSource(route);
-        insertBelowLabels(nextStyle, routeLayers(route));
+        nextStyle.layers.splice(routeInsertIndex(nextStyle.layers), 0, ...routeLayers(route));
     }
     if (features.terrain) {
         nextStyle.sources[TERRAIN_SOURCE_ID] = {

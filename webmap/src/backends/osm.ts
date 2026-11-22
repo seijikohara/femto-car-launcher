@@ -23,12 +23,12 @@ import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
 import { createNoTileWatchdog, createStyleLoadWatchdog } from "../load-outcome";
 import { requestStatusOf } from "../request-status";
-import { decodeRoute, ROUTE_SOURCE_ID, type RouteLine, showRoute } from "../route";
+import { decodeRoute, type RouteLine, showRoute } from "../route";
 import {
     type AccentColors,
     injectFeatures,
+    NON_TILE_HOST_SOURCE_IDS,
     rewriteHost,
-    TERRAIN_SOURCE_ID,
     UPSTREAM_TILE_HOST,
 } from "../style";
 
@@ -153,10 +153,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
 
         const noTileWatchdog = createNoTileWatchdog({
             tileHost,
-            // The terrain DEM comes from its own host, not the tile host, and
-            // the route line's tiles are cut on the device from the host's
-            // GeoJSON: neither proves the tile host answers.
-            ignoredSourceIds: [TERRAIN_SOURCE_ID, ROUTE_SOURCE_ID],
+            ignoredSourceIds: NON_TILE_HOST_SOURCE_IDS,
             graceMs: LOAD_FATAL_GRACE_MS,
             styleLoaded: styleWatchdog.styleLoaded,
             reporter,

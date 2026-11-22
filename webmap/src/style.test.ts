@@ -216,12 +216,32 @@ describe("injectFeatures: route line", () => {
     const route = decodeRoute([35.68, 139.76, 35.69, 139.69], "#3367D6", "#FFFFFF");
     const ROUTE = { ...OFF, route };
 
-    it("inserts the casing and the line beneath the first symbol layer", () => {
+    it("inserts the casing and the line after the last non-symbol layer", () => {
         const ids = injectFeatures(baseStyle(), ROUTE).layers.map((l) => l.id);
-        expect(ids.slice(ids.indexOf("labels") - 2, ids.indexOf("labels"))).toEqual([
+        expect(ids.slice(ids.indexOf("aeroway-runway") + 1, ids.indexOf("labels"))).toEqual([
             ROUTE_CASING_LAYER_ID,
             ROUTE_LINE_LAYER_ID,
         ]);
+    });
+
+    it("keeps the route above the roads when a label comes early", () => {
+        // The Dark Matter base opens with water labels under its roads and
+        // buildings; the 3D buildings still go beneath that first label.
+        const style = baseStyle();
+        style.layers.splice(1, 0, {
+            id: "water_name",
+            type: "symbol",
+            source: "openmaptiles",
+            "source-layer": "water_name",
+        });
+        const ids = injectFeatures(style, {
+            ...ROUTE,
+            buildings: true,
+            buildingColor: "#404040",
+        }).layers.map((l) => l.id);
+        expect(ids.indexOf("femto-3d-buildings")).toBe(ids.indexOf("water_name") - 1);
+        expect(ids.indexOf(ROUTE_CASING_LAYER_ID)).toBe(ids.indexOf("aeroway-runway") + 1);
+        expect(ids.indexOf(ROUTE_LINE_LAYER_ID)).toBe(ids.indexOf("labels") - 1);
     });
 
     it("appends the route when the style has no symbol layer", () => {
