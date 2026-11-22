@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.destination
 
 import android.Manifest
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -101,7 +102,8 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * action sits beside Navigate and on each saved place that can be routed to
  * ([DestinationUiState.canRoute]); it works in every motion state, like a tap
  * on a saved place. While a route is under way or has failed, [RouteStatus]
- * takes the panel's body over. Closing the panel stops the route under way.
+ * takes the panel's body over. Closing the panel stops the route under way; a
+ * configuration change, after which the panel comes straight back, does not.
  *
  * A landscape panel puts the entry beside the saved places; a portrait panel
  * stacks them, the entry above, matching how [io.github.seijikohara.femto.ui.home.components.CalendarPanel]
@@ -132,14 +134,20 @@ internal fun DestinationPanel(
     // Closing the panel (or the panel leaving composition any other way)
     // cancels a mic still listening: nothing on screen would show the
     // microphone open, and a late result must not refill the next open.
-    // The same goes for a route under way: nothing would show it running, and
-    // its result would land after the driver gave up on it.
+    // A route under way stops only when the panel closes: nothing would show it
+    // running, and its result would land after the driver gave up on it. A
+    // configuration change (a rotation) disposes the panel too, but the panel
+    // comes straight back on the same ViewModel, which keeps the download or
+    // the search running and shows it again; stopping it there would drop the
+    // driver back at the entry with no word of why.
+    val activity = LocalActivity.current
     val currentOnAction by rememberUpdatedState(onAction)
     val currentRoute by rememberUpdatedState(uiState.route)
     DisposableEffect(Unit) {
         onDispose {
             currentOnAction(DestinationAction.CancelListening)
-            if (currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
+            val closing = activity?.isChangingConfigurations != true
+            if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
         }
     }
     // Every hand-off cancels recognition first: the launch can pause the

@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.destination
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -8,7 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -38,8 +40,10 @@ import kotlin.test.assertEquals
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [33], qualifiers = "w853dp-h512dp-mdpi")
 class DestinationPanelTest {
+    // The activity rule's form, so a test can recreate the activity as a
+    // configuration change does.
     @get:Rule
-    val rule = createComposeRule()
+    val rule = createAndroidComposeRule<ComponentActivity>()
 
     private val actions = mutableListOf<DestinationAction>()
     private val handoffs = mutableListOf<Pair<PlaceTarget, String>>()
@@ -357,6 +361,56 @@ class DestinationPanelTest {
         rule.onNodeWithText("Download again").performClick()
         assertEquals(listOf<DestinationAction>(DestinationAction.DownloadAgain), actions)
     }
+
+    @Test
+    fun closing_the_panel_stops_the_route_under_way() {
+        var shown by mutableStateOf(true)
+        rule.setContent {
+            FemtoTheme {
+                if (shown) RouteUnderWayPanel()
+            }
+        }
+        rule.waitForIdle()
+
+        shown = false
+        rule.waitForIdle()
+
+        assertEquals(listOf(DestinationAction.CancelListening, DestinationAction.DismissRoute), actions)
+    }
+
+    @Test
+    fun a_configuration_change_keeps_the_route_under_way() {
+        rule.setContent { FemtoTheme { RouteUnderWayPanel() } }
+        rule.waitForIdle()
+
+        // A rotation disposes the panel with the old activity, and the panel
+        // comes back on the same ViewModel: the download goes on.
+        rule.activityRule.scenario.recreate()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.CancelListening), actions)
+    }
+
+    @Composable
+    private fun RouteUnderWayPanel() =
+        DestinationPanel(
+            uiState =
+                DestinationUiState(
+                    query = "",
+                    voice = VoiceState.Idle,
+                    places = emptyList(),
+                    motion = VehicleMotion.PARKED,
+                    routeAvailable = true,
+                    route = RouteStep.Downloading(receivedBytes = 1_000L, totalBytes = 2_000L),
+                ),
+            currentPoint = null,
+            currentAddress = "",
+            onAction = { actions += it },
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
 }
 
 private const val NO_HANDLER_LINE =
