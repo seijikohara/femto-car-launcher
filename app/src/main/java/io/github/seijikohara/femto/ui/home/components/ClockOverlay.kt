@@ -88,7 +88,7 @@ internal fun ClockOverlay(
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
                 .padding(
                     horizontal = FemtoDimens.OverlayPaddingHorizontal,
-                    // The info cards' inner padding, not OverlayPaddingVertical:
+                    // The info cards' inner padding, not the speed overlay's:
                     // the clock tops the hero row beside the calendar / weather
                     // cards, and an equal inset keeps its numeral on their line.
                     vertical = FemtoDimens.CardPaddingCompact,

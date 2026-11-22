@@ -169,9 +169,8 @@ object FemtoDimens {
      */
     val SpectrumHorizontalInset = 40.dp
 
-    /** Inner padding for the small glass map overlays (clock / speed pill). */
+    /** Horizontal inner padding for the small glass map overlays (clock / speed pill). */
     val OverlayPaddingHorizontal = 16.dp
-    val OverlayPaddingVertical = 6.dp
 
     /**
      * Upper bound on the speed overlay's width so it reads as a centred glass
