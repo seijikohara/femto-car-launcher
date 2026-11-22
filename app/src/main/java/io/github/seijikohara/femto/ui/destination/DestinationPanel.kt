@@ -104,8 +104,8 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * on a saved place. A route starts from [lastFix], which the ViewModel checks
  * for age; Save current location keeps its point as it is. While a route is
  * under way or has failed, [RouteStatus] takes the panel's body over. Closing
- * the panel stops the route under way; a
- * configuration change, after which the panel comes straight back, does not.
+ * the panel stops the route under way; a configuration change, after which
+ * the panel comes straight back, does not.
  *
  * A landscape panel puts the entry beside the saved places; a portrait panel
  * stacks them, the entry above, matching how [io.github.seijikohara.femto.ui.home.components.CalendarPanel]
