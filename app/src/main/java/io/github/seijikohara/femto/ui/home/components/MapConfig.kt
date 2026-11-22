@@ -11,8 +11,8 @@ import io.github.seijikohara.femto.data.display.MapStyleSetting
 // toggles (3D buildings / terrain relief).
 internal data class MapConfig(
     val style: MapStyleSetting = MapStyleSetting.AUTO,
-    val schemeLight: MapColorScheme = MapColorScheme.ACCENT,
-    val schemeDark: MapColorScheme = MapColorScheme.ACCENT,
+    val schemeLight: MapColorScheme = MapColorScheme.STANDARD,
+    val schemeDark: MapColorScheme = MapColorScheme.STANDARD,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
     // North-up pins the camera to north (the chevron rotates to the heading
@@ -35,7 +35,7 @@ internal data class MapConfig(
     // retries — see WebMapView.mapTileHosts.
     val tileHostOverride: String = "",
     // OSM-only: the hosted style the CUSTOM scheme loads (blank = CUSTOM renders
-    // as ACCENT). May carry a provider key — see MapScheme.mapStyleRefFor.
+    // as STANDARD). May carry a provider key — see MapScheme.mapStyleRefFor.
     val customStyleUrl: String = "",
     val markerPos: Int = 70,
     // Fraction (0..0.5) of the map height the bottom speed overlay occupies,

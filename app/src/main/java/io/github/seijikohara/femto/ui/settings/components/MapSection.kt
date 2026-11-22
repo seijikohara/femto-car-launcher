@@ -162,7 +162,7 @@ internal fun MapSection(
         // A note on the whole Google Maps group, so it sits under the group
         // rather than inside one of its rows.
         AnimatedVisibility(visible = google) {
-            SettingsGroupNote(text = stringResource(R.string.settings_map_accent_osm_only_note))
+            SettingsGroupNote(text = stringResource(R.string.settings_map_scheme_osm_only_note))
         }
         AnimatedVisibility(visible = uiState.mapBackend == MapBackend.OSM) {
             SettingsGroup(header = stringResource(R.string.settings_subheader_map_rendering)) {

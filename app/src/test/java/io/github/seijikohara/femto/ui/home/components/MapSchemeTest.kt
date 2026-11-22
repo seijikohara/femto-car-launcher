@@ -7,6 +7,18 @@ import kotlin.test.assertTrue
 
 class MapSchemeTest {
     @Test
+    fun `standard resolves to its bundled style for each context`() {
+        assertEquals(
+            MapStyleRef.Bundled(STANDARD_LIGHT_STYLE_ASSET),
+            mapStyleRefFor(MapColorScheme.STANDARD, isDark = false),
+        )
+        assertEquals(
+            MapStyleRef.Bundled(STANDARD_DARK_STYLE_ASSET),
+            mapStyleRefFor(MapColorScheme.STANDARD, isDark = true),
+        )
+    }
+
+    @Test
     fun `accent resolves to the light base in the light context`() {
         val ref = mapStyleRefFor(MapColorScheme.ACCENT, isDark = false)
         assertTrue(ref is MapStyleRef.Accent)
@@ -53,11 +65,11 @@ class MapSchemeTest {
     }
 
     @Test
-    fun `custom with no url renders as accent for the active context`() {
+    fun `custom with no url renders as standard for the active context`() {
         // Never a blank map: until a URL is entered the choice falls back to the
-        // adaptive default, matching what the Style URL row's summary promises.
+        // default scheme, matching what the Style URL failure hint promises.
         assertEquals(
-            mapStyleRefFor(MapColorScheme.ACCENT, isDark = true),
+            mapStyleRefFor(MapColorScheme.STANDARD, isDark = true),
             mapStyleRefFor(MapColorScheme.CUSTOM, isDark = true, customStyleUrl = "  "),
         )
     }

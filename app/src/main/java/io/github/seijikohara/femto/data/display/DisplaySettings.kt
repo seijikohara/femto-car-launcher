@@ -119,16 +119,18 @@ internal enum class OrientationSetting { AUTO, LANDSCAPE, PORTRAIT }
 internal enum class MapStyleSetting { AUTO, LIGHT, DARK }
 
 /**
- * A map colour scheme. [ACCENT] is the adaptive default: the base style for the
- * active light/dark context (bundled positron / dark-matter) recoloured with the
- * app's Material accent. The rest are fixed OpenFreeMap styles — [POSITRON],
- * [BRIGHT], [LIBERTY] read as light; [DARK_MATTER] (bundled), [DARK], [FIORD] read
- * as dark — except [CUSTOM], which loads whatever hosted style
- * [DisplaySettings.mapCustomStyleUrl] names and renders as [ACCENT] while that is
+ * A map colour scheme. [STANDARD] is the default: the bundled positron (light) /
+ * dark-matter (dark) bases painted with a fixed palette that borrows OpenMapTiles'
+ * readability (`scripts/build-standard-map-styles.mjs`). [ACCENT] recolours the
+ * same bases with the app's Material accent. The rest are fixed OpenFreeMap styles
+ * — [POSITRON], [BRIGHT], [LIBERTY] read as light; [DARK_MATTER] (bundled), [DARK],
+ * [FIORD] read as dark — except [CUSTOM], which loads whatever hosted style
+ * [DisplaySettings.mapCustomStyleUrl] names and renders as [STANDARD] while that is
  * blank. The light and dark schemes are chosen independently (see
- * [DisplaySettings.mapSchemeLight] / [DisplaySettings.mapSchemeDark]).
+ * [DisplaySettings.mapSchemeLight] / [DisplaySettings.mapSchemeDark]). Stored by
+ * name, so a choice saved before [STANDARD] existed still reads back unchanged.
  */
-internal enum class MapColorScheme { ACCENT, POSITRON, BRIGHT, LIBERTY, DARK_MATTER, DARK, FIORD, CUSTOM }
+internal enum class MapColorScheme { STANDARD, ACCENT, POSITRON, BRIGHT, LIBERTY, DARK_MATTER, DARK, FIORD, CUSTOM }
 
 /** Default oblique-camera tilt (degrees) and zoom level for the map. */
 internal const val DEFAULT_MAP_TILT_DEG = 55
@@ -206,7 +208,7 @@ internal data class DisplaySettings(
     val assistantLaunch: AssistantLaunchSetting,
     val mapStyle: MapStyleSetting,
     // Independent colour schemes for the light and dark map contexts (which one
-    // applies follows [mapStyle] / the system theme). Both default to ACCENT.
+    // applies follows [mapStyle] / the system theme). Both default to STANDARD.
     val mapSchemeLight: MapColorScheme,
     val mapSchemeDark: MapColorScheme,
     val mapTiltDeg: Int,
@@ -322,8 +324,8 @@ internal data class DisplaySettings(
                 keepScreenOn = true,
                 assistantLaunch = AssistantLaunchSetting.SYSTEM,
                 mapStyle = MapStyleSetting.AUTO,
-                mapSchemeLight = MapColorScheme.ACCENT,
-                mapSchemeDark = MapColorScheme.ACCENT,
+                mapSchemeLight = MapColorScheme.STANDARD,
+                mapSchemeDark = MapColorScheme.STANDARD,
                 mapTiltDeg = DEFAULT_MAP_TILT_DEG,
                 mapZoom = DEFAULT_MAP_ZOOM,
                 mapNorthUp = false,

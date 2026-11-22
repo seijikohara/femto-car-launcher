@@ -9,9 +9,10 @@ import io.github.seijikohara.femto.data.display.MapColorScheme
 // "#rrggbb" for a map style / CSS, dropping the alpha (style colours are opaque).
 internal fun Color.toCssHex(): String = "#%06X".format(0xFFFFFF and toArgb())
 
-// Hosted OpenFreeMap style base URL and the two bundled base styles. The bundled
-// styles are the accent base (recoloured) and DARK_MATTER; everything else is a
-// hosted OpenFreeMap style.
+// Hosted OpenFreeMap style base URL and the bundled styles. The two bases serve
+// ACCENT (recoloured) and DARK_MATTER; the two Standard styles are generated from
+// them by scripts/build-standard-map-styles.mjs; everything else is a hosted
+// OpenFreeMap style.
 //
 // The origin here must stay the one the page rewrites from
 // (`UPSTREAM_TILE_HOST` in webmap/src/style.ts) and the one the bundled
@@ -21,6 +22,8 @@ internal const val OFM_STYLE_BASE = "https://tiles.openfreemap.org/styles/"
 internal const val POSITRON_STYLE_URL = OFM_STYLE_BASE + "positron"
 internal const val LIGHT_STYLE_ASSET = "map/light.json"
 internal const val DARK_STYLE_ASSET = "map/dark.json"
+internal const val STANDARD_LIGHT_STYLE_ASSET = "map/standard-light.json"
+internal const val STANDARD_DARK_STYLE_ASSET = "map/standard-dark.json"
 
 /**
  * Where a [MapColorScheme] gets its style from, resolved for the active light/dark
@@ -55,6 +58,10 @@ internal fun mapStyleRefFor(
     customStyleUrl: String = "",
 ): MapStyleRef =
     when (scheme) {
+        MapColorScheme.STANDARD -> {
+            MapStyleRef.Bundled(if (isDark) STANDARD_DARK_STYLE_ASSET else STANDARD_LIGHT_STYLE_ASSET)
+        }
+
         MapColorScheme.ACCENT -> {
             MapStyleRef.Accent(if (isDark) DARK_STYLE_ASSET else LIGHT_STYLE_ASSET)
         }
@@ -85,13 +92,13 @@ internal fun mapStyleRefFor(
 
         // The user's own hosted style, loaded as published — its document names
         // its tile, sprite and glyph hosts, so nothing is rewritten. Until a URL
-        // is entered the scheme renders as ACCENT rather than as a blank map.
+        // is entered the scheme renders as STANDARD rather than as a blank map.
         MapColorScheme.CUSTOM -> {
             customStyleUrl
                 .trim()
                 .takeIf { it.isNotBlank() }
                 ?.let { MapStyleRef.Hosted(it, custom = true) }
-                ?: mapStyleRefFor(MapColorScheme.ACCENT, isDark)
+                ?: mapStyleRefFor(MapColorScheme.STANDARD, isDark)
         }
     }
 

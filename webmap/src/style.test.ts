@@ -14,6 +14,7 @@ import {
     markerXFraction,
     rewriteHost,
     roadClassOrNull,
+    STYLE_BUILDING_COLOR_KEY,
     UPSTREAM_TILE_HOST,
     vectorSourceId,
 } from "./style";
@@ -150,6 +151,13 @@ describe("injectFeatures: 3D buildings", () => {
             buildingColor: "",
         });
         expect(out.layers.some((l) => l.id === "femto-3d-buildings")).toBe(false);
+    });
+
+    it("paints the extrusion with the style's own colour when its metadata names one", () => {
+        const style = baseStyle();
+        style.metadata = { [STYLE_BUILDING_COLOR_KEY]: "#d9d5cf" };
+        const paint = paintOf(injectFeatures(style, BUILDINGS), "femto-3d-buildings");
+        expect(paint?.["fill-extrusion-color"]).toBe("#d9d5cf");
     });
 
     it("is idempotent across re-application", () => {
