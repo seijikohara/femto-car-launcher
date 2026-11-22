@@ -19,11 +19,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -34,11 +37,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.Flag
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.RotateCcw
+import com.composables.icons.lucide.X
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -46,6 +52,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.location.TripState
+import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
 import io.github.seijikohara.femto.ui.locale.fromMetersPerSecond
@@ -57,16 +64,22 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.Motion
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
+import io.github.seijikohara.femto.ui.theme.TabularFigures
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.glanceMetric
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.sectionLabel
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.strongWeight
+import kotlinx.coroutines.delay
+import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 /**
  * Glass overlay anchored to the map pane's bottom-centre (layout inherited
@@ -75,6 +88,8 @@ import kotlin.math.roundToInt
  *  - Metric row: hero current speed | separator | distance | separator |
  *    average speed | separator | reset-trip button (top-right).
  *  - Below: a 1 dp top border, then a MapPin · short-address row.
+ *  - With an active route: another border, then a Flag · remaining distance ·
+ *    arrival time row with a clear button ([RouteRow]).
  *  - MaterialTheme.shapes.large corner and a 1 dp outline border. The Column wraps its
  *    content rather than claiming a fixed width, so the metric cells sit
  *    tight with a consistent 16 dp gap and the overlay never stretches to
@@ -117,6 +132,12 @@ internal fun SpeedOverlay(
     // consumes its own taps) maximizes into the trip flyover — the same
     // whole-card idiom the calendar and weather cards use to expand.
     onExpand: (() -> Unit)? = null,
+    // What is left of the active route (issue #389 phase 3); null hides the
+    // route row. [onClearRoute] is its clear button, and [clock] the "now" its
+    // arrival time counts from (the dashboard's injected clock).
+    route: RouteProgress? = null,
+    onClearRoute: () -> Unit = {},
+    clock: Clock = Clock.systemDefaultZone(),
 ) {
     val expandLabel = stringResource(R.string.speed_expand_trip)
     // Source the hero numeral from the trip's effective speed, not
@@ -233,6 +254,23 @@ internal fun SpeedOverlay(
         ZeroIntrinsicWidth {
             AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER }, altitudeM = altitudeM)
         }
+        // The route row (issue #389 phase 3) follows the address row's divider
+        // and spacing; like the address it stays out of the width vote, so a
+        // route never widens the card.
+        if (route != null) {
+            Box(modifier = Modifier.height(RowInkGap - AddressRowAir))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
+            Box(modifier = Modifier.height(RowInkGap - AddressRowAir))
+            ZeroIntrinsicWidth {
+                RouteRow(
+                    progress = route,
+                    speedUnit = speedUnit,
+                    is24Hour = is24Hour,
+                    clock = clock,
+                    onClear = onClearRoute,
+                )
+            }
+        }
     }
 }
 
@@ -273,7 +311,12 @@ private fun MetricRow(
     if (sinceTimestamp != null) {
         SinceCell(timestamp = sinceTimestamp)
     }
-    ResetButton(onReset = onReset)
+    RowEndButton(
+        icon = Lucide.RotateCcw,
+        description = stringResource(R.string.speed_reset_trip),
+        reportedHeight = SeparatorHeight,
+        onClick = onReset,
+    )
 }
 
 @Composable
@@ -324,7 +367,7 @@ private fun NowMetric(
 }
 
 // The metric row's vertical rules; also the height the reset control reports
-// (see [ResetReportedHeight]).
+// (see [RowEndButton]).
 private val SeparatorHeight = 36.dp
 
 // The gap from each row's ink to the nearest card edge or to the divider: the
@@ -467,13 +510,7 @@ private fun AddressRow(
     )
     Text(
         text = text,
-        style =
-            MaterialTheme.typography.glanceCaption(
-                base = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Normal,
-                lineHeight = 16.sp,
-                fontFeatureSettings = null,
-            ),
+        style = rowCaptionStyle(tabularFigures = false),
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -527,56 +564,180 @@ private fun WidthReserve(
     content()
 }
 
-// The reset control's tap target: 48 dp, a deliberate exception to the 64 dp
-// automotive floor (AGENTS.md#automotive-overrides), decided 2026-11-22. A
-// 64 dp target set the metric row's height and left a band of about 22 dp
-// above and below the speed, three times the address row's; at 48 dp the
-// metric row hugs its numerals like the address row does.
-private val ResetTapTarget = 48.dp
+// The tap target of a row's trailing control (the trip reset, the route
+// clear): 48 dp, a deliberate exception to the 64 dp automotive floor
+// (AGENTS.md#automotive-overrides), decided 2026-11-22. A 64 dp target set the
+// metric row's height and left a band of about 22 dp above and below the
+// speed, three times the address row's; at 48 dp the metric row hugs its
+// numerals like the address row does.
+private val RowButtonTapTarget = 48.dp
 
-// The reset control's reported layout size, smaller than its tap target so the
-// control neither claims a metric cell's worth of width at the row's end nor
-// sets the row's height. The overhang lands in the row gap, the card's end
-// padding and the card's vertical padding, all dead space inside the card.
-private val ResetReportedWidth = 40.dp
-private val ResetReportedHeight = SeparatorHeight
+// A trailing control's reported layout width, smaller than its tap target so
+// the control does not claim a metric cell's worth of width at the row's end.
+// Its reported height is its row's own (see [RowEndButton]), so it does not
+// set the row's height either. The overhang lands in the row gap, the card's
+// end padding and the gaps around the row, dead space inside the card.
+private val RowButtonReportedWidth = 40.dp
 
-// Trailing reset control for the trip metrics, anchored to the overlay's
-// top-right (the end of the metric row). See [ResetTapTarget] for its size and
-// [ResetReportedWidth] for why its layout size is smaller.
+// A row's trailing control: the trip reset at the end of the metric row, the
+// route clear at the end of the route row. See [RowButtonTapTarget] for its
+// size and [RowButtonReportedWidth] for why its layout size is smaller;
+// [reportedHeight] is the height of the row it ends.
 @Composable
-private fun ResetButton(
-    onReset: () -> Unit,
+private fun RowEndButton(
+    icon: ImageVector,
+    description: String,
+    reportedHeight: Dp,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Box(
     modifier =
         modifier
             .layout { measurable, constraints ->
                 val placeable = measurable.measure(constraints)
-                val reportedWidth = ResetReportedWidth.roundToPx().coerceAtMost(placeable.width)
-                val reportedHeight = ResetReportedHeight.roundToPx().coerceAtMost(placeable.height)
-                layout(reportedWidth, reportedHeight) {
+                val reportedWidth = RowButtonReportedWidth.roundToPx().coerceAtMost(placeable.width)
+                val reportedHeightPx = reportedHeight.roundToPx().coerceAtMost(placeable.height)
+                layout(reportedWidth, reportedHeightPx) {
                     placeable.placeRelative(
                         (reportedWidth - placeable.width) / 2,
-                        (reportedHeight - placeable.height) / 2,
+                        (reportedHeightPx - placeable.height) / 2,
                     )
                 }
-            }.size(ResetTapTarget)
+            }.size(RowButtonTapTarget)
             .clip(CircleShape)
-            .clickable(onClick = onReset),
+            .clickable(onClick = onClick),
     contentAlignment = Alignment.Center,
 ) {
     FemtoIcon(
-        imageVector = Lucide.RotateCcw,
-        contentDescription = stringResource(R.string.speed_reset_trip),
-        // onSurface (not onSurfaceVariant): this is the overlay's one actionable
-        // control, and the variant tone read as disabled/decorative next to the
+        imageVector = icon,
+        contentDescription = description,
+        // onSurface (not onSurfaceVariant): these are the overlay's actionable
+        // controls, and the variant tone read as disabled/decorative next to the
         // hairline-thin Lucide stroke. Full onSurface still stays secondary to
         // the saturated 40 sp speed numeral by virtue of its much smaller size.
         tint = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.size(FemtoDimens.InlineIconSize),
     )
 }
+
+/**
+ * The route row under the address: the remaining distance in the speed
+ * unit's family, the arrival time on the user's clock format, and the clear
+ * button. It shares the address row's caption style and glyph size, so it
+ * carries the same air ([AddressRowAir]) and the card's row spacing holds.
+ * Its clear button reports the glyph's height, so the 48 dp target overhangs
+ * into the gaps around the row rather than growing it.
+ *
+ * The arrival time is read from [clock] whenever the progress changes (each
+ * fix), and once a minute besides, so it keeps moving while no fix arrives.
+ */
+@Composable
+private fun RouteRow(
+    progress: RouteProgress,
+    speedUnit: SpeedUnit,
+    is24Hour: Boolean,
+    clock: Clock,
+    onClear: () -> Unit,
+) = Row(
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(8.dp),
+) {
+    val minute by produceState(initialValue = 0L, clock) {
+        while (true) {
+            delay(MINUTE_MS - clock.millis() % MINUTE_MS)
+            value++
+        }
+    }
+    val arrival =
+        remember(minute, progress.remainingSeconds, is24Hour, clock) {
+            routeArrivalText(clock.instant(), clock.zone, progress.remainingSeconds, is24Hour)
+        }
+    val style = rowCaptionStyle(tabularFigures = true)
+    val color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f)
+    FemtoIcon(
+        imageVector = Lucide.Flag,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.86f),
+        modifier = Modifier.size(FemtoDimens.WeatherGlyphSmall),
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = remainingDistanceText(progress.remainingMeters, speedUnit),
+            style = style,
+            color = color,
+            maxLines = 1,
+            modifier = Modifier.alignByBaseline(),
+        )
+        UnitSuffix(speedUnit.distanceLabel(), modifier = Modifier.alignByBaseline())
+    }
+    Text(
+        text = stringResource(R.string.speed_route_arrival, arrival),
+        style = style,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.weight(1f),
+    )
+    RowEndButton(
+        icon = Lucide.X,
+        description = stringResource(R.string.speed_route_clear),
+        reportedHeight = FemtoDimens.WeatherGlyphSmall,
+        onClick = onClear,
+    )
+}
+
+// The caption style the address and route rows share: the glance caption on
+// the body lineage, on a 16 sp line. Tabular figures keep a ticking value
+// (the route's remaining distance) from reflowing; the address has no digits
+// to keep steady.
+@Composable
+private fun rowCaptionStyle(tabularFigures: Boolean): TextStyle =
+    MaterialTheme.typography.glanceCaption(
+        base = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Normal,
+        lineHeight = 16.sp,
+        fontFeatureSettings = if (tabularFigures) TabularFigures else null,
+    )
+
+private const val MINUTE_MS = 60_000L
+
+// A route's remaining distance below this many units shows a decimal; from
+// here on whole units read faster and the tenths change too often to matter.
+private const val WHOLE_DISTANCE_FROM = 10.0
+
+/**
+ * Return the remaining distance [meters] in [speedUnit]'s distance unit (km
+ * or mi): one decimal below [WHOLE_DISTANCE_FROM] units, whole units from
+ * there. [locale] picks the decimal separator.
+ */
+internal fun remainingDistanceText(
+    meters: Double,
+    speedUnit: SpeedUnit,
+    locale: Locale = Locale.getDefault(),
+): String =
+    speedUnit.tripDistanceFromMeters(meters).let { distance ->
+        if (distance < WHOLE_DISTANCE_FROM) String.format(locale, "%.1f", distance) else "${distance.roundToInt()}"
+    }
+
+/**
+ * Return the arrival clock time [remainingSeconds] after [now] in [zone], on
+ * the user's 12/24-hour format, rounded to the nearest minute as the clock
+ * shows minutes.
+ */
+internal fun routeArrivalText(
+    now: Instant,
+    zone: ZoneId,
+    remainingSeconds: Double,
+    is24Hour: Boolean,
+): String =
+    now
+        .plusSeconds(remainingSeconds.roundToLong() + HALF_MINUTE_SECONDS)
+        .truncatedTo(ChronoUnit.MINUTES)
+        .atZone(zone)
+        .format(clockTimeFormatter(is24Hour))
+
+private const val HALF_MINUTE_SECONDS = 30L
 
 /**
  * Advance the displayed speed by one fix using a TIME-based exponential
@@ -688,6 +849,25 @@ private fun SpeedOverlayWideValuesPreview() {
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             is24Hour = true,
             onReset = {},
+        )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Preview(name = "Speed overlay (route)", widthDp = 560, heightDp = 200)
+@Composable
+private fun SpeedOverlayRoutePreview() {
+    FemtoTheme {
+        // An active route adds its row under the address.
+        SpeedOverlay(
+            location = Location("preview").apply { speed = 13.2f },
+            address = ShortAddress(locality = "Minato-ku", region = "Tokyo"),
+            tripState = TripState(distanceMeters = 24_400.0, avgSpeedMs = 11.7, currentSpeedMs = 13.2),
+            speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+            is24Hour = true,
+            onReset = {},
+            route = RouteProgress(remainingMeters = 12_400.0, remainingSeconds = 1_080.0),
         )
     }
 }

@@ -1,30 +1,46 @@
 package io.github.seijikohara.femto.ui.destination
 
+import io.github.seijikohara.femto.data.geocoding.PlaceLookup
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
+import io.github.seijikohara.femto.data.routing.ActiveRouteStore
+import io.github.seijikohara.femto.data.routing.EngineOutcome
+import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
+import io.github.seijikohara.femto.testfixtures.FakePlaceLocator
 import io.github.seijikohara.femto.testfixtures.FakeSavedPlacesStore
 import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
+import io.github.seijikohara.femto.testfixtures.RoutingFixture
+import io.github.seijikohara.femto.testfixtures.fakeEngineTrack
+import io.github.seijikohara.femto.testfixtures.fakeRoute
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DestinationViewModelTest {
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
     private var store = FakeSavedPlacesStore()
     private val speech = FakeSpeechInput()
     private val motion = MutableStateFlow(VehicleMotion.PARKED)
@@ -32,6 +48,10 @@ class DestinationViewModelTest {
     // What the package manager would answer: is there an app that takes a
     // destination? Flipped between checks to stand in for an install.
     private var handOffTarget = true
+
+    // The routing stack of the last subscribedViewModel, and the route it sets.
+    private lateinit var routing: RoutingFixture
+    private val activeRoute = ActiveRouteStore()
 
     @Before
     fun setUp() {
@@ -44,19 +64,30 @@ class DestinationViewModelTest {
     }
 
     // uiState is shared WhileUiSubscribed, and the gate reads its current
-    // value, so every test holds a subscriber the way the panel does.
+    // value, so every test holds a subscriber the way the panel does. Routing
+    // is off unless a test turns it on; its file and engine work runs on the
+    // test scheduler, so a routing test advances it to see each step.
     private fun TestScope.subscribedViewModel(
         saved: List<SavedPlace> = emptyList(),
         motionFlow: Flow<VehicleMotion> = motion,
-    ): DestinationViewModel =
-        DestinationViewModel(
+        routingAvailable: Boolean = false,
+        placeLocator: FakePlaceLocator = FakePlaceLocator(),
+    ): DestinationViewModel {
+        routing = RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler))
+        return DestinationViewModel(
             placesStore = FakeSavedPlacesStore(saved).also { store = it },
             motionFlow = motionFlow,
             speech = speech,
             hasHandOffTarget = { handOffTarget },
+            routingAvailable = flowOf(routingAvailable),
+            placeLocator = placeLocator,
+            planner = routing.planner(),
+            tiles = routing.tiles,
+            activeRoute = activeRoute,
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
+    }
 
     @Test
     fun typing_updates_the_query_while_stationary() =
@@ -326,4 +357,269 @@ class DestinationViewModelTest {
 
             assertEquals(false, viewModel.uiState.value.handOffAvailable)
         }
+
+    // --- Route preview (issue #389 phase 3) -----------------------------------
+
+    @Test
+    fun with_routing_off_nothing_about_routes_shows_and_a_route_request_is_ignored() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = false)
+            routing.installTile(TILE)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            val state = viewModel.uiState.value
+            assertEquals(false to RouteStep.Idle, state.routeAvailable to state.route)
+            assertEquals(false, state.canRoute(DESTINATION))
+            assertEquals(emptyList(), routing.engine.requests)
+        }
+
+    @Test
+    fun with_routing_on_a_point_and_text_can_be_routed() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            val state = viewModel.uiState.value
+            assertEquals(true to true, state.canRoute(DESTINATION) to state.canRoute(PlaceTarget.Query("Imabari")))
+        }
+
+    @Test
+    fun without_a_geocoder_only_a_point_can_be_routed() =
+        runTest {
+            val viewModel =
+                subscribedViewModel(routingAvailable = true, placeLocator = FakePlaceLocator(available = false))
+
+            viewModel.onAction(DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), ORIGIN))
+
+            val state = viewModel.uiState.value
+            assertEquals(true to false, state.canRoute(DESTINATION) to state.canRoute(PlaceTarget.Query("Imabari")))
+            assertEquals(RouteStep.Idle, state.route)
+        }
+
+    @Test
+    fun without_a_fix_the_route_says_it_starts_from_one() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, origin = null))
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_FIX), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_found_route_becomes_the_active_route() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(fakeRoute(), activeRoute.route.value)
+        }
+
+    @Test
+    fun a_route_runs_while_moving() =
+        runTest {
+            motion.value = VehicleMotion.MOVING
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun text_the_geocoder_finds_routes_to_its_position() =
+        runTest {
+            val locator = FakePlaceLocator(answers = mapOf("Imabari" to PlaceLookup.Found(34.07, 133.0)))
+            val viewModel = subscribedViewModel(routingAvailable = true, placeLocator = locator)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(
+                RoutePoint(34.07, 133.0),
+                routing.engine.requests
+                    .single()
+                    .destination,
+            )
+        }
+
+    @Test
+    fun text_the_geocoder_does_not_know_is_a_place_not_found() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(PlaceTarget.Query("Nowhere"), ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.PLACE_NOT_FOUND), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_geocoder_that_cannot_answer_is_a_failed_look_up() =
+        runTest {
+            val locator = FakePlaceLocator(answers = mapOf("Imabari" to PlaceLookup.Failed))
+            val viewModel = subscribedViewModel(routingAvailable = true, placeLocator = locator)
+
+            viewModel.onAction(DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.LOOKUP_FAILED), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun missing_routing_data_asks_first_with_its_size() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES), viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    @Test
+    fun a_confirmed_download_reports_its_progress_then_routes() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val gate = routing.feed.gateDownload()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+            // The fake transport reports halfway, then waits at the gate.
+            assertEquals(RouteStep.Downloading(TILE_BYTES / 2, TILE_BYTES), viewModel.uiState.value.route)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(fakeRoute(), activeRoute.route.value)
+        }
+
+    @Test
+    fun a_server_that_cannot_size_the_data_fails_the_download() =
+        runTest {
+            // No answer for the tile: the fake transport reports it unavailable.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.DOWNLOAD_FAILED), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun data_that_would_not_fit_fails_as_no_space() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            routing.freeBytes = 0L
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_SPACE), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_point_where_the_server_has_no_data_has_no_road_data_without_asking() =
+        runTest {
+            // Open sea: the server has no tile, which weighs nothing, so no
+            // confirmation comes first, and BRouter then finds no road there.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.goneTile(TILE)
+            routing.engine.outcome = EngineOutcome.Error("datafile $TILE.rd5 not found")
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_ROAD_DATA), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_search_out_of_time_is_timed_out() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = EngineOutcome.Error("operation timeout after 60 seconds")
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.TIMED_OUT), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun any_other_engine_failure_is_no_route() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = EngineOutcome.Error("target island detected")
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_ROUTE), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_version_mismatch_offers_the_data_again() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome =
+                EngineOutcome.Error("lookup version mismatch (old rd5?) lookups.dat=11 $TILE.rd5=10")
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            assertEquals(RouteStep.Failed(RouteFailure.DATA_VERSION_MISMATCH), viewModel.uiState.value.route)
+
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            viewModel.onAction(DestinationAction.DownloadAgain)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES), viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.tiles.installedTiles())
+        }
+
+    @Test
+    fun dismissing_returns_to_the_entry_and_drops_the_pending_download() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    private companion object {
+        // Matsuyama to Imabari: both ends and the margin around them lie in one routing tile.
+        val ORIGIN = PlaceTarget.Point(33.84, 132.77)
+        val DESTINATION = PlaceTarget.Point(34.07, 133.0)
+        const val TILE = "E130_N30"
+        const val TILE_BYTES = 48_000_000L
+    }
 }

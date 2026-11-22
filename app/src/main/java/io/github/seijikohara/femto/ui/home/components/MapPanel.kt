@@ -34,6 +34,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.location.isFresh
+import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.attributionCredit
@@ -64,7 +65,7 @@ internal fun MapPanel(
     // hosts another edge (see DashboardScaffold's attributionBottomInset).
     attributionBottomInset: Dp = 0.dp,
     // The route line the OSM map draws, in travel order; null draws none.
-    routeLine: List<MapRoutePoint>? = null,
+    routeLine: List<RoutePoint>? = null,
     // Substitute for the live map surface; null means the real [WebMapView].
     // Screenshot tests pass a still capture, because Robolectric's WebView is a
     // shadow with no Chromium behind it — a golden could otherwise only ever show

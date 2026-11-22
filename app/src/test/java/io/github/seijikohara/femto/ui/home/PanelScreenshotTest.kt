@@ -14,9 +14,16 @@ import io.github.seijikohara.femto.data.apps.DrawerIconSize
 import io.github.seijikohara.femto.data.apps.DrawerLayout
 import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
+import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
+import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
+import io.github.seijikohara.femto.ui.destination.DestinationPanel
+import io.github.seijikohara.femto.ui.destination.DestinationUiState
+import io.github.seijikohara.femto.ui.destination.RouteStep
 import io.github.seijikohara.femto.ui.drawer.AppDrawerUiState
 import io.github.seijikohara.femto.ui.drawer.AppsPanel
 import io.github.seijikohara.femto.ui.home.components.CalendarPanel
@@ -149,6 +156,54 @@ class PanelScreenshotTest {
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun apps_panel_head_unit_dark() =
         capture("apps-panel-head-unit-853x512-dark", darkTheme = true) { AppsPanelSample() }
+
+    // Destination panel with route preview (issue #389 phase 3, nightly builds
+    // only): Route beside Navigate and on each saved place, then the download
+    // confirmation that takes the panel's body over. The tests run the stable
+    // build, where routing is off, so the state turns it on explicitly.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun destination_panel_route_head_unit() =
+        capture("destination-panel-head-unit-853x512-route") { DestinationPanelSample(RouteStep.Idle) }
+
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun destination_panel_route_download_head_unit() =
+        capture("destination-panel-head-unit-853x512-route-download") {
+            DestinationPanelSample(RouteStep.ConfirmDownload(bytes = 48_200_000L))
+        }
+
+    @Composable
+    private fun DestinationPanelSample(route: RouteStep) {
+        DestinationPanel(
+            uiState =
+                DestinationUiState(
+                    query = "Central Station",
+                    voice = VoiceState.Idle,
+                    places =
+                        listOf(
+                            fakeSavedPlace(
+                                id = 1L,
+                                label = "Office",
+                                target = PlaceTarget.Query("1st & Pike, Seattle"),
+                            ),
+                            fakeSavedPlace(id = 2L, label = "Home", target = PlaceTarget.Point(35.681236, 139.767125)),
+                        ),
+                    motion = VehicleMotion.PARKED,
+                    routeAvailable = true,
+                    geocoderAvailable = true,
+                    route = route,
+                ),
+            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            currentAddress = "1-9-1 Marunouchi",
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 
     @Composable
     private fun AppsPanelSample() {

@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.update.UpdateSettings
@@ -22,6 +23,7 @@ import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
+import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
@@ -1041,6 +1043,75 @@ class HomeViewModelTest {
         }
     }
 
+    // --- Active route (issue #389 phase 3) ------------------------------------
+
+    @Test
+    fun `an active route shows its line and what is left of it from the fix`() =
+        runTest {
+            val viewModel = routeViewModel(location = fakeLocation(latitude = 0.0, longitude = 0.1), available = true)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val route = assertNotNull(viewModel.uiState.value.activeRoute)
+            assertEquals(EQUATOR_ROUTE.points, route.line)
+            assertEquals(11_000.0, route.progress.remainingMeters, 1.0)
+            assertEquals(600.0, route.progress.remainingSeconds, 0.1)
+        }
+
+    @Test
+    fun `an active route counts from its start until a fix arrives`() =
+        runTest {
+            val viewModel = routeViewModel(location = null, available = true)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(
+                RouteProgress(22_000.0, 1_200.0),
+                viewModel.uiState.value.activeRoute
+                    ?.progress,
+            )
+        }
+
+    @Test
+    fun `no route shows where routing is not offered`() =
+        runTest {
+            // A stable build, or the Google backend: the route stays set but hidden.
+            val viewModel = routeViewModel(location = fakeLocation(latitude = 0.0, longitude = 0.1), available = false)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(fakeAddress(), viewModel.uiState.value.address, "the dashboard state has arrived")
+            assertNull(viewModel.uiState.value.activeRoute)
+        }
+
+    @Test
+    fun `onAction ClearRoute clears the active route and emits no event`() =
+        runTest {
+            var clears = 0
+            val viewModel = routeViewModel(location = null, available = true, clearRoute = { clears++ })
+            viewModel.events.test {
+                viewModel.onAction(HomeAction.ClearRoute)
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+            assertEquals(1, clears)
+        }
+
+    private fun routeViewModel(
+        location: Location?,
+        available: Boolean,
+        clearRoute: () -> Unit = {},
+    ): HomeViewModel =
+        HomeViewModel(
+            locationFlow = flowOf(location),
+            addressFlow = flowOf(fakeAddress()),
+            weatherFlow = flowOf(null),
+            musicStateFlow = flowOf(MusicCardState.NeedsPermission),
+            calendarFlow = flowOf(null),
+            systemStatusFlow = flowOf(fakeSystemStatus()),
+            tripStateFlow = flowOf(fakeTripState()),
+            routeFlow = flowOf(EQUATOR_ROUTE),
+            routingAvailable = flowOf(available),
+            clearRoute = clearRoute,
+        )
+
     private fun stubViewModel(
         sendMusicCommand: (MusicCommand) -> Unit = {},
         resumeLastMusicSession: () -> Unit = {},
@@ -1063,6 +1134,9 @@ class HomeViewModelTest {
 
     private companion object {
         val UPDATE = fakeUpdateManifest(versionCode = 26092501)
+
+        // The fix at 0.1° east is halfway along it.
+        val EQUATOR_ROUTE = fakeEquatorRoute()
 
         // An hour into the boot clock, so a fix can be dated before "now".
         const val BADGE_NOW = 3_600_000_000_000L

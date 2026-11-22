@@ -59,10 +59,3 @@ internal data class MapConfig(
     val buildings3d: Boolean = false,
     val terrain: Boolean = false,
 )
-
-// One vertex of the route line the OSM map draws (WebMapView's routeLine), in
-// degrees. Not part of MapConfig: a route is trip state, not a setting.
-internal data class MapRoutePoint(
-    val latitude: Double,
-    val longitude: Double,
-)

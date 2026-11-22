@@ -58,6 +58,9 @@
     <string name="speed_altitude">ALT %1$d</string>
     <string name="speed_metric_distance">DISTANCE</string>
     <string name="speed_metric_avg">AVG.</string>
+    <!-- The active route's row under the address (issue #389 phase 3); %1$s = the arrival clock time. -->
+    <string name="speed_route_arrival">ETA %1$s</string>
+    <string name="speed_route_clear">Clear route</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>
@@ -188,6 +191,29 @@
     <string name="destination_no_saved_places">No saved places yet. Save a search or your current location while stopped.</string>
     <!-- %1$s = the saved place's label -->
     <string name="destination_delete_place">Delete %1$s</string>
+    <!-- Route preview (issue #389 phase 3, nightly builds only): a route on the launcher's own map. -->
+    <string name="destination_route">Route</string>
+    <!-- %1$s = the saved place's label -->
+    <string name="destination_route_place">Route to %1$s</string>
+    <string name="destination_route_locating">Looking up the place…</string>
+    <string name="destination_route_no_fix">No GPS position yet. A route starts from the current position, so try again once the map shows where you are.</string>
+    <!-- %1$s = the download size, e.g. "48 MB". brouter.de and OpenStreetMap are named on purpose: the driver agrees to a download from that server. -->
+    <string name="destination_route_download_prompt">This route needs %1$s of routing data. The data comes from brouter.de, built from OpenStreetMap, and stays on this device for later routes.</string>
+    <string name="destination_route_download">Download</string>
+    <string name="destination_route_cancel">Cancel</string>
+    <!-- %1$s = bytes downloaded so far, %2$s = the total, e.g. "12 MB of 48 MB". -->
+    <string name="destination_route_downloading">Downloading routing data: %1$s of %2$s</string>
+    <string name="destination_route_computing">Computing the route. A long route can take up to a minute.</string>
+    <string name="destination_route_failed_place_not_found">No place matches that text. Try another name or address.</string>
+    <string name="destination_route_failed_lookup">The place could not be looked up. Check the connection and try again.</string>
+    <string name="destination_route_failed_no_road_data">There is no road data at the start or at the destination.</string>
+    <string name="destination_route_failed_no_space">There is not enough free storage for the routing data.</string>
+    <string name="destination_route_failed_timed_out">The route took too long to compute. Try a closer destination.</string>
+    <string name="destination_route_failed_data_version">The routing data on this device does not match this version of the app. Download it again to route.</string>
+    <string name="destination_route_download_again">Download again</string>
+    <string name="destination_route_failed_download">The routing data could not be downloaded. Check the connection and try again.</string>
+    <string name="destination_route_failed">No route could be found to that destination.</string>
+    <string name="destination_route_dismiss">OK</string>
 
     <!-- Shared edit-mode "Done" affordance (drawer pinned dock + dashboard dock nav). -->
     <string name="edit_done">Done</string>

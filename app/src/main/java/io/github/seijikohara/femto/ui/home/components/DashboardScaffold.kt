@@ -493,6 +493,7 @@ private fun DashboardContent(
         onOpenLicenses = { onAction(HomeAction.OpenLicenses) },
         mapSurface = mapSurface,
         attributionBottomInset = attributionBottomInset,
+        routeLine = uiState.activeRoute?.line,
     )
 
     // While a panel is open, the sliver of viewport outside the overlay box —
@@ -830,6 +831,9 @@ private fun DashboardOverlays(
                 glassConfig = glassConfig,
                 motionTier = motionTier,
                 onExpand = onExpandTrip,
+                route = uiState.activeRoute?.progress,
+                onClearRoute = { onAction(HomeAction.ClearRoute) },
+                clock = clock,
                 modifier =
                     Modifier
                         .onSizeChanged { onOverlayHeightChange(it.height) }

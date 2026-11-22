@@ -15,6 +15,12 @@ import io.github.seijikohara.femto.data.voice.VoiceState
  * [handOffAvailable] is false when no installed app takes a destination; the
  * panel then hands off nothing and says why. It reads true until checked, so a
  * hand-off that works is never blocked by a check that has not run.
+ *
+ * [routeAvailable] says whether this build and map backend offer a route on
+ * the launcher's own map (`routingAvailableFlow`); off, the panel shows
+ * nothing about routes. [geocoderAvailable] says whether text can become a
+ * position on this device at all; without a geocoder only a saved point can be
+ * routed to. [route] is where a route the panel asked for stands.
  */
 internal data class DestinationUiState(
     val query: String,
@@ -22,7 +28,17 @@ internal data class DestinationUiState(
     val places: List<SavedPlace>,
     val motion: VehicleMotion,
     val handOffAvailable: Boolean = true,
+    val routeAvailable: Boolean = false,
+    val geocoderAvailable: Boolean = false,
+    val route: RouteStep = RouteStep.Idle,
 ) {
+    /**
+     * Whether [target] can be routed to: a point always, text only through a
+     * geocoder. Like a tap on a saved place, a route needs no typing, so it
+     * works in every motion state.
+     */
+    fun canRoute(target: PlaceTarget): Boolean = routeAvailable && (target is PlaceTarget.Point || geocoderAvailable)
+
     /**
      * True unless the verdict is [VehicleMotion.MOVING]. The gate fails open:
      * [VehicleMotion.UNKNOWN] (no fix yet, a cached or network-only fix, no
@@ -46,6 +62,67 @@ internal data class DestinationUiState(
                 handOffAvailable = true,
             )
     }
+}
+
+/**
+ * Where a route the panel asked for stands. Every step but [Idle] takes the
+ * panel's body over, so the driver sees one thing at a time.
+ */
+internal sealed interface RouteStep {
+    data object Idle : RouteStep
+
+    /** The geocoder is turning the destination's text into a position. */
+    data object Locating : RouteStep
+
+    /** The route needs routing data the device lacks: [bytes] to download, on the driver's word. */
+    data class ConfirmDownload(
+        val bytes: Long,
+    ) : RouteStep
+
+    data class Downloading(
+        val receivedBytes: Long,
+        val totalBytes: Long,
+    ) : RouteStep
+
+    /** BRouter is searching; a long route can take up to its time limit. */
+    data object Computing : RouteStep
+
+    /** The route is the active route now; the panel closes. */
+    data object Done : RouteStep
+
+    data class Failed(
+        val reason: RouteFailure,
+    ) : RouteStep
+}
+
+/** Why a route did not come about; each has its own sentence in the panel. */
+internal enum class RouteFailure {
+    /** No GPS fix: a route starts from the current position. */
+    NO_FIX,
+
+    /** The geocoder answered and knows no such place. */
+    PLACE_NOT_FOUND,
+
+    /** The geocoder could not answer, as without a network. */
+    LOOKUP_FAILED,
+
+    /** The start or the destination lies where the routing data has no roads, such as open sea. */
+    NO_ROAD_DATA,
+
+    /** The routing data would not leave the free space the system keeps. */
+    NO_SPACE,
+
+    /** The search ran out of time; a closer destination may work. */
+    TIMED_OUT,
+
+    /** The installed routing data was built for another version of the app's lookup table. */
+    DATA_VERSION_MISMATCH,
+
+    /** The server could not say what to download, or a download broke off. */
+    DOWNLOAD_FAILED,
+
+    /** Anything else the engine reports, such as no road connecting the two ends. */
+    NO_ROUTE,
 }
 
 /** Intents the destination panel reports up to its ViewModel. */
@@ -97,4 +174,27 @@ internal sealed interface DestinationAction {
      * been installed or removed in between.
      */
     data object CheckHandOff : DestinationAction
+
+    /**
+     * Compute a route from [origin] (the current fix, null without one) to
+     * [target] on the launcher's own map. Ignored unless
+     * [DestinationUiState.canRoute] holds; allowed in every motion state.
+     */
+    data class RouteTo(
+        val target: PlaceTarget,
+        val origin: PlaceTarget.Point?,
+    ) : DestinationAction
+
+    /** The driver agreed to the download [RouteStep.ConfirmDownload] asked about. */
+    data object ConfirmDownload : DestinationAction
+
+    /** After [RouteFailure.DATA_VERSION_MISMATCH]: delete the route's routing data and fetch it again. */
+    data object DownloadAgain : DestinationAction
+
+    /**
+     * Stop the route under way, or put its message away, and give the panel
+     * its entry back: Cancel, OK, a closing panel, and the host once a route
+     * is [RouteStep.Done].
+     */
+    data object DismissRoute : DestinationAction
 }

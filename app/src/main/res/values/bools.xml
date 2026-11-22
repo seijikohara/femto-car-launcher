@@ -3,4 +3,7 @@
     <!-- Whether Settings offers the Saved map regions sheet. Off in the stable build until the map draws saved
          regions; the nightly build turns it on (app/src/nightly/res/values/bools.xml). -->
     <bool name="offline_regions_enabled">false</bool>
+    <!-- Whether the launcher offers route previews (issue #389 phase 3). Off in the stable build until routing has been
+         checked on a head unit; the nightly build turns it on (app/src/nightly/res/values/bools.xml). -->
+    <bool name="routing_enabled">false</bool>
 </resources>

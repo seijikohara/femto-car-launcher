@@ -2,4 +2,5 @@
 <!-- Overrides for the nightly channel only; see src/main/res/values/bools.xml. -->
 <resources>
     <bool name="offline_regions_enabled">true</bool>
+    <bool name="routing_enabled">true</bool>
 </resources>

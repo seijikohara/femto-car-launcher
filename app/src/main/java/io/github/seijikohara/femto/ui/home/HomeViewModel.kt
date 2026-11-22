@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import io.github.seijikohara.femto.BuildConfig
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.apps.AppsRepository
 import io.github.seijikohara.femto.data.calendar.CalendarPreferences
 import io.github.seijikohara.femto.data.calendar.CalendarRepository
@@ -36,6 +37,13 @@ import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
+import io.github.seijikohara.femto.data.routing.ActiveRouteStore
+import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RoutePoint
+import io.github.seijikohara.femto.data.routing.RouteProgress
+import io.github.seijikohara.femto.data.routing.fullProgress
+import io.github.seijikohara.femto.data.routing.progressAt
+import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
 import io.github.seijikohara.femto.data.update.UpdateManifest
@@ -104,6 +112,12 @@ internal class HomeViewModel(
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
     private val spectrumBandsFor: (Flow<Boolean>) -> Flow<FloatArray?> = { flowOf(null) },
+    // The active route (ActiveRouteStore) and whether this build and map backend
+    // offer routing (routingAvailableFlow). Default to none and off, so previews
+    // and tests that do not exercise routing show none of it.
+    routeFlow: Flow<Route?> = flowOf(null),
+    routingAvailable: Flow<Boolean> = flowOf(false),
+    private val clearRoute: () -> Unit = {},
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -132,7 +146,7 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "update badge", false)
 
-    // Kotlin's typed combine overloads cover at most 5 flows. Stage the eight
+    // Kotlin's typed combine overloads cover at most 5 flows. Stage the nine
     // sources through a typed intermediate (CoreSignals) so the compiler enforces
     // arity and per-slot types end-to-end: a future reorder fails to compile
     // instead of silently mismapping a positional values[i] cast.
@@ -152,13 +166,24 @@ internal class HomeViewModel(
             CoreSignals(location, address, weather, music, badge)
         }
 
+    // The active route while routing is offered here, else none: a switch to
+    // the Google backend hides it, and a switch back shows it again. Seeded
+    // with none, like the update badge, so the dashboard never waits on the
+    // settings store.
+    private val shownRoute: Flow<Route?> =
+        combine(routeFlow, routingAvailable) { route, available -> route?.takeIf { available } }
+            .onStart { emit(null) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "route", null)
+
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-        ) { core, calendar, systemStatus, tripState ->
+            shownRoute,
+        ) { core, calendar, systemStatus, tripState, route ->
             HomeUiState(
                 location = core.location,
                 address = core.address,
@@ -168,6 +193,12 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
                 updateBadge = core.updateBadge,
+                activeRoute = route?.let {
+                    ActiveRouteState(
+                        line = it.points,
+                        progress = it.progressFrom(core.location),
+                    )
+                },
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
@@ -358,6 +389,10 @@ internal class HomeViewModel(
                 resetTrip()
             }
 
+            HomeAction.ClearRoute -> {
+                clearRoute()
+            }
+
             is HomeAction.MoveDockNav -> {
                 mutableEvents.tryEmit(HomeEvent.MoveDockNav(action.id, action.direction))
             }
@@ -391,6 +426,11 @@ internal class HomeViewModel(
         viewModelScope.launch { recordUpdatePrompted(versionCode) }
     }
 }
+
+// What is left of the route from the last fix; the whole route until a fix
+// arrives (the route itself started from one, so that wait is short).
+private fun Route.progressFrom(location: Location?): RouteProgress =
+    location?.let { progressAt(RoutePoint(latitude = it.latitude, longitude = it.longitude)) } ?: fullProgress()
 
 // File-private holder that groups the first five slots (four sources and the
 // update badge) so the two-stage combine stays within Kotlin's typed
@@ -518,6 +558,13 @@ internal class HomeViewModelFactory(
                     .map { it.musicSpectrum }
                     .distinctUntilChanged(),
             spectrumBandsFor = audioSpectrum::bandsFlow,
+            routeFlow = ActiveRouteStore.shared.route,
+            routingAvailable =
+                routingAvailableFlow(
+                    enabled = application.resources.getBoolean(R.bool.routing_enabled),
+                    settings = displayPreferences.settings,
+                ),
+            clearRoute = ActiveRouteStore.shared::clear,
         ) as T
     }
 }

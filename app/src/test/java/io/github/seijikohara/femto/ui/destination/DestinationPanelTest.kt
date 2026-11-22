@@ -54,6 +54,9 @@ class DestinationPanelTest {
         query: String = "",
         currentPoint: PlaceTarget.Point? = PlaceTarget.Point(1.0, 2.0),
         handOffAvailable: Boolean = true,
+        routeAvailable: Boolean = false,
+        geocoderAvailable: Boolean = true,
+        route: RouteStep = RouteStep.Idle,
     ) = rule.setContent {
         FemtoTheme {
             DestinationPanel(
@@ -64,6 +67,9 @@ class DestinationPanelTest {
                         places = listOf(office, home),
                         motion = if (stationary) VehicleMotion.PARKED else VehicleMotion.MOVING,
                         handOffAvailable = handOffAvailable,
+                        routeAvailable = routeAvailable,
+                        geocoderAvailable = geocoderAvailable,
+                        route = route,
                     ),
                 currentPoint = currentPoint,
                 currentAddress = "1-9-1 Marunouchi",
@@ -289,6 +295,67 @@ class DestinationPanelTest {
         rule.onNodeWithText("Navigate").performScrollTo().performClick()
         assertEquals(listOf<DestinationAction>(DestinationAction.CancelListening), actions)
         assertEquals(listOf<Pair<PlaceTarget, String>>(PlaceTarget.Query("Central Station") to ""), handoffs)
+    }
+
+    // --- Route preview (issue #389 phase 3) -----------------------------------
+
+    @Test
+    fun without_routing_no_route_action_shows() {
+        setPanel(stationary = true, query = "Imabari")
+        rule.onNodeWithText("Route").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Route to Home").assertDoesNotExist()
+    }
+
+    @Test
+    fun route_beside_navigate_raises_the_trimmed_query_from_the_fix() {
+        setPanel(stationary = true, query = "  Imabari ", routeAvailable = true)
+        rule.onNodeWithText("Route").performScrollTo().performClick()
+        assertEquals(
+            DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), origin = PlaceTarget.Point(1.0, 2.0)),
+            actions.last(),
+        )
+    }
+
+    @Test
+    fun moving_a_saved_place_still_routes() {
+        setPanel(stationary = false, routeAvailable = true)
+        rule.onNodeWithContentDescription("Route to Home").performClick()
+        assertEquals(DestinationAction.RouteTo(home.target, origin = PlaceTarget.Point(1.0, 2.0)), actions.last())
+    }
+
+    @Test
+    fun without_a_geocoder_only_a_saved_point_offers_a_route() {
+        setPanel(stationary = true, query = "Imabari", routeAvailable = true, geocoderAvailable = false)
+        rule.onNodeWithText("Route").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Route to Office").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Route to Home").assertIsDisplayed()
+    }
+
+    @Test
+    fun a_download_confirmation_names_the_source_and_downloads_on_the_word() {
+        setPanel(stationary = true, routeAvailable = true, route = RouteStep.ConfirmDownload(bytes = 48_000_000L))
+        rule.onNodeWithText("brouter.de, built from OpenStreetMap", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Download").performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.ConfirmDownload), actions)
+    }
+
+    @Test
+    fun a_failed_route_says_why_and_ok_puts_it_away() {
+        setPanel(stationary = true, routeAvailable = true, route = RouteStep.Failed(RouteFailure.TIMED_OUT))
+        rule.onNodeWithText("The route took too long to compute. Try a closer destination.").assertIsDisplayed()
+        rule.onNodeWithText("OK").performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.DismissRoute), actions)
+    }
+
+    @Test
+    fun a_version_mismatch_offers_the_data_again() {
+        setPanel(
+            stationary = true,
+            routeAvailable = true,
+            route = RouteStep.Failed(RouteFailure.DATA_VERSION_MISMATCH),
+        )
+        rule.onNodeWithText("Download again").performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.DownloadAgain), actions)
     }
 }
 

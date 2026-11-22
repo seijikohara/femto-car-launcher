@@ -60,6 +60,7 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
@@ -152,7 +153,7 @@ internal fun WebMapView(
     onOpenLicenses: () -> Unit = {},
     attributionBottomInset: Dp = 0.dp,
     // The route line, OSM backend only (see the route effect below); null draws none.
-    routeLine: List<MapRoutePoint>? = null,
+    routeLine: List<RoutePoint>? = null,
 ) {
     val context = LocalContext.current
     // The bridge object below is registered once per WebView instance and would
@@ -1125,7 +1126,7 @@ internal fun setStyleUrlScript(
 // otherwise land in the script as identifiers. The page validates the payload
 // again (webmap/src/route.ts decodeRoute).
 internal fun setRouteScript(
-    points: List<MapRoutePoint>,
+    points: List<RoutePoint>,
     lineColor: String,
     casingColor: String,
 ): String =
@@ -1148,7 +1149,7 @@ internal fun setRouteScript(
 
 internal const val CLEAR_ROUTE_SCRIPT = "window.clearRoute && clearRoute()"
 
-private fun MapRoutePoint.isDrawable() =
+private fun RoutePoint.isDrawable() =
     latitude.isFinite() && longitude.isFinite() && abs(latitude) <= 90.0 && abs(longitude) <= 180.0
 
 // [degrees] at six decimals (about 0.1 m), built from the rounded integer

@@ -1,7 +1,12 @@
 package io.github.seijikohara.femto.data.routing
 
-import io.github.seijikohara.femto.testfixtures.FakeRemoteFileFeed
 import io.github.seijikohara.femto.testfixtures.FakeRouteEngine
+import io.github.seijikohara.femto.testfixtures.FakeRoutingProfileBytes
+import io.github.seijikohara.femto.testfixtures.RoutingFixture
+import io.github.seijikohara.femto.testfixtures.fakeEngineTrack
+import io.github.seijikohara.femto.testfixtures.fakeRoute
+import io.github.seijikohara.femto.testfixtures.installRoutingTile
+import io.github.seijikohara.femto.testfixtures.writeNoDataRecord
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -145,71 +150,31 @@ class RoutePlannerTest {
             assertTrue(engine.terminated)
         }
 
+    // The fixture's feed is never asked: the planner only reads which tiles are on disk.
     private fun TestScope.planner(
         engine: FakeRouteEngine,
-        profiles: RoutingProfileFiles = RoutingProfileFiles(profilesDir()) { PROFILE_BYTES.inputStream() },
+        profiles: RoutingProfileFiles = RoutingProfileFiles(profilesDir()) { FakeRoutingProfileBytes.inputStream() },
         engineDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
         timeLimitMs: Long = ROUTE_TIME_LIMIT_MS,
     ): RoutePlanner =
-        RoutePlanner(
-            tiles = store(),
-            profiles = profiles,
-            engine = engine,
-            timeLimitMs = timeLimitMs,
-            ioDispatcher = StandardTestDispatcher(testScheduler),
-            engineDispatcher = engineDispatcher,
-        )
-
-    // The feed is never asked: the planner only reads which tiles are on disk.
-    private fun TestScope.store(): RoutingTileStore =
-        RoutingTileStore(
-            root = File(tempFolder.root, "routing"),
-            feed = FakeRemoteFileFeed(),
-            freeBytes = { 0L },
-            ioDispatcher = StandardTestDispatcher(testScheduler),
-        )
+        RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler))
+            .planner(engine, profiles, engineDispatcher, timeLimitMs)
 
     private fun profilesDir(): File = File(tempFolder.root, "routing/profiles")
 
-    private fun installTile(name: String) {
-        File(tempFolder.root, "routing/segments/$name.rd5").apply { parentFile?.mkdirs() }.writeBytes(byteArrayOf(1))
-    }
+    private fun installTile(name: String) = installRoutingTile(tempFolder.root, name)
 
-    private fun noDataRecord(name: String) {
-        File(tempFolder.root, "routing/records/$name.json")
-            .apply { parentFile?.mkdirs() }
-            .writeText("""{"file":null,"checkedAtEpochMs":0}""")
-    }
+    private fun noDataRecord(name: String) = writeNoDataRecord(tempFolder.root, name)
 
     private companion object {
         val MATSUYAMA = RoutePoint(latitude = 33.84, longitude = 132.77)
         val IMABARI = RoutePoint(latitude = 34.07, longitude = 133.0)
 
-        // Positions as BRouter stores them: micro-degrees offset by +180° (longitude) and +90° (latitude).
-        val TRACK =
-            EngineOutcome.Track(
-                positions =
-                    listOf(
-                        EnginePosition(offsetMicroLongitude = 312_770_000, offsetMicroLatitude = 123_840_000),
-                        EnginePosition(offsetMicroLongitude = 312_900_000, offsetMicroLatitude = 123_950_000),
-                        EnginePosition(offsetMicroLongitude = 313_000_000, offsetMicroLatitude = 124_070_000),
-                    ),
-                distanceMeters = 41_200,
-                durationSeconds = 2_950,
-            )
-        val ROUTE =
-            Route(
-                points =
-                    listOf(
-                        RoutePoint(latitude = 33.84, longitude = 132.77),
-                        RoutePoint(latitude = 33.95, longitude = 132.9),
-                        RoutePoint(latitude = 34.07, longitude = 133.0),
-                    ),
-                distanceMeters = 41_200,
-                durationSeconds = 2_950,
-            )
+        // The engine's answer for ROUTE, in its own positions.
+        val TRACK = fakeEngineTrack()
+        val ROUTE = fakeRoute()
 
-        val PROFILE_BYTES = "---lookupversion:11".toByteArray()
+        val PROFILE_BYTES = FakeRoutingProfileBytes
         const val SHORT_LIMIT_MS = 200L
     }
 }

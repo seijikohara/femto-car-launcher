@@ -6,6 +6,8 @@ import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.routing.RoutePoint
+import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 
@@ -27,6 +29,10 @@ internal data class HomeUiState(
     // Fail-closed: no fix, a cached fix and a network fix never count as parked,
     // because the trip speed reads zero until live GPS fixes set it.
     val updateBadge: Boolean,
+    // The route the map draws and the speed readout counts down (issue #389
+    // phase 3), or null: none is set, or this build or map backend offers no
+    // routing (routingAvailableFlow).
+    val activeRoute: ActiveRouteState? = null,
 ) {
     companion object {
         val Initial: HomeUiState =
@@ -39,6 +45,13 @@ internal data class HomeUiState(
                 systemStatus = SystemStatus.Initial,
                 tripState = TripState.Initial,
                 updateBadge = false,
+                activeRoute = null,
             )
     }
 }
+
+/** The active route as the dashboard shows it: its [line] in travel order and what is left of it from the last fix. */
+internal data class ActiveRouteState(
+    val line: List<RoutePoint>,
+    val progress: RouteProgress,
+)
