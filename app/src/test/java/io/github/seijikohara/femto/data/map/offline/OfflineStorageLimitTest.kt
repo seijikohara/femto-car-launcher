@@ -2,8 +2,6 @@ package io.github.seijikohara.femto.data.map.offline
 
 import org.junit.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
 
 class OfflineStorageLimitTest {
     @Test
@@ -48,13 +46,6 @@ class OfflineStorageLimitTest {
     @Test
     fun `an update that grows the file is checked against the limit`() {
         assertEquals(StorageDecision.OverLimit(4_100L, 1_000L), storageDecision(1_000L, 5_000, 0, 900, 1_000))
-    }
-
-    @Test
-    fun `free space must cover the remaining bytes plus the margin`() {
-        assertTrue(hasRoomFor(900_000_000L, 1_000_000_000L))
-        assertFalse(hasRoomFor(900_000_001L, 1_000_000_000L))
-        assertFalse(hasRoomFor(58_444_771_328L, 58_444_771_328L))
     }
 
     @Test

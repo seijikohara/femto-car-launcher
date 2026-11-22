@@ -23,7 +23,7 @@ app/src/
 ├── main/
 │   ├── java/io/github/seijikohara/femto/
 │   │   ├── MainActivity.kt           # ComponentActivity, single launcher entry
-│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, system, update, video, voice, weather); a domain may nest a self-contained part (map/offline, the offline map: tile converter and saved regions); data/ never imports ui/
+│   │   ├── data/                     # One sub-package per domain (apps, calendar, clock, common, diagnostics, display, dock, fonts, geocoding, location, map, music, places, routing, system, update, video, voice, weather); a domain may nest a self-contained part (map/offline, the offline map: tile converter and saved regions); data/ never imports ui/
 │   │   └── ui/
 │   │       ├── <area>/               # One area per top-level surface
 │   │       │   ├── <Area>Route.kt    # VM-binding entry point (when stateful)
@@ -43,6 +43,8 @@ app/src/
 `docs/` (top level) is the Astro source of the project website (feature guide, install guide, legal pages rendered from the root `PRIVACY.md` / `TERMS.md`, and the dashboard screenshot catalog viewer (`docs/src/catalog/`, fed by `generateCatalog` through `pnpm run import-catalog`)). Its build output is never committed.
 
 `scripts/` (top level) holds maintainer scripts that regenerate committed data; each says in its header what it writes. `update-shortbread-regions.mjs` refreshes `app/src/main/assets/map/offline/shortbread-regions.json`, the list of regions the app offers for saving. `build-standard-map-styles.mjs` regenerates the Standard map scheme's `app/src/main/assets/map/standard-*.json` from the bundled bases and the palette it holds.
+
+`brouter/` (top level) is the `:brouter` Gradle module: the BRouter routing engine, vendored unmodified; `brouter/README.md` names the upstream tag and how to update it.
 
 Trivial stateless screens need only `<Area>Screen.kt` — see `.claude/rules/compose.md`.
 

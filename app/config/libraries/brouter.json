@@ -1,0 +1,17 @@
+{
+  "uniqueId": "btools:brouter",
+  "name": "BRouter",
+  "description": "The routing engine that computes routes on the device, with its car profile. The routing data it reads comes from brouter.de and derives from OpenStreetMap. © OpenStreetMap contributors.",
+  "website": "https://brouter.de/",
+  "developers": [
+    {
+      "name": "BRouter contributors"
+    }
+  ],
+  "scm": {
+    "url": "https://github.com/abrensch/brouter"
+  },
+  "licenses": [
+    "brouter_mit"
+  ]
+}

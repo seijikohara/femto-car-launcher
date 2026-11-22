@@ -4,6 +4,12 @@ import android.content.Context
 import android.os.storage.StorageManager
 import android.util.Log
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.data.common.download.ProbeResult
+import io.github.seijikohara.femto.data.common.download.RemoteFile
+import io.github.seijikohara.femto.data.common.download.TransferResult
+import io.github.seijikohara.femto.data.common.download.allocatableBytesOrZero
+import io.github.seijikohara.femto.data.common.download.downloadHttpClient
+import io.github.seijikohara.femto.data.common.download.hasRoomFor
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure.CORRUPT
@@ -525,7 +531,7 @@ internal class OfflineRegionRepository internal constructor(
                         root = File(noBackupDir, ROOT_DIR),
                         usableBytes = { storage?.allocatableBytesOrZero(noBackupDir) ?: 0L },
                     ),
-                feed = RegionFeedApi(regionHttpClient(), femtoUserAgent),
+                feed = RegionFeedApi(downloadHttpClient(), femtoUserAgent),
                 check = SqliteRegionFileCheck,
                 limit = { display.settings.first().offlineStorageLimit },
                 sizes = { snapshotSizes },
@@ -541,15 +547,6 @@ internal class OfflineRegionRepository internal constructor(
                 .orEmpty()
     }
 }
-
-// Counts the cached data the system can clear as well, which is the answer to "is there room for this download".
-// The no-backup directory always exists, so its volume is found without walking up to an existing ancestor.
-private fun StorageManager.allocatableBytesOrZero(dir: File): Long =
-    try {
-        getAllocatableBytes(getUuidForPath(dir))
-    } catch (_: IOException) {
-        0L
-    }
 
 private fun File.textOrNull(): String? = runCatching { readText() }.getOrNull()?.takeIf { it.isNotEmpty() }
 
