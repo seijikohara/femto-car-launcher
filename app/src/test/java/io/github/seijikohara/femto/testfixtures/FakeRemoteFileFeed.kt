@@ -97,6 +97,9 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
     }
 }
 
+/** A body of ASCII digits: the pattern shifts against the copy chunk, so a dropped or reordered chunk changes it. */
+internal fun digitBytes(length: Int): ByteArray = ByteArray(length) { ('0' + it % 10).code.toByte() }
+
 /** Set the file's length without writing its bytes, so a test can hold a file of gigabytes. */
 internal fun File.resizeSparse(bytes: Long) {
     parentFile?.mkdirs()

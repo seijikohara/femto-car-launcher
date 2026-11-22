@@ -1,9 +1,23 @@
 package io.github.seijikohara.femto.data.routing
 
+import io.github.seijikohara.femto.data.common.download.FREE_SPACE_MARGIN_BYTES
+import io.github.seijikohara.femto.data.common.download.ProbeResult
+import io.github.seijikohara.femto.data.common.download.RemoteFile
 import io.github.seijikohara.femto.data.common.download.RemoteFileApi
+import io.github.seijikohara.femto.data.common.download.RemoteFileFeed
+import io.github.seijikohara.femto.data.common.download.TransferResult
 import io.github.seijikohara.femto.data.common.download.downloadHttpClient
+import io.github.seijikohara.femto.testfixtures.FakeDownloadStop
+import io.github.seijikohara.femto.testfixtures.FakeRemoteFileFeed
+import io.github.seijikohara.femto.testfixtures.digitBytes
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -20,8 +34,13 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
-/** The routing tile store against a real transport and a mock brouter.de. */
+/**
+ * The routing tile store against a real transport and a mock brouter.de. The tests that hold a download midway, to see
+ * what other operations do meanwhile, use the fake transport and drive the store with `runCurrent`.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 class RoutingTileStoreTest {
     @get:Rule
     val tempFolder = TemporaryFolder()
@@ -29,6 +48,8 @@ class RoutingTileStoreTest {
     private lateinit var server: MockWebServer
 
     private var now = START_EPOCH_MS
+
+    private var freeBytes = PLENTY_OF_SPACE_BYTES
 
     @Before
     fun setUp() {
@@ -238,6 +259,189 @@ class RoutingTileStoreTest {
             assertEquals(0, server.requestCount)
         }
 
+    // A rebuild between the check and the download: the check sees a new file, the download finds none.
+    @Test
+    fun `a tile gone by the time of its replacement stays installed`() =
+        runTest {
+            val store = installed()
+            server.enqueue(headResponse(NEW_BYTES.size, NEW_ETAG))
+            server.enqueue(MockResponse().setResponseCode(404))
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            val result = store.refresh(TILE)
+
+            assertEquals(TileRefreshResult.UNCHANGED, result)
+            assertContentEquals(TILE_BYTES, tileFile().readBytes())
+            assertEquals(MODIFIED_EPOCH_MS, store.installedTiles().single().dataDateEpochMs)
+            assertFalse(partFile().exists() || pendingFile().exists())
+        }
+
+    // --- free space -------------------------------------------------------------
+
+    @Test
+    fun `a tile that would not leave the free space margin is not downloaded`() =
+        runTest {
+            server.enqueue(headResponse(TILE_BYTES.size))
+            freeBytes = FREE_SPACE_MARGIN_BYTES + TILE_BYTES.size - 1
+
+            val result = store().fetch(TILE)
+
+            assertEquals(TileFetchResult.NO_SPACE, result)
+            assertEquals(1, server.requestCount)
+            assertFalse(partFile().exists() || tileFile().exists())
+        }
+
+    @Test
+    fun `a resume needs room only for the rest of the tile`() =
+        runTest {
+            val store = interruptedAfterFiveBytes()
+            server.enqueue(headResponse(TILE_BYTES.size))
+            server.enqueue(rangeResponse("bytes 5-9/10", TILE_BYTES.copyOfRange(5, 10), ETAG))
+            freeBytes = FREE_SPACE_MARGIN_BYTES + 5
+
+            val result = store.fetch(TILE)
+
+            assertEquals(TileFetchResult.INSTALLED, result)
+        }
+
+    @Test
+    fun `a resume without room for the rest keeps its part`() =
+        runTest {
+            val store = interruptedAfterFiveBytes()
+            server.enqueue(headResponse(TILE_BYTES.size))
+            freeBytes = FREE_SPACE_MARGIN_BYTES + 4
+
+            val result = store.fetch(TILE)
+
+            assertEquals(TileFetchResult.NO_SPACE, result)
+            assertEquals(3, server.requestCount)
+            assertContentEquals(TILE_BYTES.copyOf(5), partFile().readBytes())
+        }
+
+    @Test
+    fun `a larger file sent instead that would not fit leaves nothing behind`() =
+        runTest {
+            server.enqueue(headResponse(TILE_BYTES.size))
+            server.enqueue(fileResponse(LARGER_BYTES, NEW_ETAG))
+            freeBytes = FREE_SPACE_MARGIN_BYTES + TILE_BYTES.size
+
+            val result = store().fetch(TILE)
+
+            assertEquals(TileFetchResult.NO_SPACE, result)
+            assertFalse(partFile().exists() || pendingFile().exists() || tileFile().exists())
+        }
+
+    @Test
+    fun `a part that could not be written is discarded with its record`() =
+        runTest {
+            val feed = fakeFeed(TILE_FILE).apply { stop = FakeDownloadStop(5, TransferResult.StorageFailed) }
+
+            val result = store(feed).fetch(TILE)
+
+            assertEquals(TileFetchResult.STORAGE_FAILED, result)
+            assertFalse(partFile().exists() || pendingFile().exists())
+        }
+
+    @Test
+    fun `what a running download still has to write counts as taken`() =
+        runTest {
+            // The fake grows a part halfway and holds it at the gate: the first tile then has 30 of 60 bytes to go.
+            val feed = fakeFeed(RemoteFile(60, ETAG, null), RemoteFile(80, ETAG, null))
+            val gate = feed.gateDownload()
+            freeBytes = FREE_SPACE_MARGIN_BYTES + 100
+            val store = store(feed)
+
+            val first = async { store.fetch(TILE) }
+            runCurrent()
+            val second = async { store.fetch(OTHER_TILE) }
+            runCurrent()
+            gate.complete(Unit)
+
+            assertEquals(listOf(TileFetchResult.INSTALLED, TileFetchResult.NO_SPACE), awaitAll(first, second))
+        }
+
+    // --- concurrency ------------------------------------------------------------
+
+    @Test
+    fun `a running download holds up no operation on another tile`() =
+        runTest {
+            val feed = fakeFeed(TILE_FILE)
+            val gate = feed.gateDownload()
+            File(segmentDir(), "$OTHER_TILE.rd5").apply { parentFile?.mkdirs() }.writeBytes(TILE_BYTES)
+            val store = store(feed)
+
+            val download = async { store.fetch(TILE) }
+            runCurrent()
+            val other = async { store.fetch(OTHER_TILE).also { store.delete(OTHER_TILE) } }
+            runCurrent()
+
+            assertTrue(other.isCompleted && !download.isCompleted)
+            gate.complete(Unit)
+            assertEquals(listOf(TileFetchResult.INSTALLED, TileFetchResult.INSTALLED), awaitAll(other, download))
+        }
+
+    @Test
+    fun `a delete waits for the download of the same tile`() =
+        runTest {
+            val feed = fakeFeed(TILE_FILE)
+            val gate = feed.gateDownload()
+            val store = store(feed)
+
+            val download = async { store.fetch(TILE) }
+            runCurrent()
+            val deletion = launch { store.delete(TILE) }
+            runCurrent()
+
+            assertFalse(deletion.isCompleted)
+            gate.complete(Unit)
+            assertEquals(TileFetchResult.INSTALLED, download.await())
+            deletion.join()
+            assertFalse(tileFile().exists())
+        }
+
+    @Test
+    fun `deleting everything waits for a running download`() =
+        runTest {
+            val feed = fakeFeed(TILE_FILE)
+            val gate = feed.gateDownload()
+            val store = store(feed)
+
+            val download = async { store.fetch(TILE) }
+            runCurrent()
+            val deletion = launch { store.deleteAll() }
+            runCurrent()
+
+            assertFalse(deletion.isCompleted)
+            gate.complete(Unit)
+            assertEquals(TileFetchResult.INSTALLED, download.await())
+            deletion.join()
+            assertEquals(emptyList(), routingDir().list().orEmpty().toList())
+        }
+
+    // --- cancellation -----------------------------------------------------------
+
+    @Test
+    fun `a cancelled download keeps its part and record, and the next fetch resumes`() =
+        runTest {
+            val body = digitBytes(4 * MIB)
+            server.enqueue(headResponse(body.size))
+            server.enqueue(fileResponse(body))
+            lateinit var fetch: Job
+            fetch = launch { store(cancellingOnFirstProgress { fetch.cancel() }).fetch(TILE) }
+            fetch.join()
+            val held = partFile().length().toInt()
+            assertTrue(fetch.isCancelled && held in 1 until body.size && pendingFile().isFile, "held $held bytes")
+            server.enqueue(headResponse(body.size))
+            val rest = body.copyOfRange(held, body.size)
+            server.enqueue(rangeResponse("bytes $held-${body.lastIndex}/${body.size}", rest, ETAG))
+
+            val result = store().fetch(TILE)
+
+            assertEquals(TileFetchResult.INSTALLED, result)
+            assertContentEquals(body, tileFile().readBytes())
+            assertEquals("bytes=$held-", List(4) { server.takeRequest() }.last().getHeader("Range"))
+        }
+
     // --- delete -----------------------------------------------------------------
 
     @Test
@@ -264,14 +468,45 @@ class RoutingTileStoreTest {
             assertEquals(listOf(TILE, OTHER_TILE), store.missingTiles(listOf(TILE, OTHER_TILE)))
         }
 
-    private fun TestScope.store(): RoutingTileStore =
+    private fun TestScope.store(feed: RemoteFileFeed = transport()): RoutingTileStore =
         RoutingTileStore(
             root = routingDir(),
-            feed = RemoteFileApi(downloadHttpClient(), USER_AGENT, hostPrefix = server.url("/").toString()),
-            hostPrefix = server.url("/").toString(),
+            feed = feed,
+            freeBytes = { freeBytes },
+            hostPrefix = hostPrefix(),
             ioDispatcher = StandardTestDispatcher(testScheduler),
             clock = { now },
         )
+
+    private fun transport(): RemoteFileApi = RemoteFileApi(downloadHttpClient(), USER_AGENT, hostPrefix())
+
+    // The real transport, cancelled from its first progress report, which comes once a full step is on disk.
+    private fun cancellingOnFirstProgress(cancel: () -> Unit): RemoteFileFeed =
+        transport().let { api ->
+            object : RemoteFileFeed by api {
+                override suspend fun download(
+                    url: String,
+                    part: File,
+                    expected: RemoteFile,
+                    onRestart: suspend (RemoteFile) -> Boolean,
+                    onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
+                ): TransferResult =
+                    api.download(url, part, expected, onRestart) { receivedBytes, totalBytes ->
+                        onProgress(receivedBytes, totalBytes)
+                        cancel()
+                    }
+            }
+        }
+
+    // A fake brouter.de that has [files] for TILE and OTHER_TILE, in that order.
+    private fun fakeFeed(vararg files: RemoteFile): FakeRemoteFileFeed =
+        FakeRemoteFileFeed().apply {
+            listOf(TILE, OTHER_TILE).zip(files).forEach { (name, file) ->
+                probeAnswers["${hostPrefix()}$name.rd5"] = ProbeResult.Found(file)
+            }
+        }
+
+    private fun hostPrefix(): String = server.url("/").toString()
 
     private suspend fun TestScope.installed(): RoutingTileStore {
         server.enqueue(headResponse(TILE_BYTES.size))
@@ -297,6 +532,8 @@ class RoutingTileStoreTest {
     private fun tileFile(): File = File(segmentDir(), "$TILE.rd5")
 
     private fun partFile(): File = File(routingDir(), "downloads/$TILE.rd5.part")
+
+    private fun pendingFile(): File = File(routingDir(), "downloads/$TILE.json")
 
     private fun headResponse(
         size: Int,
@@ -338,5 +575,9 @@ class RoutingTileStoreTest {
         val START_EPOCH_MS = Instant.parse("2026-11-22T09:00:00Z").toEpochMilli()
         val TILE_BYTES = "0123456789".toByteArray()
         val NEW_BYTES = "abcdefghij".toByteArray()
+        val LARGER_BYTES = "abcdefghijkl".toByteArray()
+        val TILE_FILE = RemoteFile(TILE_BYTES.size.toLong(), ETAG, null)
+        const val MIB = 1024 * 1024
+        const val PLENTY_OF_SPACE_BYTES = 1_000_000_000_000L
     }
 }

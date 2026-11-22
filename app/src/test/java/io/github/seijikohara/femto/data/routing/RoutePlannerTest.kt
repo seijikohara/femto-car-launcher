@@ -142,6 +142,7 @@ class RoutePlannerTest {
         RoutingTileStore(
             root = File(tempFolder.root, "routing"),
             feed = FakeRemoteFileFeed(),
+            freeBytes = { 0L },
             ioDispatcher = StandardTestDispatcher(testScheduler),
         )
 

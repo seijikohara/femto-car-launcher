@@ -1,18 +1,25 @@
 package io.github.seijikohara.femto.data.routing
 
 import android.content.Context
+import android.os.storage.StorageManager
+import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.common.download.ProbeResult
 import io.github.seijikohara.femto.data.common.download.RemoteFile
 import io.github.seijikohara.femto.data.common.download.RemoteFileApi
 import io.github.seijikohara.femto.data.common.download.RemoteFileFeed
 import io.github.seijikohara.femto.data.common.download.RevalidationResult
 import io.github.seijikohara.femto.data.common.download.TransferResult
+import io.github.seijikohara.femto.data.common.download.allocatableBytesOrZero
 import io.github.seijikohara.femto.data.common.download.downloadHttpClient
+import io.github.seijikohara.femto.data.common.download.hasRoomFor
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.common.syncToDisk
 import io.github.seijikohara.femto.data.common.writeAtomically
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -20,6 +27,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 /** Where brouter.de publishes the routing data of the whole world, one `<tile>.rd5` file per 5° tile. */
 internal const val ROUTING_TILE_HOST_PREFIX = "https://brouter.de/brouter/segments4/"
@@ -65,6 +73,13 @@ internal enum class TileFetchResult {
     /** No answer, or one that ended early; a part is kept for a resume. */
     NETWORK_FAILED,
 
+    /**
+     * The rest of the tile would not leave the free space the system keeps. A part of the file announced first stays
+     * for a resume; a part of a larger file the server sent instead is gone.
+     */
+    NO_SPACE,
+
+    /** A file could not be written, and what the download wrote is gone: a disk that filled up must not stay full. */
     STORAGE_FAILED,
 }
 
@@ -78,6 +93,9 @@ internal enum class TileRefreshResult {
     UNCHANGED,
     UPDATED,
     NETWORK_FAILED,
+
+    /** The newer file would not leave the free space the system keeps; the installed tile stays. */
+    NO_SPACE,
     STORAGE_FAILED,
 }
 
@@ -87,17 +105,35 @@ internal enum class TileRefreshResult {
  * A tile is installed when its `.rd5` file is in [segmentDir], which holds nothing else: the engine reads that
  * directory, and a download reaches it only by a rename once the part has the size the server announced. A record
  * beside each tile keeps what the server said about it, so a later check can ask with a conditional request; a record
- * without a file marks a tile the server has none for, which is not asked again until it is due. One [Mutex] orders
- * every change to the files. The constructor stays injectable for JVM tests; production wiring goes through [get].
+ * without a file marks a tile the server has none for, which is not asked again until it is due.
+ *
+ * Each tile has its own [Mutex], so a download of one tile, which can take minutes for 100 MB, holds up no other: a
+ * fetch, refresh or delete waits only for an operation on the same tile. [deleteAll] waits for the operations under way
+ * to end and holds new ones back until it is done. A download starts only when the rest of its file leaves the free
+ * space the system keeps, with what the other running downloads still have to write counted as taken. The constructor
+ * stays injectable for JVM tests; production wiring goes through [get].
  */
 internal class RoutingTileStore(
     private val root: File,
     private val feed: RemoteFileFeed,
+    /** The bytes the volume of [root] can still allocate. */
+    private val freeBytes: () -> Long,
     private val hostPrefix: String = ROUTING_TILE_HOST_PREFIX,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    private val lock = Mutex()
+    // Never pruned: the names are the 5° tiles of the earth, at most 72 × 36 of them.
+    private val tileLocks = ConcurrentHashMap<String, Mutex>()
+
+    // A tile operation counts itself in [running] through [door]; deleteAll holds the door while it waits for none.
+    private val door = Mutex()
+    private val running = MutableStateFlow(0)
+
+    // What each running download still has to write, by tile name, kept current by the transport's progress reports.
+    private val claimedBytes = ConcurrentHashMap<String, Long>()
+
+    // Orders the room checks, so two downloads cannot both claim the same free bytes.
+    private val claimLock = Mutex()
 
     /** The directory the engine reads the tiles from. */
     val segmentDir: File get() = File(root, SEGMENTS_DIR)
@@ -137,7 +173,7 @@ internal class RoutingTileStore(
         withContext(ioDispatcher) {
             names.filter { name ->
                 requireTileName(name)
-                !dataFile(name).isFile && recordOrNull(name)?.let { it.file == null } != true
+                !dataFile(name).isFile && !hasNoData(name)
             }
         }
 
@@ -161,16 +197,17 @@ internal class RoutingTileStore(
                 }
         }
 
-    /** Remove the tile [name], its record, and any part of it. */
+    /** Remove the tile [name], its record, and any part of it, once an operation on the same tile has ended. */
     suspend fun delete(name: String) {
         guarded(name) {
             listOf(dataFile(name), recordFile(name), partFile(name), pendingFile(name)).forEach(File::delete)
         }
     }
 
-    /** Remove every tile, record and part. */
+    /** Remove every tile, record and part, once the tile operations under way have ended; new ones wait for it. */
     suspend fun deleteAll() {
-        lock.withLock {
+        door.withLock {
+            running.first { it == 0 }
             withContext(ioDispatcher) { listOf(segmentDir, recordsDir, downloadsDir).forEach(File::deleteRecursively) }
         }
     }
@@ -180,7 +217,12 @@ internal class RoutingTileStore(
         block: suspend () -> T,
     ): T {
         requireTileName(name)
-        return lock.withLock { withContext(ioDispatcher) { block() } }
+        door.withLock { running.update { it + 1 } }
+        return try {
+            tileLocks.computeIfAbsent(name) { Mutex() }.withLock { withContext(ioDispatcher) { block() } }
+        } finally {
+            running.update { it - 1 }
+        }
     }
 
     private suspend fun revalidate(
@@ -199,6 +241,7 @@ internal class RoutingTileStore(
                     TileFetchResult.INSTALLED -> TileRefreshResult.UPDATED
                     TileFetchResult.NO_DATA -> TileRefreshResult.UNCHANGED
                     TileFetchResult.NETWORK_FAILED -> TileRefreshResult.NETWORK_FAILED
+                    TileFetchResult.NO_SPACE -> TileRefreshResult.NO_SPACE
                     TileFetchResult.STORAGE_FAILED -> TileRefreshResult.STORAGE_FAILED
                 }
             }
@@ -224,14 +267,39 @@ internal class RoutingTileStore(
     ): TileFetchResult {
         val part = partFile(name)
         val ready = pendingOrNull(name) == file || (part.deletedOrAbsent() && writePending(name, file))
-        if (!ready) return TileFetchResult.STORAGE_FAILED
+        return try {
+            when {
+                !ready -> TileFetchResult.STORAGE_FAILED
+                !claimRoom(name, file.sizeBytes - part.length()) -> TileFetchResult.NO_SPACE
+                else -> transfer(name, file)
+            }
+        } finally {
+            claimedBytes.remove(name)
+        }
+    }
+
+    private suspend fun transfer(
+        name: String,
+        file: RemoteFile,
+    ): TileFetchResult {
+        val part = partFile(name)
+        // Why onRestart declined the file the server sent instead, for the refusal the transport reports next.
+        var refusal = TileFetchResult.STORAGE_FAILED
         val result =
             feed.download(
                 url = tileUrl(name),
                 part = part,
                 expected = file,
-                onRestart = { sent -> part.deletedOrAbsent() && writePending(name, sent) },
-                onProgress = { _, _ -> },
+                // The old part goes once the new file is accepted, so its length counts as free.
+                onRestart = { sent ->
+                    if (claimRoom(name, sent.sizeBytes, freedBytes = part.length())) {
+                        part.deletedOrAbsent() && writePending(name, sent)
+                    } else {
+                        refusal = TileFetchResult.NO_SPACE
+                        false
+                    }
+                },
+                onProgress = { receivedBytes, totalBytes -> claimedBytes[name] = totalBytes - receivedBytes },
             )
         return when (result) {
             is TransferResult.Complete -> {
@@ -242,8 +310,16 @@ internal class RoutingTileStore(
                 TileFetchResult.NETWORK_FAILED
             }
 
-            TransferResult.StorageFailed, is TransferResult.Refused -> {
+            // A full disk must not stay full until the next fetch: the trip log and the settings write to it too.
+            TransferResult.StorageFailed -> {
+                discardDownload(name)
                 TileFetchResult.STORAGE_FAILED
+            }
+
+            // The transport has deleted the part; its record describes nothing now.
+            is TransferResult.Refused -> {
+                discardDownload(name)
+                refusal
             }
 
             TransferResult.Gone -> {
@@ -254,6 +330,19 @@ internal class RoutingTileStore(
             }
         }
     }
+
+    // True when [bytes] more leave the free space the system keeps, with what the other running downloads still have
+    // to write counted as taken; the claim then stands for [name] until its install ends.
+    private suspend fun claimRoom(
+        name: String,
+        bytes: Long,
+        freedBytes: Long = 0,
+    ): Boolean =
+        claimLock.withLock {
+            val claimedByOthers = claimedBytes.filterKeys { it != name }.values.sum()
+            hasRoomFor(bytes + claimedByOthers, freeBytes() + freedBytes)
+                .also { fits -> if (fits) claimedBytes[name] = bytes }
+        }
 
     // The engine reads every .rd5 in the directory, so only a whole file of the announced size is renamed into it,
     // synced first: a head unit stops by losing power, and a rename can reach the disk before the bytes it names.
@@ -279,8 +368,12 @@ internal class RoutingTileStore(
         }
     }
 
+    private fun discardDownload(name: String) = listOf(partFile(name), pendingFile(name)).forEach(File::delete)
+
     private fun RoutingTileRecord.isDue(): Boolean =
         clock() - checkedAtEpochMs !in 0 until ROUTING_TILE_CHECK_INTERVAL_MS
+
+    private fun hasNoData(name: String): Boolean = recordOrNull(name)?.let { it.file == null } == true
 
     private fun tileUrl(name: String) = hostPrefix + name + TILE_SUFFIX
 
@@ -319,10 +412,21 @@ internal class RoutingTileStore(
         // Construction touches no file and opens no connection.
         fun get(context: Context): RoutingTileStore =
             instance ?: synchronized(this) {
-                instance ?: RoutingTileStore(
-                    root = routingDir(context.applicationContext),
-                    feed = RemoteFileApi(downloadHttpClient(), femtoUserAgent, hostPrefix = ROUTING_TILE_HOST_PREFIX),
-                ).also { instance = it }
+                instance ?: context.applicationContext
+                    .let { app ->
+                        val noBackupDir = app.noBackupFilesDir
+                        val storage = app.getSystemService<StorageManager>()
+                        RoutingTileStore(
+                            root = routingDir(app),
+                            feed =
+                                RemoteFileApi(
+                                    downloadHttpClient(),
+                                    femtoUserAgent,
+                                    hostPrefix = ROUTING_TILE_HOST_PREFIX,
+                                ),
+                            freeBytes = { storage?.allocatableBytesOrZero(noBackupDir) ?: 0L },
+                        )
+                    }.also { instance = it }
             }
     }
 }

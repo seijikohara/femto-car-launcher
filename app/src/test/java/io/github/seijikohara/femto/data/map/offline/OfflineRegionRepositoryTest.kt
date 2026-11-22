@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.map.offline
 
+import io.github.seijikohara.femto.data.common.download.FREE_SPACE_MARGIN_BYTES
 import io.github.seijikohara.femto.data.common.download.ProbeResult
 import io.github.seijikohara.femto.data.common.download.RemoteFile
 import io.github.seijikohara.femto.data.common.download.TransferResult

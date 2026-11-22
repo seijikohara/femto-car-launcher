@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.common.download
 
+import io.github.seijikohara.femto.testfixtures.digitBytes
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -158,7 +159,7 @@ class RemoteFileApiTest {
     fun `a changed size on the first request asks the caller before writing`() =
         runTest {
             val part = part()
-            val body = digits(12)
+            val body = digitBytes(12)
             server.enqueue(fileResponse(body))
             var partExistedAtRestart: Boolean? = null
 
@@ -323,7 +324,7 @@ class RemoteFileApiTest {
     @Test
     fun `a dropped connection keeps the part and reports an interruption`() =
         runTest {
-            val body = digits(100_000)
+            val body = digitBytes(100_000)
             val part = partHolding(body.copyOf(50_000))
             server.enqueue(
                 rangeResponse("bytes 50000-99999/100000", body.copyOfRange(50_000, 100_000))
@@ -455,7 +456,7 @@ class RemoteFileApiTest {
     @Test
     fun `cancellation leaves the part in place`() =
         runTest {
-            val body = digits(4 * MIB)
+            val body = digitBytes(4 * MIB)
             server.enqueue(fileResponse(body))
             val part = part()
             val api = newApi()
@@ -483,7 +484,7 @@ class RemoteFileApiTest {
     @Test
     fun `progress is reported in bytes and ends at the total`() =
         runTest {
-            val body = digits(3 * MIB + 12_345)
+            val body = digitBytes(3 * MIB + 12_345)
             val size = body.size.toLong()
             server.enqueue(fileResponse(body))
             val progress = mutableListOf<Pair<Long, Long>>()
@@ -718,10 +719,7 @@ class RemoteFileApiTest {
                 "bytes 5-4/10",
             )
 
-        // ASCII digits: the pattern shifts against the copy chunk, so a dropped or reordered chunk changes the content.
-        fun digits(length: Int): ByteArray = ByteArray(length) { ('0' + it % 10).code.toByte() }
-
-        val FILE_BYTES = digits(10)
+        val FILE_BYTES = digitBytes(10)
         val FILE = RemoteFile(sizeBytes = 10, etag = ETAG, lastModifiedEpochMs = null)
         val NEW_BYTES = "abcdefghijkl".encodeToByteArray()
         val NEW_FILE = RemoteFile(sizeBytes = 12, etag = NEW_ETAG, lastModifiedEpochMs = null)
