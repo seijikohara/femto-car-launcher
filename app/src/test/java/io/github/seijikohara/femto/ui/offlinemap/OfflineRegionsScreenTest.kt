@@ -517,6 +517,7 @@ class OfflineRegionsScreenTest {
                         onAction = {},
                         onOpenDocument = {},
                         onOpenOfflineRegions = onOpen,
+                        onOpenRoutingData = {},
                     )
                 }
             }

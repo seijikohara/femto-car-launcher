@@ -83,7 +83,9 @@ declare global {
 // without data paints too). "lens" = whether the Google page has measured its
 // tilted map's perspective (lens.ts), for the MAP diagnostics section only —
 // never a success signal: "measured,source=<webgl|canvas>,fovy=<deg>",
-// "unmeasured,source=<…>", or "unused" (a raster or flat map needs none). No
+// "unmeasured,source=<…>", or "unused" (a raster or flat map needs none).
+// "longpress" = a touch held still on the OSM map picked a point,
+// "<lat>,<lon>" (long-press.ts); the Google page never sends it. No
 // kind triggers a backend switch — the host keeps the chosen backend (no
 // auto-fallback).
 export type MapEventKind =
@@ -94,7 +96,8 @@ export type MapEventKind =
     | "bearing"
     | "frames"
     | "tile"
-    | "lens";
+    | "lens"
+    | "longpress";
 
 // Function-typed properties rather than methods: the backends destructure
 // the reporter and hand its functions around (`const { log, report } =

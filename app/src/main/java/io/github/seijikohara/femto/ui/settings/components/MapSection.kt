@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ChevronRight
@@ -28,6 +29,8 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MAX_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MIN_MAP_ZOOM
 import io.github.seijikohara.femto.data.display.MapBackend
+import io.github.seijikohara.femto.ui.common.fileSize
+import io.github.seijikohara.femto.ui.settings.RoutingDataSummary
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsDocument
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -42,6 +45,9 @@ private const val MAX_MAP_MARKER_POS = 100
 // the sheet, so it is registered under a key of its own.
 private const val OFFLINE_REGIONS_ROW_KEY = "offline-regions"
 
+// Likewise for the routing data row, which joins only where routing is offered.
+private const val ROUTING_DATA_ROW_KEY = "routing-data"
+
 // The Map category's rows; see AppearanceSection's header comment on why
 // there is no title / reset wiring here. The key / Map ID entry dialogs sit
 // as siblings of the row Column (below), not nested inside it — they are
@@ -53,6 +59,7 @@ internal fun MapSection(
     onAction: (SettingsAction) -> Unit,
     onOpenDocument: (SettingsDocument) -> Unit,
     onOpenOfflineRegions: () -> Unit,
+    onOpenRoutingData: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showGoogleKeyDialog by remember { mutableStateOf(false) }
@@ -210,6 +217,20 @@ internal fun MapSection(
                         }
                     }
                 }
+                // Routing data is OpenStreetMap data too, and routes run on this
+                // backend only; the row shows only where routing is offered.
+                uiState.routingData?.let { routing ->
+                    item(key = ROUTING_DATA_ROW_KEY) { shapes ->
+                        SettingsListItem(
+                            title = stringResource(R.string.settings_map_routing_data),
+                            shapes = shapes,
+                            summary = routingDataSummary(routing),
+                            onClick = onOpenRoutingData,
+                        ) {
+                            TrailingIcon(Lucide.ChevronRight)
+                        }
+                    }
+                }
             }
         }
         SettingsGroup(header = stringResource(R.string.settings_subheader_map_camera)) {
@@ -361,6 +382,20 @@ internal fun MapSection(
         )
     }
 }
+
+// The number of 5° areas and their total size, or that there are none yet.
+@Composable
+private fun routingDataSummary(routing: RoutingDataSummary): String =
+    if (routing.tileCount == 0) {
+        stringResource(R.string.settings_map_routing_data_none)
+    } else {
+        pluralStringResource(
+            R.plurals.settings_map_routing_data_summary,
+            routing.tileCount,
+            routing.tileCount,
+            fileSize(routing.totalBytes),
+        )
+    }
 
 // The override is shown verbatim; blank names the build's default host so the
 // user can see what "default" resolves to.

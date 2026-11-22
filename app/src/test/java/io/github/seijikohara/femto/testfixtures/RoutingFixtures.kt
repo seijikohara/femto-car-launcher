@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.testfixtures
 
 import io.github.seijikohara.femto.data.common.download.ProbeResult
 import io.github.seijikohara.femto.data.common.download.RemoteFile
+import io.github.seijikohara.femto.data.common.download.RevalidationResult
 import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.EnginePosition
 import io.github.seijikohara.femto.data.routing.ROUTE_TIME_LIMIT_MS
@@ -27,6 +28,8 @@ internal class RoutingFixture(
     private val dispatcher: CoroutineDispatcher,
     /** The bytes the store's volume can still allocate. */
     var freeBytes: Long = PLENTY_OF_ROOM_BYTES,
+    /** The store's wall clock, which dates each check of a tile. */
+    var nowEpochMs: Long = FIXTURE_EPOCH_MS,
 ) {
     val feed = FakeRemoteFileFeed()
     val engine = FakeRouteEngine()
@@ -37,6 +40,7 @@ internal class RoutingFixture(
             feed = feed,
             freeBytes = { freeBytes },
             ioDispatcher = dispatcher,
+            clock = { nowEpochMs },
         )
 
     val profilesDir: File get() = File(root, "routing/profiles")
@@ -46,6 +50,7 @@ internal class RoutingFixture(
         profiles: RoutingProfileFiles = RoutingProfileFiles(profilesDir) { FakeRoutingProfileBytes.inputStream() },
         engineDispatcher: CoroutineDispatcher = dispatcher,
         timeLimitMs: Long = ROUTE_TIME_LIMIT_MS,
+        nanoTime: () -> Long = System::nanoTime,
     ): RoutePlanner =
         RoutePlanner(
             tiles = tiles,
@@ -54,9 +59,42 @@ internal class RoutingFixture(
             timeLimitMs = timeLimitMs,
             ioDispatcher = dispatcher,
             engineDispatcher = engineDispatcher,
+            nanoTime = nanoTime,
         )
 
     fun installTile(name: String) = installRoutingTile(root, name)
+
+    /** Install the one-byte tile [name] with a record of the server's file, last checked at [checkedAtEpochMs]. */
+    fun installCheckedTile(
+        name: String,
+        checkedAtEpochMs: Long,
+    ) {
+        installRoutingTile(root, name)
+        File(root, "routing/records/$name.json")
+            .apply { parentFile?.mkdirs() }
+            .writeText(
+                """{"file":{"sizeBytes":1,"etag":"\"$name\"","lastModifiedEpochMs":null},""" +
+                    """"checkedAtEpochMs":$checkedAtEpochMs}""",
+            )
+    }
+
+    /** The server has rebuilt the tile [name] into a file of [sizeBytes]. */
+    fun rebuildTile(
+        name: String,
+        sizeBytes: Long,
+    ) {
+        feed.revalidateAnswers[tileUrl(name)] =
+            RevalidationResult.Changed(
+                RemoteFile(sizeBytes = sizeBytes, etag = "\"$name-new\"", lastModifiedEpochMs = null),
+            )
+    }
+
+    /** The server still has the tile [name] as it was installed. */
+    fun keepTile(name: String) {
+        feed.revalidateAnswers[tileUrl(name)] = RevalidationResult.NotModified
+    }
+
+    fun tileUrl(name: String): String = ROUTING_TILE_HOST_PREFIX + name + ".rd5"
 
     fun noDataRecord(name: String) = writeNoDataRecord(root, name)
 
@@ -74,8 +112,11 @@ internal class RoutingFixture(
         feed.probeAnswers[ROUTING_TILE_HOST_PREFIX + name + ".rd5"] = ProbeResult.Gone
     }
 
-    private companion object {
-        const val PLENTY_OF_ROOM_BYTES = 1L shl 40
+    companion object {
+        private const val PLENTY_OF_ROOM_BYTES = 1L shl 40
+
+        /** The fixture's wall clock at the start of a test: 2026-11-22T09:00:00Z. */
+        const val FIXTURE_EPOCH_MS = 1_795_338_000_000L
     }
 }
 

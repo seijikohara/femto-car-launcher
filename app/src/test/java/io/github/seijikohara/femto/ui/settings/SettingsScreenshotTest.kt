@@ -110,6 +110,7 @@ class SettingsScreenshotTest {
                     onOpenSystemSettings = {},
                     onOpenFontPicker = {},
                     onOpenOfflineRegions = {},
+                    onOpenRoutingData = {},
                     onOpenDiagnostics = {},
                     onOpenLicenses = {},
                     onOpenDocument = {},

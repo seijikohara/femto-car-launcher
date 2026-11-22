@@ -199,14 +199,21 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "route", null)
 
+    // Seeded off like the route, so the dashboard never waits on the settings store.
+    private val routingOffered: Flow<Boolean> =
+        routingAvailable
+            .onStart { emit(false) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "routing available", false)
+
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            activeRoute,
-        ) { core, calendar, systemStatus, tripState, route ->
+            combine(activeRoute, routingOffered, ::Pair),
+        ) { core, calendar, systemStatus, tripState, (route, offered) ->
             HomeUiState(
                 location = core.location,
                 address = core.address,
@@ -217,6 +224,7 @@ internal class HomeViewModel(
                 tripState = tripState,
                 updateBadge = core.updateBadge,
                 activeRoute = route,
+                routingAvailable = offered,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 

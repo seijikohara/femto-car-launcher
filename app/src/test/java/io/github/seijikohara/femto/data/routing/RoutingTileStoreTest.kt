@@ -292,6 +292,123 @@ class RoutingTileStoreTest {
             assertEquals(4, server.requestCount)
         }
 
+    // --- check ------------------------------------------------------------------
+
+    @Test
+    fun `a check within a week asks nothing`() =
+        runTest {
+            val store = installed()
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS - 1
+            val result = store.check(TILE)
+
+            assertEquals(TileCheckResult.NotDue, result)
+            assertEquals(2, server.requestCount)
+        }
+
+    @Test
+    fun `a due check of an unchanged tile asks with the etag and counts`() =
+        runTest {
+            val store = installed()
+            server.enqueue(MockResponse().setResponseCode(304))
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            val result = store.check(TILE)
+
+            assertEquals(TileCheckResult.Unchanged, result)
+            val check = List(3) { server.takeRequest() }.last()
+            assertEquals("HEAD", check.method)
+            assertEquals(ETAG, check.getHeader("If-None-Match"))
+            assertEquals(now, store.installedTiles().single().checkedAtEpochMs)
+        }
+
+    @Test
+    fun `a due check of a rebuilt tile reports its size and downloads nothing`() =
+        runTest {
+            val store = installed()
+            server.enqueue(headResponse(NEW_BYTES.size, NEW_ETAG))
+            val checkedBefore = store.installedTiles().single().checkedAtEpochMs
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            val result = store.check(TILE)
+
+            assertEquals(TileCheckResult.Changed(NEW_BYTES.size.toLong()), result)
+            assertEquals(3, server.requestCount)
+            assertContentEquals(TILE_BYTES, tileFile().readBytes())
+            assertEquals(checkedBefore, store.installedTiles().single().checkedAtEpochMs)
+        }
+
+    @Test
+    fun `a rebuilt tile found by a check is replaced by the refresh that follows`() =
+        runTest {
+            val store = installed()
+            server.enqueue(headResponse(NEW_BYTES.size, NEW_ETAG))
+            server.enqueue(headResponse(NEW_BYTES.size, NEW_ETAG))
+            server.enqueue(fileResponse(NEW_BYTES, NEW_ETAG))
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            store.check(TILE)
+
+            val result = store.refresh(TILE)
+
+            assertEquals(TileRefreshResult.UPDATED, result)
+            assertContentEquals(NEW_BYTES, tileFile().readBytes())
+        }
+
+    @Test
+    fun `a check without an answer keeps the tile and does not count`() =
+        runTest {
+            val store = installed()
+            server.enqueue(MockResponse().setResponseCode(503))
+            val checkedBefore = store.installedTiles().single().checkedAtEpochMs
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            val result = store.check(TILE)
+
+            assertEquals(TileCheckResult.Unavailable, result)
+            assertEquals(checkedBefore, store.installedTiles().single().checkedAtEpochMs)
+        }
+
+    @Test
+    fun `a tile that is not installed is not checked`() =
+        runTest {
+            assertEquals(TileCheckResult.NotInstalled, store().check(TILE))
+            assertEquals(0, server.requestCount)
+        }
+
+    // --- installed --------------------------------------------------------------
+
+    @Test
+    fun `the installed tiles are read again after a download and a delete`() =
+        runTest {
+            server.enqueue(headResponse(TILE_BYTES.size))
+            server.enqueue(fileResponse(TILE_BYTES))
+            val store = store()
+            val seen = mutableListOf<List<String>>()
+            val collector =
+                backgroundScope.launch(StandardTestDispatcher(testScheduler)) {
+                    store.installed.collect { tiles -> seen += tiles.map { it.name } }
+                }
+            runCurrent()
+
+            store.fetch(TILE)
+            runCurrent()
+            store.delete(TILE)
+            runCurrent()
+            collector.cancel()
+
+            // Consecutive repeats folded: a read can follow every operation, a look that changes nothing included.
+            val changes = seen.fold(emptyList<List<String>>()) { acc, tiles ->
+                if (acc.lastOrNull() ==
+                    tiles
+                ) {
+                    acc
+                } else {
+                    acc + listOf(tiles)
+                }
+            }
+            assertEquals(listOf(emptyList(), listOf(TILE), emptyList()), changes)
+        }
+
     // --- free space -------------------------------------------------------------
 
     @Test

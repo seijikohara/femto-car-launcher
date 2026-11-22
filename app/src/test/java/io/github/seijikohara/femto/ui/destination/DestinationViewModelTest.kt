@@ -8,6 +8,7 @@ import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.EngineOutcome
+import io.github.seijikohara.femto.data.routing.ROUTING_TILE_CHECK_INTERVAL_MS
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.FakeCurrentFixSource
@@ -98,6 +99,7 @@ class DestinationViewModelTest {
             nowElapsedRealtimeNanos = { nowNanos },
             hasLocationPermission = { locationGranted },
             currentFix = currentFix,
+            nowEpochMs = { routing.nowEpochMs },
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -862,6 +864,216 @@ class DestinationViewModelTest {
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
         }
 
+    // --- weekly check of the routing data ---------------------------------------
+
+    @Test
+    fun data_checked_within_the_week_routes_without_asking_the_server() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS + 1)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.revalidatedUrls)
+        }
+
+    @Test
+    fun data_a_week_old_is_checked_and_routes_when_unchanged() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.keepTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(listOf(routing.tileUrl(TILE)), routing.feed.revalidatedUrls)
+            assertEquals(emptyList(), routing.feed.downloads)
+            assertEquals(
+                routing.nowEpochMs,
+                routing.tiles
+                    .installedTiles()
+                    .single()
+                    .checkedAtEpochMs,
+            )
+        }
+
+    @Test
+    fun the_check_says_so_while_it_asks_the_server() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.engine.outcome = fakeEngineTrack()
+            val gate = routing.feed.gateRevalidate()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            assertEquals(RouteStep.CheckingData, viewModel.uiState.value.route)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_check_without_an_answer_routes_with_the_data_on_the_device() =
+        runTest {
+            // The fake server answers no check: offline, the installed tile routes.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    @Test
+    fun rebuilt_data_asks_first_with_the_size_of_the_newer_file() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES, newerData = true), viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.downloads)
+            assertEquals(emptyList(), routing.engine.requests)
+        }
+
+    @Test
+    fun confirmed_newer_data_replaces_the_tile_then_routes() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(listOf(routing.tileUrl(TILE)), routing.feed.downloads.map { it.url })
+            assertEquals(
+                TILE_BYTES,
+                routing.tiles
+                    .installedTiles()
+                    .single()
+                    .sizeBytes,
+            )
+        }
+
+    @Test
+    fun rebuilt_data_and_missing_data_are_asked_for_together() =
+        runTest {
+            // Two tiles across a 5° edge: the western one is installed and
+            // rebuilt since, the eastern one missing.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.offerTile(EAST_TILE, sizeBytes = EAST_TILE_BYTES)
+
+            viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES + EAST_TILE_BYTES), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun cancelling_newer_data_downloads_nothing() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    // --- a point picked on the map ---------------------------------------------
+
+    @Test
+    fun a_picked_point_is_offered_and_not_saved() =
+        runTest {
+            val viewModel = subscribedViewModel()
+
+            viewModel.onAction(DestinationAction.PickPoint(DESTINATION))
+
+            assertEquals(DESTINATION, viewModel.uiState.value.pickedPoint)
+            assertEquals(emptyList(), store.current)
+        }
+
+    @Test
+    fun clearing_the_picked_point_gives_the_entry_back() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.PickPoint(DESTINATION))
+
+            viewModel.onAction(DestinationAction.ClearPickedPoint)
+
+            assertNull(viewModel.uiState.value.pickedPoint)
+        }
+
+    @Test
+    fun saving_the_picked_point_labels_it_with_its_coordinates() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.PickPoint(DESTINATION))
+
+            viewModel.onAction(DestinationAction.SavePickedPoint)
+
+            assertEquals(listOf("34.07000, 133.00000" to DESTINATION), store.current.map { it.label to it.target })
+        }
+
+    @Test
+    fun saving_the_picked_point_is_ignored_while_moving() =
+        runTest {
+            motion.value = VehicleMotion.MOVING
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.PickPoint(DESTINATION))
+
+            viewModel.onAction(DestinationAction.SavePickedPoint)
+
+            assertEquals(emptyList(), store.current)
+        }
+
+    @Test
+    fun a_picked_point_routes_like_a_saved_point() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.PickPoint(DESTINATION))
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(
+                DESTINATION.toRoutePoint(),
+                routing.engine.requests
+                    .single()
+                    .destination,
+            )
+        }
+
     private fun PlaceTarget.Point.toRoutePoint() = RoutePoint(latitude, longitude)
 
     private companion object {
@@ -883,5 +1095,12 @@ class DestinationViewModelTest {
         val OTHER_DESTINATION = PlaceTarget.Point(33.95, 132.9)
         const val TILE = "E130_N30"
         const val TILE_BYTES = 48_000_000L
+
+        // A destination across the 135° meridian from ORIGIN, whose route reads TILE and the tile east of it.
+        val EAST_DESTINATION = PlaceTarget.Point(34.07, 135.5)
+        const val EAST_TILE = "E135_N30"
+        const val EAST_TILE_BYTES = 31_000_000L
+
+        const val WEEK_MS = ROUTING_TILE_CHECK_INTERVAL_MS
     }
 }

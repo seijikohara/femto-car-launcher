@@ -2,8 +2,8 @@
 // host loads index.html?backend=osm. Owns the MapLibre instance and the
 // OSM-only style bridge (setStyleUrl / setFeatures with the ACCENT recolour
 // palette and the 3D-buildings / terrain injection, setRoute / clearRoute for
-// the route line); the follow camera and
-// chevron come from the shared follow-camera engine.
+// the route line) and the long press that picks a destination; the follow
+// camera and chevron come from the shared follow-camera engine.
 // MapLibre 6 is ESM-only and publishes no default export, so the classes come in
 // by name. `MapLibreMap` is the library's own alias for its `Map` export, which
 // would otherwise shadow the global `Map`.
@@ -22,6 +22,7 @@ import { webglRenderer, webglSupport } from "../bridge";
 import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
 import { createNoTileWatchdog, createStyleLoadWatchdog } from "../load-outcome";
+import { createLongPressRecognizer, longPressDetail, touchPoints } from "../long-press";
 import { requestStatusOf } from "../request-status";
 import { decodeRoute, type RouteLine, showRoute } from "../route";
 import {
@@ -288,6 +289,38 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                     .setLngLat(lngLat)
                     .addTo(liveMap),
         });
+
+        // A touch held still picks a point as a destination (long-press.ts);
+        // the host acts on it only where routing is offered. The listeners are
+        // passive and only watch, so MapLibre's own gestures and the follow
+        // camera see the touches as before. Only a user's gesture cancels a
+        // press: the follow camera's own eases carry no originalEvent.
+        const canvasContainer = liveMap.getCanvasContainer();
+        const longPress = createLongPressRecognizer((x, y) => {
+            const rect = canvasContainer.getBoundingClientRect();
+            const point = liveMap.unproject([x - rect.left, y - rect.top]).wrap();
+            report("longpress", longPressDetail(point.lat, point.lng));
+        });
+        const passive = { passive: true };
+        canvasContainer.addEventListener(
+            "touchstart",
+            (e) => longPress.start(touchPoints(e.touches)),
+            passive,
+        );
+        canvasContainer.addEventListener(
+            "touchmove",
+            (e) => longPress.move(touchPoints(e.touches)),
+            passive,
+        );
+        canvasContainer.addEventListener("touchend", longPress.end, passive);
+        canvasContainer.addEventListener("touchcancel", longPress.end, passive);
+        const cancelOnGesture = (e: { originalEvent?: unknown }): void => {
+            if (e.originalEvent) longPress.cancel();
+        };
+        liveMap.on("dragstart", cancelOnGesture);
+        liveMap.on("zoomstart", cancelOnGesture);
+        liveMap.on("rotatestart", cancelOnGesture);
+        liveMap.on("pitchstart", cancelOnGesture);
 
         window.updateCamera = engine.updateCamera;
         window.setFollow = engine.setFollow;

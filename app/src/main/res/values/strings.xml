@@ -216,6 +216,14 @@
     <string name="destination_route_failed_download">The routing data could not be downloaded. Check the connection and try again.</string>
     <string name="destination_route_failed">No route could be found to that destination.</string>
     <string name="destination_route_dismiss">OK</string>
+    <!-- Shown while the routing data a route reads is checked against brouter.de, at most once a week per area. -->
+    <string name="destination_route_checking">Checking the routing data for updates…</string>
+    <!-- %1$s = the download size, e.g. "48 MB". Shown when brouter.de has rebuilt routing data already on this device and nothing else is missing. -->
+    <string name="destination_route_update_prompt">brouter.de has newer routing data for this route: %1$s. The download replaces the data on this device for this and later routes.</string>
+    <!-- A point picked with a long press on the map, shown in place of the search. -->
+    <string name="destination_picked_point">Point on the map</string>
+    <string name="destination_save_point">Save point</string>
+    <string name="destination_search_instead">Search instead</string>
 
     <!-- Shared edit-mode "Done" affordance (drawer pinned dock + dashboard dock nav). -->
     <string name="edit_done">Done</string>
@@ -442,6 +450,30 @@
     <string name="settings_map_tile_host_clear">Use default</string>
     <string name="settings_map_offline_regions">Saved map regions</string>
     <string name="settings_map_offline_regions_summary">Save regions of the map on this device. The map does not draw them yet.</string>
+    <!-- Route preview (issue #389 phase 3, nightly builds only): the routing data brouter.de publishes, one file per 5° × 5° area. -->
+    <string name="settings_map_routing_data">Routing data</string>
+    <string name="settings_map_routing_data_none">None on this device yet. A route downloads the areas it needs.</string>
+    <!-- %1$d = the number of 5° × 5° areas, %2$s = their total size, e.g. "48 MB". -->
+    <plurals name="settings_map_routing_data_summary">
+        <item quantity="one">%1$d area · %2$s</item>
+        <item quantity="other">%1$d areas · %2$s</item>
+    </plurals>
+    <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->
+    <string name="routing_data_intro">Each file covers a 5° × 5° area. A route checks the areas it uses for newer data from brouter.de at most once a week, and asks before downloading any.</string>
+    <!-- %1$s = the file's size, %2$s = the date of the last check. -->
+    <string name="routing_data_tile_summary">%1$s · checked %2$s</string>
+    <!-- %1$s = the area's name -->
+    <string name="routing_data_delete_tile">Delete %1$s</string>
+    <!-- %1$s = the area's name -->
+    <string name="routing_data_delete_title">Delete %1$s?</string>
+    <!-- %1$s = the size the delete frees. -->
+    <string name="routing_data_delete_message">This frees %1$s on this device. A route through this area downloads it again.</string>
+    <string name="routing_data_delete">Delete</string>
+    <string name="routing_data_delete_all">Delete all routing data</string>
+    <string name="routing_data_delete_all_title">Delete all routing data?</string>
+    <!-- %1$s = the total size the delete frees. -->
+    <string name="routing_data_delete_all_message">This frees %1$s on this device. Routes download the areas they need again.</string>
+    <string name="routing_data_empty">No routing data on this device</string>
     <string name="offline_regions_storage">%1$s used · %2$s free</string>
     <string name="offline_regions_storage_limited">%1$s of %2$s used · %3$s free</string>
     <string name="offline_regions_limit">Storage limit</string>

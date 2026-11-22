@@ -154,12 +154,17 @@ internal fun DestinationPanel(
     val activity = LocalActivity.current
     val currentOnAction by rememberUpdatedState(onAction)
     val currentRoute by rememberUpdatedState(uiState.route)
+    val currentPickedPoint by rememberUpdatedState(uiState.pickedPoint)
+    //
+    // A point picked on the map goes with the panel too, so the next open from
+    // the dock starts on the search.
     if (visible) {
         DisposableEffect(Unit) {
             onDispose {
                 currentOnAction(DestinationAction.CancelListening)
                 val closing = activity?.isChangingConfigurations != true
                 if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
+                if (closing && currentPickedPoint != null) currentOnAction(DestinationAction.ClearPickedPoint)
             }
         }
     }
@@ -177,7 +182,16 @@ internal fun DestinationPanel(
     // the outer receiver is out of reach (see CalendarPanel).
     val portrait = maxHeight > maxWidth
     val entry: @Composable (Modifier) -> Unit = { entryModifier ->
-        DestinationEntry(
+        uiState.pickedPoint?.let { point ->
+            PickedPointEntry(
+                point = point,
+                uiState = uiState,
+                onAction = onAction,
+                onNavigate = handOff,
+                onRoute = route,
+                modifier = entryModifier,
+            )
+        } ?: DestinationEntry(
             uiState = uiState,
             lastFix = lastFix,
             currentAddress = currentAddress,
@@ -325,6 +339,87 @@ private fun DestinationEntry(
             modifier = Modifier.weight(2f).heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
             Text(text = stringResource(R.string.destination_save_location))
+        }
+    }
+}
+
+// A point picked with a long press on the map, in place of the text entry: its
+// coordinates, Navigate (the point's `geo:` hand-off) with Route beside it, and
+// the way to keep it or to go back to the search. Nothing here types, so only
+// saving waits for a stop, as every save does.
+@Composable
+private fun PickedPointEntry(
+    point: PlaceTarget.Point,
+    uiState: DestinationUiState,
+    onAction: (DestinationAction) -> Unit,
+    onNavigate: (target: PlaceTarget, label: String) -> Unit,
+    onRoute: (PlaceTarget) -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier,
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+) {
+    Text(
+        text = stringResource(R.string.destination_picked_point).uppercase(),
+        style = MaterialTheme.typography.eyebrow(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    Row(
+        modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    ) {
+        FemtoIcon(
+            imageVector = Lucide.MapPin,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(FemtoDimens.InlineIconSize),
+        )
+        Text(text = point.coordinateLabel(), style = MaterialTheme.typography.drawerBody())
+    }
+    if (!uiState.handOffAvailable) {
+        Text(
+            text = stringResource(R.string.destination_no_handler),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    ) {
+        Button(
+            onClick = { onNavigate(point, "") },
+            enabled = uiState.handOffAvailable,
+            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            ButtonLabel(icon = Lucide.Navigation, text = stringResource(R.string.destination_navigate))
+        }
+        if (uiState.canRoute(point)) {
+            FilledTonalButton(
+                onClick = { onRoute(point) },
+                modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+            ) {
+                ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
+            }
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    ) {
+        FilledTonalButton(
+            onClick = { onAction(DestinationAction.SavePickedPoint) },
+            enabled = uiState.typingAllowed,
+            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            Text(text = stringResource(R.string.destination_save_point))
+        }
+        FilledTonalButton(
+            onClick = { onAction(DestinationAction.ClearPickedPoint) },
+            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            ButtonLabel(icon = Lucide.Search, text = stringResource(R.string.destination_search_instead))
         }
     }
 }
@@ -563,7 +658,7 @@ private fun RouteStatus(
             )
         }
 
-        RouteStep.FindingPosition, RouteStep.Locating, RouteStep.Computing -> {
+        RouteStep.FindingPosition, RouteStep.Locating, RouteStep.CheckingData, RouteStep.Computing -> {
             LinearProgressIndicator(modifier = widthModifier)
         }
 
@@ -620,8 +715,19 @@ private fun routeStepMessage(step: RouteStep): String =
             stringResource(R.string.destination_route_locating)
         }
 
+        RouteStep.CheckingData -> {
+            stringResource(R.string.destination_route_checking)
+        }
+
         is RouteStep.ConfirmDownload -> {
-            stringResource(R.string.destination_route_download_prompt, fileSize(step.bytes))
+            stringResource(
+                if (step.newerData) {
+                    R.string.destination_route_update_prompt
+                } else {
+                    R.string.destination_route_download_prompt
+                },
+                fileSize(step.bytes),
+            )
         }
 
         is RouteStep.Downloading -> {
@@ -669,6 +775,10 @@ private fun RouteFailure.messageRes(): Int =
  * app that takes the hand-off, on opening and on every return to the launcher,
  * and closes the panel the same way once a route is found. [visible] is the
  * panel's ([DestinationPanel]): the flag that shows and hides this host.
+ *
+ * [pickedPoint] is a point a long press on the map has just picked: the host
+ * hands it to the ViewModel, which keeps it from then on, and reports it consumed
+ * through [onConsumePickedPoint], so the same pick is not handed over twice.
  */
 @Composable
 internal fun DestinationPanelHost(
@@ -679,6 +789,8 @@ internal fun DestinationPanelHost(
     onOpenMaps: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    pickedPoint: PlaceTarget.Point? = null,
+    onConsumePickedPoint: () -> Unit = {},
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
 ) {
@@ -701,6 +813,13 @@ internal fun DestinationPanelHost(
             viewModel.onAction(DestinationAction.DismissRoute)
             viewModel.onAction(DestinationAction.ClearQuery)
             currentOnClose()
+        }
+    }
+    val currentOnConsumePickedPoint by rememberUpdatedState(onConsumePickedPoint)
+    LaunchedEffect(pickedPoint) {
+        pickedPoint?.let { point ->
+            viewModel.onAction(DestinationAction.PickPoint(point))
+            currentOnConsumePickedPoint()
         }
     }
     DestinationPanel(
@@ -802,6 +921,31 @@ private fun DestinationPanelRoutePreview() {
                     query = "Central Station",
                     routeAvailable = true,
                     geocoderAvailable = true,
+                ),
+            lastFix = PreviewFix,
+            currentAddress = "1-9-1 Marunouchi",
+            visible = true,
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Composable
+private fun DestinationPanelPickedPointPreview() {
+    FemtoTheme {
+        DestinationPanel(
+            uiState =
+                PreviewState.copy(
+                    motion = VehicleMotion.PARKED,
+                    routeAvailable = true,
+                    pickedPoint = PlaceTarget.Point(35.658581, 139.745433),
                 ),
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",

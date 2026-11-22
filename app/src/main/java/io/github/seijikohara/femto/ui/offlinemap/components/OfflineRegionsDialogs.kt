@@ -140,9 +140,10 @@ private fun unavailableText(reason: Reason): String =
         },
     )
 
-// A plain message with one or two actions; [dismissLabel] null leaves the confirm action alone.
+// A plain message with one or two actions; [dismissLabel] null leaves the confirm action alone. The routing data
+// sheet asks its confirmations with it too.
 @Composable
-private fun MessageDialog(
+internal fun MessageDialog(
     title: String?,
     text: String,
     confirmLabel: String,
