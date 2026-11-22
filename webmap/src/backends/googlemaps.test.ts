@@ -338,6 +338,7 @@ function noPendingCalls(): PendingBridgeCalls {
         updateCamera: null,
         setStyleUrl: null,
         setFeatures: null,
+        setRoute: null,
         setGoogleMapsOptions: null,
         setFollow: null,
         setNorthUp: null,

@@ -1,7 +1,8 @@
 // OSM / MapLibre backend module, dynamically imported by main.ts when the
 // host loads index.html?backend=osm. Owns the MapLibre instance and the
 // OSM-only style bridge (setStyleUrl / setFeatures with the ACCENT recolour
-// palette and the 3D-buildings / terrain injection); the follow camera and
+// palette and the 3D-buildings / terrain injection, setRoute / clearRoute for
+// the route line); the follow camera and
 // chevron come from the shared follow-camera engine.
 // MapLibre 6 is ESM-only and publishes no default export, so the classes come in
 // by name. `MapLibreMap` is the library's own alias for its `Map` export, which
@@ -22,11 +23,12 @@ import { chevronHandles } from "../chevron";
 import { createFollowEngine } from "../follow-camera";
 import { createNoTileWatchdog, createStyleLoadWatchdog } from "../load-outcome";
 import { requestStatusOf } from "../request-status";
+import { decodeRoute, type RouteLine, showRoute } from "../route";
 import {
     type AccentColors,
     injectFeatures,
+    NON_TILE_HOST_SOURCE_IDS,
     rewriteHost,
-    TERRAIN_SOURCE_ID,
     UPSTREAM_TILE_HOST,
 } from "../style";
 
@@ -97,6 +99,8 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         // Theme-tracked 3D extrusion colour, set by setFeatures alongside the
         // toggle.
         buildingColor: "",
+        // The host's route line (setRoute), or none.
+        route: null as RouteLine | null,
         styleFadeGen: 0,
     };
 
@@ -149,8 +153,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
 
         const noTileWatchdog = createNoTileWatchdog({
             tileHost,
-            // The terrain DEM comes from its own host, not the tile host.
-            ignoredSourceIds: [TERRAIN_SOURCE_ID],
+            ignoredSourceIds: NON_TILE_HOST_SOURCE_IDS,
             graceMs: LOAD_FATAL_GRACE_MS,
             styleLoaded: styleWatchdog.styleLoaded,
             reporter,
@@ -187,6 +190,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                             accent: state.accentColors,
                             buildingColor: state.buildingColor,
                             terrainUrl: terrainUrl,
+                            route: state.route,
                         }),
                 });
                 // Only from here do tiles belong to the swapped-in style.
@@ -358,11 +362,43 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             state.buildingColor = buildingColor || "";
             applyStyleWithFade();
         };
+        // Android -> JS: show or clear the route line. Unlike setFeatures, this
+        // edits the loaded style in place rather than re-applying it: a route
+        // change must not cross-fade the whole map. The state is what a later
+        // style swap re-injects (applyStyle), so the line survives a scheme
+        // change, the accent recolour and the feature toggles; a page reload
+        // starts without one, and the host sends it again once the page is
+        // ready.
+        function syncRoute(): void {
+            try {
+                showRoute(liveMap, state.route);
+            } catch (e) {
+                // A style still loading refuses new sources. On the first
+                // load that is the constructor's style, which has no
+                // transformStyle: the route is recovered by the host's
+                // page-ready setStyleUrl push, whose transformStyle
+                // (applyStyle) reads state.route when its style arrives —
+                // as does every later setStyleUrl / setFeatures swap.
+                log(
+                    `route deferred to the style load: ${e instanceof Error ? e.message : String(e)}`,
+                );
+            }
+        }
+        window.setRoute = (latLons, lineColor, casingColor) => {
+            state.route = decodeRoute(latLons, lineColor, casingColor);
+            if (!state.route) log("route payload rejected; route cleared");
+            syncRoute();
+        };
+        window.clearRoute = () => {
+            state.route = null;
+            syncRoute();
+        };
 
         // Replay any bridge calls the boot stubs recorded before this module
         // loaded. Order mirrors the host's push sequence.
         if (pending.setStyleUrl) window.setStyleUrl(...pending.setStyleUrl);
         if (pending.setFeatures) window.setFeatures(...pending.setFeatures);
+        if (pending.setRoute) window.setRoute(...pending.setRoute);
         if (pending.setNorthUp != null) window.setNorthUp(pending.setNorthUp);
         if (pending.setFollow != null) window.setFollow(pending.setFollow);
         if (pending.updateCamera) window.updateCamera(...pending.updateCamera);

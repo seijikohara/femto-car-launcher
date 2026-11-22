@@ -4,6 +4,14 @@ import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 // Recolour rule data — layer group names and the marker-drop cap live here so
 // accent blending and the chevron geometry share one authoritative source.
 import recolorData from "./map-recolor-data.json";
+import {
+    ROUTE_LAYER_IDS,
+    ROUTE_SOURCE_ID,
+    type RouteLine,
+    routeInsertIndex,
+    routeLayers,
+    routeSource,
+} from "./route";
 
 export interface AccentColors {
     background: string;
@@ -33,6 +41,8 @@ export interface MapFeatures {
     // build-time endpoint, and the default below stands in for tests and a
     // page loaded outside the launcher.
     terrainUrl?: string;
+    // The host's route line (route.ts), or none.
+    route?: RouteLine | null;
 }
 
 // A style's own 3D building colour, in its metadata: the Standard scheme's fixed
@@ -60,6 +70,13 @@ export const DEFAULT_TERRAIN_TILEJSON_URL = "https://tiles.mapterhorn.com/tilejs
 // Its tiles come from the DEM host, not the tile host, so the no-tile
 // watchdog (load-outcome.ts) must not count them.
 export const TERRAIN_SOURCE_ID = "terrainSource";
+
+// The sources the page injects whose tiles say nothing about the tile host:
+// the terrain DEM comes from its own host, and the route line's tiles are cut
+// on the device from the host's GeoJSON. The no-tile watchdog
+// (load-outcome.ts) ignores them, or a page without map data would report
+// its success signal from either.
+export const NON_TILE_HOST_SOURCE_IDS: readonly string[] = [TERRAIN_SOURCE_ID, ROUTE_SOURCE_ID];
 
 // The origin the bundled styles and the hosted style URLs are written against.
 // The launcher may serve the same layout from another host (a self-hosted
@@ -218,7 +235,9 @@ export function injectFeatures(
     // Idempotent: strip any of OUR previously-injected layers/sources first, so a
     // re-applied style (toggle change, or a setStyle that races the initial load
     // and reuses the current style) never produces a duplicate-id error.
-    nextStyle.layers = nextStyle.layers.filter((l) => l.id !== "femto-3d-buildings");
+    const injectedLayerIds: readonly string[] = ["femto-3d-buildings", ...ROUTE_LAYER_IDS];
+    nextStyle.layers = nextStyle.layers.filter((l) => !injectedLayerIds.includes(l.id));
+    delete nextStyle.sources[ROUTE_SOURCE_ID];
     // Only strip terrain if WE injected it (terrainSource present), so a base
     // style that ever ships its own terrain is left intact.
     if (nextStyle.sources[TERRAIN_SOURCE_ID]) {
@@ -298,6 +317,13 @@ export function injectFeatures(
         if (firstSymbol)
             nextStyle.layers.splice(nextStyle.layers.indexOf(firstSymbol), 0, buildings);
         else nextStyle.layers.push(buildings);
+    }
+    // After the buildings, so the line stays visible where it passes behind an
+    // extrusion; routeInsertIndex says why it does not share their position.
+    const route = features.route;
+    if (route) {
+        nextStyle.sources[ROUTE_SOURCE_ID] = routeSource(route);
+        nextStyle.layers.splice(routeInsertIndex(nextStyle.layers), 0, ...routeLayers(route));
     }
     if (features.terrain) {
         nextStyle.sources[TERRAIN_SOURCE_ID] = {

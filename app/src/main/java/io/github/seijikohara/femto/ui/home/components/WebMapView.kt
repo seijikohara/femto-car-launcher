@@ -65,6 +65,8 @@ import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.LocalFemtoDarkTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.roundToLong
 
 /**
  * Live map in a WebView — the only path that renders a smooth, animated map
@@ -149,6 +151,8 @@ internal fun WebMapView(
     onBearingChange: (Float) -> Unit = {},
     onOpenLicenses: () -> Unit = {},
     attributionBottomInset: Dp = 0.dp,
+    // The route line, OSM backend only (see the route effect below); null draws none.
+    routeLine: List<MapRoutePoint>? = null,
 ) {
     val context = LocalContext.current
     // The bridge object below is registered once per WebView instance and would
@@ -917,6 +921,40 @@ internal fun WebMapView(
         }
     }
 
+    // The route line (#389 phase 3), OSM only: Google's terms forbid drawing a
+    // route over its map, so that page never receives one. With no route this
+    // block composes nothing. The page keeps the route through its own style
+    // swaps (it re-injects it like the 3D buildings), so only a new route, a
+    // colour change, and a (re)loaded page need a push.
+    if (mapConfig.backend == MapBackend.OSM && routeLine != null) {
+        // The primary / onPrimary pair: Material guarantees their contrast, so
+        // whichever of the two the map ground is close to — white on the light
+        // Standard map, near-black on the dark one, or the other way round when
+        // the Map style setting overrides the app theme — the other one
+        // outlines the line against it and against the roads it covers.
+        // Primary also matches the self-location chevron that travels it.
+        val routeColor = MaterialTheme.colorScheme.primary.toCssHex()
+        val routeCasingColor = MaterialTheme.colorScheme.onPrimary.toCssHex()
+        LaunchedEffect(webView, pageReady.value, routeLine, routeColor, routeCasingColor) {
+            if (!pageReady.value) return@LaunchedEffect
+            // Same debounce as the style push: the theme cross-fade churns the
+            // colours once per frame, and each push re-encodes the whole route.
+            delay(STYLE_PUSH_DEBOUNCE_MS)
+            webView.evaluateJavascript(setRouteScript(routeLine, routeColor, routeCasingColor), null)
+        }
+        // The route going away (null, or a backend switch) leaves this block,
+        // and the page must drop its line. Declared after the lifecycle effect
+        // so it is disposed before that effect destroys the view; the checks
+        // skip a view that is no longer the live page or whose renderer died.
+        DisposableEffect(webView) {
+            onDispose {
+                if (livePage[0] === webView && webView !in crashedViews) {
+                    webView.evaluateJavascript(CLEAR_ROUTE_SCRIPT, null)
+                }
+            }
+        }
+    }
+
     Box(modifier = modifier) {
         // Keyed on the WebView so a post-crash rebuild swaps in the fresh view
         // (AndroidView's factory runs once per node otherwise).
@@ -1078,6 +1116,53 @@ internal fun setStyleUrlScript(
         "'${accent?.background ?: ""}', '${accent?.water ?: ""}', '${accent?.land ?: ""}', " +
         "'${accent?.roadMajor ?: ""}', '${accent?.roadMinor ?: ""}', '${accent?.roadCasing ?: ""}', " +
         "'${accent?.building ?: ""}', '${accent?.label ?: ""}', $pageAttribution)"
+
+// The setRoute bridge call for [points]: a flat [lat, lon, lat, lon, …] number
+// array literal, which carries nothing a script could misread, plus the two
+// colours (the theme's own hex, quoted like the style push's palette). A route
+// the page could not draw — fewer than two points, or a coordinate that is not
+// finite or out of range — becomes the clear call: NaN or Infinity would
+// otherwise land in the script as identifiers. The page validates the payload
+// again (webmap/src/route.ts decodeRoute).
+internal fun setRouteScript(
+    points: List<MapRoutePoint>,
+    lineColor: String,
+    casingColor: String,
+): String =
+    if (points.size < 2 || !points.all { it.isDrawable() }) {
+        CLEAR_ROUTE_SCRIPT
+    } else {
+        buildString {
+            append("window.setRoute && setRoute([")
+            points.forEachIndexed { index, point ->
+                if (index > 0) append(',')
+                appendDegrees(point.latitude).append(',').appendDegrees(point.longitude)
+            }
+            append("], '")
+                .append(lineColor)
+                .append("', '")
+                .append(casingColor)
+                .append("')")
+        }
+    }
+
+internal const val CLEAR_ROUTE_SCRIPT = "window.clearRoute && clearRoute()"
+
+private fun MapRoutePoint.isDrawable() =
+    latitude.isFinite() && longitude.isFinite() && abs(latitude) <= 90.0 && abs(longitude) <= 180.0
+
+// [degrees] at six decimals (about 0.1 m), built from the rounded integer
+// micro-degrees rather than String.format or Double.toString: the format
+// follows the device locale (a decimal comma would split one number into two
+// array elements), and toString switches to exponent notation for small values.
+private fun StringBuilder.appendDegrees(degrees: Double): StringBuilder {
+    val micros = (degrees * MICROS_PER_DEGREE).roundToLong()
+    val whole = abs(micros) / MICROS_PER_DEGREE.toLong()
+    val fraction = (abs(micros) % MICROS_PER_DEGREE.toLong()).toString().padStart(6, '0')
+    return append(if (micros < 0) "-" else "").append(whole).append('.').append(fraction)
+}
+
+private const val MICROS_PER_DEGREE = 1_000_000.0
 
 // [this] as a double-quoted JS string literal. Only the URL needs it (the
 // palette values are the theme's own hex), so this covers exactly what a URL

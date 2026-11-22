@@ -63,6 +63,8 @@ internal fun MapPanel(
     // bottom-hosted dock instead of sitting under its nav buttons. 0 when the dock
     // hosts another edge (see DashboardScaffold's attributionBottomInset).
     attributionBottomInset: Dp = 0.dp,
+    // The route line the OSM map draws, in travel order; null draws none.
+    routeLine: List<MapRoutePoint>? = null,
     // Substitute for the live map surface; null means the real [WebMapView].
     // Screenshot tests pass a still capture, because Robolectric's WebView is a
     // shadow with no Chromium behind it — a golden could otherwise only ever show
@@ -93,6 +95,7 @@ internal fun MapPanel(
                 onBearingChange = onBearingChange,
                 onOpenLicenses = onOpenLicenses,
                 attributionBottomInset = attributionBottomInset,
+                routeLine = routeLine,
             )
         } else {
             ExposedMapRegion(mapConfig = mapConfig) {
