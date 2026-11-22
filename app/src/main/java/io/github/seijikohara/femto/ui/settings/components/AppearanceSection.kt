@@ -144,6 +144,7 @@ internal fun AppearanceSection(
                 title = stringResource(R.string.settings_group_map_scheme_light),
                 options =
                     listOf(
+                        MapColorScheme.STANDARD to stringResource(R.string.settings_map_scheme_standard),
                         MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
                         MapColorScheme.POSITRON to stringResource(R.string.settings_map_scheme_positron),
                         MapColorScheme.BRIGHT to stringResource(R.string.settings_map_scheme_bright),
@@ -160,6 +161,7 @@ internal fun AppearanceSection(
                 title = stringResource(R.string.settings_group_map_scheme_dark),
                 options =
                     listOf(
+                        MapColorScheme.STANDARD to stringResource(R.string.settings_map_scheme_standard),
                         MapColorScheme.ACCENT to stringResource(R.string.settings_map_scheme_accent),
                         MapColorScheme.DARK_MATTER to
                             stringResource(R.string.settings_map_scheme_dark_matter),

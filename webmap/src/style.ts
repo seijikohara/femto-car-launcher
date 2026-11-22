@@ -21,8 +21,9 @@ export interface AccentColors {
 
 // The feature merge is parameterised on the page state instead of reading it,
 // so a test can exercise every combination without touching globals.
-// [buildingColor] is the theme-tracked 3D extrusion colour, applied for EVERY
-// scheme (not just ACCENT) so the buildings stay subdued on any base style.
+// [buildingColor] is the theme-tracked 3D extrusion colour, applied for every
+// scheme whose style does not name its own (see [STYLE_BUILDING_COLOR_KEY]), so
+// the buildings stay subdued on any base style.
 export interface MapFeatures {
     buildings: boolean;
     terrain: boolean;
@@ -32,6 +33,17 @@ export interface MapFeatures {
     // build-time endpoint, and the default below stands in for tests and a
     // page loaded outside the launcher.
     terrainUrl?: string;
+}
+
+// A style's own 3D building colour, in its metadata: the Standard scheme's fixed
+// palette names one, so its buildings match its ground instead of the theme.
+export const STYLE_BUILDING_COLOR_KEY = "femto:building-color";
+
+function styleBuildingColorOrNull(style: StyleSpecification): string | null {
+    const metadata: unknown = style.metadata;
+    if (typeof metadata !== "object" || metadata === null) return null;
+    const value: unknown = Reflect.get(metadata, STYLE_BUILDING_COLOR_KEY);
+    return typeof value === "string" && value !== "" ? value : null;
 }
 
 // Subdued, see-through buildings: the extrusion must never outshout the roads
@@ -249,6 +261,7 @@ export function injectFeatures(
     const src = vectorSourceId(nextStyle);
     // An empty colour would fail MapLibre's style validation, so buildings wait
     // for the first features push (which always carries the theme colour).
+    const buildingColor = styleBuildingColorOrNull(nextStyle) ?? features.buildingColor;
     if (features.buildings && features.buildingColor && src) {
         // Insert beneath the first label (symbol) layer so labels stay on top.
         const firstSymbol = nextStyle.layers.find((l) => l.type === "symbol");
@@ -260,7 +273,7 @@ export function injectFeatures(
             minzoom: 14,
             filter: ["!=", ["get", "hide_3d"], true],
             paint: {
-                "fill-extrusion-color": features.buildingColor,
+                "fill-extrusion-color": buildingColor,
                 "fill-extrusion-height": [
                     "interpolate",
                     ["linear"],

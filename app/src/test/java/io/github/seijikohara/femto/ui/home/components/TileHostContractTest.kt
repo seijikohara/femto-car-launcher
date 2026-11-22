@@ -19,7 +19,7 @@ class TileHostContractTest {
     @Test fun `the bundled styles and the hosted style base sit under the page's upstream origin`() {
         val upstream = upstreamTileHost()
         val styleUrls =
-            listOf(LIGHT_STYLE_ASSET, DARK_STYLE_ASSET)
+            listOf(LIGHT_STYLE_ASSET, DARK_STYLE_ASSET, STANDARD_LIGHT_STYLE_ASSET, STANDARD_DARK_STYLE_ASSET)
                 .map { asset -> repoFile("app/src/main/assets/$asset").readText() }
                 .flatMap { style -> REQUEST_URL.findAll(style).map { it.groupValues[1] } }
                 .distinct()

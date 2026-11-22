@@ -18,7 +18,7 @@
     <string name="map_googlemaps_failed">Google Maps can\'t load</string>
     <string name="map_googlemaps_failed_hint">Check that your API key is valid and not expired, the Maps JavaScript API is enabled, the key allows this app, and you are online. You can change the map provider in Settings → Map.</string>
     <string name="map_custom_style_failed">Custom map style can\'t load</string>
-    <string name="map_custom_style_failed_hint">Check the Style URL under Settings → Appearance → Map color, or clear it to return to the Accent scheme.</string>
+    <string name="map_custom_style_failed_hint">Check the Style URL under Settings → Appearance → Map color, or clear it to return to the Standard scheme.</string>
     <string name="calendar_query_failed">Calendar couldn\'t be read</string>
     <string name="font_download_failed">Download failed — tap to retry</string>
     <string name="map_attribution">© OpenStreetMap · OpenMapTiles · OpenFreeMap</string>
@@ -380,6 +380,7 @@
     <string name="settings_map_match_theme_desc">Follows the Theme setting above. Turn off to set the map\'s light or dark mode independently.</string>
     <string name="settings_group_map_scheme_light">Light scheme</string>
     <string name="settings_group_map_scheme_dark">Dark scheme</string>
+    <string name="settings_map_scheme_standard">Standard</string>
     <string name="settings_map_scheme_accent">Accent (app color)</string>
     <string name="settings_map_scheme_positron">Positron</string>
     <string name="settings_map_scheme_bright">Bright</string>

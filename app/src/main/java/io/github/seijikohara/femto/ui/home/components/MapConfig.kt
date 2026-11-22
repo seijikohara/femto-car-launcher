@@ -11,8 +11,8 @@ import io.github.seijikohara.femto.data.display.MapStyleSetting
 // toggles (3D buildings / terrain relief).
 internal data class MapConfig(
     val style: MapStyleSetting = MapStyleSetting.AUTO,
-    val schemeLight: MapColorScheme = MapColorScheme.ACCENT,
-    val schemeDark: MapColorScheme = MapColorScheme.ACCENT,
+    val schemeLight: MapColorScheme = MapColorScheme.STANDARD,
+    val schemeDark: MapColorScheme = MapColorScheme.STANDARD,
     val tiltDeg: Int = 55,
     val zoom: Int = 16,
     // North-up pins the camera to north (the chevron rotates to the heading
