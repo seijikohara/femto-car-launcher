@@ -4,6 +4,13 @@ import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 // Recolour rule data — layer group names and the marker-drop cap live here so
 // accent blending and the chevron geometry share one authoritative source.
 import recolorData from "./map-recolor-data.json";
+import {
+    ROUTE_LAYER_IDS,
+    ROUTE_SOURCE_ID,
+    type RouteLine,
+    routeLayers,
+    routeSource,
+} from "./route";
 
 export interface AccentColors {
     background: string;
@@ -33,6 +40,8 @@ export interface MapFeatures {
     // build-time endpoint, and the default below stands in for tests and a
     // page loaded outside the launcher.
     terrainUrl?: string;
+    // The host's route line (route.ts), or none.
+    route?: RouteLine | null;
 }
 
 // A style's own 3D building colour, in its metadata: the Standard scheme's fixed
@@ -206,6 +215,14 @@ function setPaint(layer: LayerSpecification, key: string, value: unknown): void 
     mutable.paint[key] = value;
 }
 
+// Insert [layers] beneath the style's first label (symbol) layer, so labels
+// stay readable on top of what the page adds; on top when the style has none.
+function insertBelowLabels(style: StyleSpecification, layers: LayerSpecification[]): void {
+    const firstSymbol = style.layers.findIndex((l) => l.type === "symbol");
+    if (firstSymbol < 0) style.layers.push(...layers);
+    else style.layers.splice(firstSymbol, 0, ...layers);
+}
+
 // MapLibre transformStyle body: merge the active feature layers/sources into a
 // freshly-loaded base style. OFF features are simply not injected, so toggling
 // off and re-setting the style removes them cleanly.
@@ -218,7 +235,9 @@ export function injectFeatures(
     // Idempotent: strip any of OUR previously-injected layers/sources first, so a
     // re-applied style (toggle change, or a setStyle that races the initial load
     // and reuses the current style) never produces a duplicate-id error.
-    nextStyle.layers = nextStyle.layers.filter((l) => l.id !== "femto-3d-buildings");
+    const injectedLayerIds: readonly string[] = ["femto-3d-buildings", ...ROUTE_LAYER_IDS];
+    nextStyle.layers = nextStyle.layers.filter((l) => !injectedLayerIds.includes(l.id));
+    delete nextStyle.sources[ROUTE_SOURCE_ID];
     // Only strip terrain if WE injected it (terrainSource present), so a base
     // style that ever ships its own terrain is left intact.
     if (nextStyle.sources[TERRAIN_SOURCE_ID]) {
@@ -263,8 +282,6 @@ export function injectFeatures(
     // for the first features push (which always carries the theme colour).
     const buildingColor = styleBuildingColorOrNull(nextStyle) ?? features.buildingColor;
     if (features.buildings && features.buildingColor && src) {
-        // Insert beneath the first label (symbol) layer so labels stay on top.
-        const firstSymbol = nextStyle.layers.find((l) => l.type === "symbol");
         const buildings = {
             id: "femto-3d-buildings",
             source: src,
@@ -295,9 +312,14 @@ export function injectFeatures(
                 "fill-extrusion-opacity": BUILDING_EXTRUSION_OPACITY,
             },
         } as LayerSpecification;
-        if (firstSymbol)
-            nextStyle.layers.splice(nextStyle.layers.indexOf(firstSymbol), 0, buildings);
-        else nextStyle.layers.push(buildings);
+        insertBelowLabels(nextStyle, [buildings]);
+    }
+    // After the buildings, so the line stays visible where it passes behind an
+    // extrusion.
+    const route = features.route;
+    if (route) {
+        nextStyle.sources[ROUTE_SOURCE_ID] = routeSource(route);
+        insertBelowLabels(nextStyle, routeLayers(route));
     }
     if (features.terrain) {
         nextStyle.sources[TERRAIN_SOURCE_ID] = {

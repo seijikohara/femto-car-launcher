@@ -49,6 +49,12 @@ declare global {
             pageAttribution: boolean,
         ) => void;
         setFeatures: (buildings: boolean, terrain: boolean, buildingColor: string) => void;
+        // The route line: a flat [lat, lon, lat, lon, …] array plus the main
+        // line and casing colours as CSS hex. The page validates the payload
+        // (route.ts decodeRoute); one it cannot draw clears the route. Never
+        // sent to the Google page: its terms forbid drawing a route over it.
+        setRoute: (latLons: number[], lineColor: string, casingColor: string) => void;
+        clearRoute: () => void;
         // Google Maps only.
         setGoogleMapsOptions: (mapType: string, traffic: boolean) => void;
         // Callback the Google Maps JS API invokes when authentication fails;
@@ -257,6 +263,8 @@ export interface PendingBridgeCalls {
     updateCamera: Parameters<Window["updateCamera"]> | null;
     setStyleUrl: Parameters<Window["setStyleUrl"]> | null;
     setFeatures: Parameters<Window["setFeatures"]> | null;
+    // A clearRoute resets it: a fresh page has no route to clear.
+    setRoute: Parameters<Window["setRoute"]> | null;
     setGoogleMapsOptions: Parameters<Window["setGoogleMapsOptions"]> | null;
     setFollow: boolean | null;
     setNorthUp: boolean | null;
@@ -268,6 +276,7 @@ export function installPendingStubs(): PendingBridgeCalls {
         updateCamera: null,
         setStyleUrl: null,
         setFeatures: null,
+        setRoute: null,
         setGoogleMapsOptions: null,
         setFollow: null,
         setNorthUp: null,
@@ -281,6 +290,12 @@ export function installPendingStubs(): PendingBridgeCalls {
     };
     window.setFeatures = (...a) => {
         pending.setFeatures = a;
+    };
+    window.setRoute = (...a) => {
+        pending.setRoute = a;
+    };
+    window.clearRoute = () => {
+        pending.setRoute = null;
     };
     window.setGoogleMapsOptions = (...a) => {
         pending.setGoogleMapsOptions = a;

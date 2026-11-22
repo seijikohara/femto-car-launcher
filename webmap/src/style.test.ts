@@ -1,5 +1,6 @@
 import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 import { describe, expect, it } from "vite-plus/test";
+import { decodeRoute, ROUTE_CASING_LAYER_ID, ROUTE_LINE_LAYER_ID, ROUTE_SOURCE_ID } from "./route";
 import {
     BUILDING_EXTRUSION_OPACITY,
     clampMarkerPos,
@@ -204,6 +205,77 @@ describe("injectFeatures: terrain", () => {
         expect(off.sources.terrainSource).toBeUndefined();
         expect(off.terrain).toBeUndefined();
         expect(off.sources.rasterdem).toBeDefined();
+    });
+});
+
+function routeIds(style: StyleSpecification): string[] {
+    return style.layers.map((l) => l.id).filter((id) => id.startsWith("femto-route"));
+}
+
+describe("injectFeatures: route line", () => {
+    const route = decodeRoute([35.68, 139.76, 35.69, 139.69], "#3367D6", "#FFFFFF");
+    const ROUTE = { ...OFF, route };
+
+    it("inserts the casing and the line beneath the first symbol layer", () => {
+        const ids = injectFeatures(baseStyle(), ROUTE).layers.map((l) => l.id);
+        expect(ids.slice(ids.indexOf("labels") - 2, ids.indexOf("labels"))).toEqual([
+            ROUTE_CASING_LAYER_ID,
+            ROUTE_LINE_LAYER_ID,
+        ]);
+    });
+
+    it("appends the route when the style has no symbol layer", () => {
+        const style = baseStyle();
+        style.layers = style.layers.filter((l) => l.type !== "symbol");
+        const ids = injectFeatures(style, ROUTE).layers.map((l) => l.id);
+        expect(ids.slice(-2)).toEqual([ROUTE_CASING_LAYER_ID, ROUTE_LINE_LAYER_ID]);
+    });
+
+    it("keeps the route across a style swap", () => {
+        // A swap hands transformStyle a freshly fetched style without the
+        // route; the page state puts it back, accent recolour and features
+        // included.
+        const before = injectFeatures(baseStyle(), ROUTE);
+        const swapped = injectFeatures(baseStyle(), {
+            ...ROUTE,
+            buildings: true,
+            buildingColor: "#404040",
+            terrain: true,
+            accent: {
+                background: "#101010",
+                water: "#202020",
+                land: "#303030",
+                roadMajor: "#404040",
+                roadMinor: "#505050",
+                roadCasing: "#606060",
+                building: "#707070",
+                label: "#808080",
+            },
+        });
+        expect(routeIds(swapped)).toEqual(routeIds(before));
+        expect(swapped.sources[ROUTE_SOURCE_ID]).toEqual(before.sources[ROUTE_SOURCE_ID]);
+        // The accent recolour leaves the route's own colours alone.
+        expect(paintOf(swapped, ROUTE_LINE_LAYER_ID)?.["line-color"]).toBe("#3367D6");
+    });
+
+    it("draws the route above the 3D buildings", () => {
+        const ids = injectFeatures(baseStyle(), {
+            ...ROUTE,
+            buildings: true,
+            buildingColor: "#404040",
+        }).layers.map((l) => l.id);
+        expect(ids.indexOf("femto-3d-buildings")).toBeLessThan(ids.indexOf(ROUTE_CASING_LAYER_ID));
+    });
+
+    it("is idempotent across re-application", () => {
+        const twice = injectFeatures(injectFeatures(baseStyle(), ROUTE), ROUTE);
+        expect(routeIds(twice)).toEqual([ROUTE_CASING_LAYER_ID, ROUTE_LINE_LAYER_ID]);
+    });
+
+    it("removes both layers and the source once the route is cleared", () => {
+        const cleared = injectFeatures(injectFeatures(baseStyle(), ROUTE), OFF);
+        expect(routeIds(cleared)).toEqual([]);
+        expect(cleared.sources[ROUTE_SOURCE_ID]).toBeUndefined();
     });
 });
 
