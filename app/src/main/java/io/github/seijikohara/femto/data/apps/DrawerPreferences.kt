@@ -15,8 +15,11 @@ import kotlinx.coroutines.flow.map
 /** App-drawer tile layout. */
 internal enum class DrawerLayout { GRID, LIST }
 
-/** App-drawer icon size preset; MEDIUM matches the pre-preset dimensions. */
-internal enum class DrawerIconSize { SMALL, MEDIUM, LARGE }
+/**
+ * App-drawer icon size preset, smallest first; MEDIUM matches the pre-preset dimensions. Persisted by name, so
+ * entries can be added in any position without moving a saved choice.
+ */
+internal enum class DrawerIconSize { EXTRA_SMALL, SMALL, MEDIUM, LARGE, EXTRA_LARGE }
 
 /**
  * Persisted app-drawer preferences: the tile [layout], the [iconSize] preset, and

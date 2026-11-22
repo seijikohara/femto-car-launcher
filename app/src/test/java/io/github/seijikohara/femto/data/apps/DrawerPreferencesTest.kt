@@ -41,8 +41,10 @@ class DrawerPreferencesTest {
             assertEquals(listOf(OTHER, COMPONENT), store.pinned.first())
 
             assertEquals(DrawerIconSize.MEDIUM, store.iconSize.first())
-            store.setIconSize(DrawerIconSize.LARGE)
-            assertEquals(DrawerIconSize.LARGE, store.iconSize.first())
+            DrawerIconSize.entries.forEach { size ->
+                store.setIconSize(size)
+                assertEquals(size, store.iconSize.first())
+            }
         }
 
     private companion object {

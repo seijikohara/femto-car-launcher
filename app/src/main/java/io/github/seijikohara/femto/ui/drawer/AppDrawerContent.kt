@@ -64,7 +64,8 @@ import kotlinx.coroutines.launch
 // tileWidth is the exact FixedSize grid cell, not a minimum: fixed cells
 // left-pack instead of stretching, so every section's first column starts on
 // the same left line at the same pitch. Every preset keeps tiles and rows
-// above FemtoDimens.MinTouchTarget.
+// above FemtoDimens.MinTouchTarget: EXTRA_SMALL's 80 dp cell is the narrowest
+// that still clears the 64 dp floor with a usable label width.
 internal data class DrawerDimensions(
     val tileWidth: Dp,
     val gridIconSize: Dp,
@@ -73,9 +74,11 @@ internal data class DrawerDimensions(
 
 internal fun DrawerIconSize.dimensions(): DrawerDimensions =
     when (this) {
+        DrawerIconSize.EXTRA_SMALL -> DrawerDimensions(tileWidth = 80.dp, gridIconSize = 40.dp, listIconSize = 24.dp)
         DrawerIconSize.SMALL -> DrawerDimensions(tileWidth = 96.dp, gridIconSize = 48.dp, listIconSize = 32.dp)
         DrawerIconSize.MEDIUM -> DrawerDimensions(tileWidth = 120.dp, gridIconSize = 64.dp, listIconSize = 40.dp)
         DrawerIconSize.LARGE -> DrawerDimensions(tileWidth = 160.dp, gridIconSize = 88.dp, listIconSize = 56.dp)
+        DrawerIconSize.EXTRA_LARGE -> DrawerDimensions(tileWidth = 192.dp, gridIconSize = 104.dp, listIconSize = 72.dp)
     }
 
 internal const val APP_DRAWER_PROGRESS_TEST_TAG = "app-drawer-progress"

@@ -246,9 +246,11 @@
     <string name="drawer_search">Search</string>
     <string name="drawer_no_matches">No apps match your search</string>
     <string name="drawer_display_options">Display options</string>
+    <string name="drawer_icon_size_extra_small">Extra small</string>
     <string name="drawer_icon_size_small">Small</string>
     <string name="drawer_icon_size_medium">Medium</string>
     <string name="drawer_icon_size_large">Large</string>
+    <string name="drawer_icon_size_extra_large">Extra large</string>
     <string name="drawer_recent_apps">Recent</string>
     <string name="drawer_all_apps">All apps</string>
 

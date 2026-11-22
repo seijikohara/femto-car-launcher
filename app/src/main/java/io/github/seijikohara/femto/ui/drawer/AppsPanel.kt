@@ -280,8 +280,8 @@ private fun AppsTopBar(
     }
 }
 
-// The display-options overflow: the grid/list layout toggle plus the S/M/L icon
-// size presets, gathered behind one bar button so the top bar stays to three
+// The display-options overflow: the grid/list layout toggle plus the icon size
+// presets, gathered behind one bar button so the top bar stays to three
 // controls in portrait.
 @Composable
 private fun DisplayOptionsButton(
@@ -382,11 +382,16 @@ private fun DisplayOptionsButton(
 private const val DISPLAY_OPTION_GROUPS = 3
 
 private val IconSizeOptions =
-    listOf(
-        DrawerIconSize.SMALL to R.string.drawer_icon_size_small,
-        DrawerIconSize.MEDIUM to R.string.drawer_icon_size_medium,
-        DrawerIconSize.LARGE to R.string.drawer_icon_size_large,
-    )
+    DrawerIconSize.entries.map { size ->
+        size to
+            when (size) {
+                DrawerIconSize.EXTRA_SMALL -> R.string.drawer_icon_size_extra_small
+                DrawerIconSize.SMALL -> R.string.drawer_icon_size_small
+                DrawerIconSize.MEDIUM -> R.string.drawer_icon_size_medium
+                DrawerIconSize.LARGE -> R.string.drawer_icon_size_large
+                DrawerIconSize.EXTRA_LARGE -> R.string.drawer_icon_size_extra_large
+            }
+    }
 
 /**
  * Route wrapper for [AppsPanel]: obtains the activity-scoped [AppDrawerViewModel]
