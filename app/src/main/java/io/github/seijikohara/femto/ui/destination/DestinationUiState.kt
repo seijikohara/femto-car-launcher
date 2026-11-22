@@ -88,11 +88,11 @@ internal sealed interface RouteStep {
 
     /**
      * The route needs routing data the device lacks, or the server has rebuilt data the device holds: [bytes] to
-     * download, on the driver's word. [newerData] says the download only replaces data already on the device.
+     * download, on the driver's word. [kind] says which.
      */
     data class ConfirmDownload(
         val bytes: Long,
-        val newerData: Boolean = false,
+        val kind: RouteDownload = RouteDownload.MISSING,
     ) : RouteStep
 
     data class Downloading(
@@ -123,6 +123,21 @@ internal data class LastFix(
     val point: PlaceTarget.Point,
     val elapsedRealtimeNanos: Long,
 )
+
+/** What a [RouteStep.ConfirmDownload] would fetch, which decides its sentence and its buttons. */
+internal enum class RouteDownload {
+    /** Data the route cannot do without: Download, or Cancel the route. */
+    MISSING,
+
+    /**
+     * Only newer data for areas already on the device, so an update never blocks the route: Update, or route with
+     * the stored data ([DestinationAction.UseStoredData]), which asks again a week later.
+     */
+    NEWER,
+
+    /** Both: the missing data is required, so one confirmation covers both, with Download or Cancel. */
+    MISSING_AND_NEWER,
+}
 
 /** Why a route did not come about; each has its own sentence in the panel. */
 internal enum class RouteFailure {
@@ -232,6 +247,12 @@ internal sealed interface DestinationAction {
 
     /** Keep the picked point as a saved place labelled with its coordinates; not while moving. */
     data object SavePickedPoint : DestinationAction
+
+    /**
+     * The driver declined newer data ([RouteDownload.NEWER]): the route is computed with the stored data at once, and
+     * the declined areas count as checked, so the question comes back after a week rather than on the next route.
+     */
+    data object UseStoredData : DestinationAction
 
     /** The driver agreed to the download [RouteStep.ConfirmDownload] asked about. */
     data object ConfirmDownload : DestinationAction

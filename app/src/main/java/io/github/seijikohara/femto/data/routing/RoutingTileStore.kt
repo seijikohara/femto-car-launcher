@@ -254,6 +254,19 @@ internal class RoutingTileStore(
             }
         }
 
+    /**
+     * Count an installed tile whose check is due as checked now, without asking the server: the driver chose to route
+     * with it rather than fetch the newer file a [check] found, so the question comes back a week later, not on the
+     * next route. False when the tile is not installed or its check is not due.
+     */
+    suspend fun markChecked(name: String): Boolean =
+        guarded(name) {
+            when (val due = dueCheck(name)) {
+                is DueCheck.Due -> writeRecord(name, RoutingTileRecord(due.kept, clock()))
+                DueCheck.NotInstalled, DueCheck.NotDue -> false
+            }
+        }
+
     /** The names among [names] that are neither installed nor known to have no data. */
     suspend fun missingTiles(names: List<String>): List<String> =
         withContext(ioDispatcher) {

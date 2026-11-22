@@ -369,6 +369,32 @@ class RoutingTileStoreTest {
         }
 
     @Test
+    fun `a due tile marked checked counts as checked now without a request`() =
+        runTest {
+            val store = installed()
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            val marked = store.markChecked(TILE)
+
+            assertTrue(marked)
+            assertEquals(2, server.requestCount)
+            assertEquals(now, store.installedTiles().single().checkedAtEpochMs)
+            assertEquals(TileCheckResult.NotDue, store.check(TILE))
+        }
+
+    @Test
+    fun `a tile not due or not installed is not marked`() =
+        runTest {
+            val store = installed()
+            val checkedBefore = store.installedTiles().single().checkedAtEpochMs
+
+            now += 1
+            assertFalse(store.markChecked(TILE))
+            assertFalse(store.markChecked(OTHER_TILE))
+            assertEquals(checkedBefore, store.installedTiles().single().checkedAtEpochMs)
+        }
+
+    @Test
     fun `a tile that is not installed is not checked`() =
         runTest {
             assertEquals(TileCheckResult.NotInstalled, store().check(TILE))

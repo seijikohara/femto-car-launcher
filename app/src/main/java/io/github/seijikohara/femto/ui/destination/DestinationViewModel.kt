@@ -76,8 +76,9 @@ import kotlinx.coroutines.launch
  * Before a route is computed, the installed tiles it may read whose weekly
  * check is due at [nowEpochMs] are asked about with a conditional request
  * ([tilesDueForCheck]); a tile the server has rebuilt joins the download the
- * driver confirms, as a missing tile does. Nothing is checked in the
- * background.
+ * driver confirms, as a missing tile does. An update never blocks a route:
+ * with only newer data on offer, the driver may route with the stored data
+ * ([DestinationAction.UseStoredData]). Nothing is checked in the background.
  *
  * A point picked on the map ([DestinationAction.PickPoint]) stays here until
  * the panel lets go of it; it is saved only on the driver's word.
@@ -235,6 +236,18 @@ internal class DestinationViewModel(
                 pickedPoint.value
                     ?.takeIf { typingAllowed }
                     ?.let { point -> save(label = point.coordinateLabel(), target = point) }
+            }
+
+            DestinationAction.UseStoredData -> {
+                val confirm = routeStep.value as? RouteStep.ConfirmDownload
+                val ends = routeEnds
+                val declined = pendingDownload.refresh
+                if (confirm?.kind == RouteDownload.NEWER && ends != null) {
+                    runRoute {
+                        declined.forEach { tiles.markChecked(it) }
+                        route(ends)
+                    }
+                }
             }
 
             DestinationAction.ConfirmDownload -> {
@@ -403,7 +416,7 @@ internal class DestinationViewModel(
         if (bytes == 0L) {
             fetchThenRoute(ends, download, totalBytes = 0L)
         } else {
-            routeStep.value = RouteStep.ConfirmDownload(bytes, newerData = missingBytes == 0L)
+            routeStep.value = RouteStep.ConfirmDownload(bytes, downloadKind(missingBytes, newer.isNotEmpty()))
         }
     }
 
@@ -475,6 +488,18 @@ private fun TileFetchResult.failureOrNull(): RouteFailure? =
         TileFetchResult.INSTALLED, TileFetchResult.NO_DATA -> null
         TileFetchResult.NO_SPACE -> RouteFailure.NO_SPACE
         TileFetchResult.NETWORK_FAILED, TileFetchResult.STORAGE_FAILED -> RouteFailure.DOWNLOAD_FAILED
+    }
+
+// Missing data the server sizes at nothing (tiles without data) needs no word,
+// so only newer data left means an update the driver may decline.
+private fun downloadKind(
+    missingBytes: Long,
+    hasNewer: Boolean,
+): RouteDownload =
+    when {
+        !hasNewer -> RouteDownload.MISSING
+        missingBytes == 0L -> RouteDownload.NEWER
+        else -> RouteDownload.MISSING_AND_NEWER
     }
 
 // Why a rebuilt tile's replacement stops the route, or null when the route

@@ -429,6 +429,38 @@ class DestinationPanelTest {
         assertEquals(listOf(DestinationAction.CancelListening, DestinationAction.DismissRoute), actions)
     }
 
+    // --- newer routing data ----------------------------------------------------
+
+    @Test
+    fun newer_data_alone_offers_the_stored_data_and_never_blocks_the_route() {
+        setPanel(
+            stationary = true,
+            routeAvailable = true,
+            route = RouteStep.ConfirmDownload(1_000L, RouteDownload.NEWER),
+        )
+
+        rule.onNodeWithText("Cancel").assertDoesNotExist()
+        rule.onNodeWithText("Use stored data").performClick()
+        rule.onNodeWithText("Update").performClick()
+
+        assertEquals(listOf(DestinationAction.UseStoredData, DestinationAction.ConfirmDownload), actions)
+    }
+
+    @Test
+    fun missing_and_newer_data_say_the_missing_data_is_needed_and_can_be_cancelled() {
+        setPanel(
+            stationary = true,
+            routeAvailable = true,
+            route = RouteStep.ConfirmDownload(1_000L, RouteDownload.MISSING_AND_NEWER),
+        )
+
+        rule.onNodeWithText("which the route cannot do without", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Use stored data").assertDoesNotExist()
+        rule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.DismissRoute), actions)
+    }
+
     // --- a point picked on the map ---------------------------------------------
 
     @Test

@@ -219,7 +219,11 @@
     <!-- Shown while the routing data a route reads is checked against brouter.de, at most once a week per area. -->
     <string name="destination_route_checking">Checking the routing data for updates…</string>
     <!-- %1$s = the download size, e.g. "48 MB". Shown when brouter.de has rebuilt routing data already on this device and nothing else is missing. -->
-    <string name="destination_route_update_prompt">brouter.de has newer routing data for this route: %1$s. The download replaces the data on this device for this and later routes.</string>
+    <string name="destination_route_update_prompt">brouter.de has newer routing data for this route: %1$s. Update to download it, or route now with the data on this device; this asks again in a week.</string>
+    <string name="destination_route_update">Update</string>
+    <string name="destination_route_use_stored">Use stored data</string>
+    <!-- %1$s = the download size, e.g. "48 MB". Shown when a route needs areas not on this device and brouter.de has also rebuilt areas that are. -->
+    <string name="destination_route_download_and_update_prompt">This route needs %1$s of routing data from brouter.de: areas not yet on this device, which the route cannot do without, and newer data for areas already here. The data stays on this device for later routes.</string>
     <!-- A point picked with a long press on the map, shown in place of the search. -->
     <string name="destination_picked_point">Point on the map</string>
     <string name="destination_save_point">Save point</string>

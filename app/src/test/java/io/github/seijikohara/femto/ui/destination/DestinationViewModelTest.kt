@@ -946,7 +946,7 @@ class DestinationViewModelTest {
             viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
             advanceUntilIdle()
 
-            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES, newerData = true), viewModel.uiState.value.route)
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES, RouteDownload.NEWER), viewModel.uiState.value.route)
             assertEquals(emptyList(), routing.feed.downloads)
             assertEquals(emptyList(), routing.engine.requests)
         }
@@ -988,7 +988,10 @@ class DestinationViewModelTest {
             viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
             advanceUntilIdle()
 
-            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES + EAST_TILE_BYTES), viewModel.uiState.value.route)
+            assertEquals(
+                RouteStep.ConfirmDownload(TILE_BYTES + EAST_TILE_BYTES, RouteDownload.MISSING_AND_NEWER),
+                viewModel.uiState.value.route,
+            )
         }
 
     @Test
@@ -1005,6 +1008,128 @@ class DestinationViewModelTest {
 
             assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
             assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    @Test
+    fun stored_data_routes_at_once_when_the_driver_declines_newer_data() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.UseStoredData)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(emptyList(), routing.feed.downloads)
+            assertEquals(
+                routing.nowEpochMs,
+                routing.tiles
+                    .installedTiles()
+                    .single()
+                    .checkedAtEpochMs,
+            )
+        }
+
+    @Test
+    fun declined_newer_data_is_not_asked_about_again_within_the_week() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            viewModel.onAction(DestinationAction.UseStoredData)
+            advanceUntilIdle()
+            viewModel.onAction(DestinationAction.DismissRoute)
+
+            routing.nowEpochMs += WEEK_MS - 1
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(1, routing.feed.revalidatedUrls.size)
+        }
+
+    @Test
+    fun declined_newer_data_is_asked_about_again_after_a_week() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            viewModel.onAction(DestinationAction.UseStoredData)
+            advanceUntilIdle()
+            viewModel.onAction(DestinationAction.DismissRoute)
+
+            routing.nowEpochMs += WEEK_MS
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES, RouteDownload.NEWER), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun stored_data_is_no_way_out_when_the_route_needs_missing_data() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.offerTile(EAST_TILE, sizeBytes = EAST_TILE_BYTES)
+            viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val offer = viewModel.uiState.value.route
+
+            viewModel.onAction(DestinationAction.UseStoredData)
+            advanceUntilIdle()
+
+            assertEquals(offer, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.engine.requests)
+        }
+
+    @Test
+    fun cancelling_missing_and_newer_data_downloads_nothing() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.offerTile(EAST_TILE, sizeBytes = EAST_TILE_BYTES)
+            viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.feed.downloads)
+        }
+
+    @Test
+    fun confirmed_missing_and_newer_data_fetches_both_then_routes() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installCheckedTile(TILE, checkedAtEpochMs = routing.nowEpochMs - WEEK_MS)
+            routing.rebuildTile(TILE, sizeBytes = TILE_BYTES)
+            routing.offerTile(EAST_TILE, sizeBytes = EAST_TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(EAST_DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(
+                listOf(routing.tileUrl(EAST_TILE), routing.tileUrl(TILE)),
+                routing.feed.downloads.map { it.url },
+            )
         }
 
     // --- a point picked on the map ---------------------------------------------

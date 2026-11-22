@@ -671,6 +671,16 @@ private fun RouteStatus(
         val buttonModifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget)
         val dismiss = { onAction(DestinationAction.DismissRoute) }
         when (step) {
+            // An update never blocks the route: the stored data routes at once.
+            is RouteStep.ConfirmDownload if step.kind == RouteDownload.NEWER -> {
+                FilledTonalButton(onClick = { onAction(DestinationAction.UseStoredData) }, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_use_stored))
+                }
+                Button(onClick = { onAction(DestinationAction.ConfirmDownload) }, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_update))
+                }
+            }
+
             is RouteStep.ConfirmDownload -> {
                 FilledTonalButton(onClick = dismiss, modifier = buttonModifier) {
                     Text(text = stringResource(R.string.destination_route_cancel))
@@ -721,10 +731,10 @@ private fun routeStepMessage(step: RouteStep): String =
 
         is RouteStep.ConfirmDownload -> {
             stringResource(
-                if (step.newerData) {
-                    R.string.destination_route_update_prompt
-                } else {
-                    R.string.destination_route_download_prompt
+                when (step.kind) {
+                    RouteDownload.MISSING -> R.string.destination_route_download_prompt
+                    RouteDownload.NEWER -> R.string.destination_route_update_prompt
+                    RouteDownload.MISSING_AND_NEWER -> R.string.destination_route_download_and_update_prompt
                 },
                 fileSize(step.bytes),
             )
