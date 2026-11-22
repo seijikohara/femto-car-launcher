@@ -390,10 +390,10 @@
     <string name="settings_map_scheme_fiord">Fiord</string>
     <string name="settings_map_scheme_custom">Custom style URL</string>
     <string name="settings_map_custom_style_url">Style URL</string>
-    <string name="settings_map_custom_style_url_unset">Not set — the Accent scheme shows until you enter one</string>
+    <string name="settings_map_custom_style_url_unset">Not set — the Standard scheme shows until you enter one</string>
     <!-- %1$s is the host of the configured style URL; the URL itself is never shown here because it may carry a provider key. -->
     <string name="settings_map_custom_style_url_set">Custom style from %1$s</string>
-    <string name="settings_map_custom_style_url_hint">The address of a hosted MapLibre style, for example https://example.org/styles/basic/style.json — the https:// scheme is required, and a provider key may be part of the address. The map loads the style as published: its own tiles, sprites and glyphs, and its own credits in place of the app\'s. If the style cannot be loaded, the map shows a notice; use Clear to return to the Accent scheme.</string>
+    <string name="settings_map_custom_style_url_hint">The address of a hosted MapLibre style, for example https://example.org/styles/basic/style.json — the https:// scheme is required, and a provider key may be part of the address. The map loads the style as published: its own tiles, sprites and glyphs, and its own credits in place of the app\'s. If the style cannot be loaded, the map shows a notice; use Clear to return to the Standard scheme.</string>
     <string name="settings_map_custom_style_url_save">Save</string>
     <string name="settings_map_custom_style_url_clear">Clear</string>
     <string name="settings_group_map_tilt">Map tilt</string>
@@ -464,7 +464,7 @@
     <string name="offline_regions_offer_size_unknown">The server did not report the file\'s size, so it is not downloaded.</string>
     <string name="settings_map_backend">Map provider</string>
     <string name="settings_map_backend_osm">OpenStreetMap</string>
-    <string name="settings_map_accent_osm_only_note">Accent recolor applies to OpenStreetMap only</string>
+    <string name="settings_map_scheme_osm_only_note">Map color schemes apply to OpenStreetMap only</string>
     <string name="settings_map_backend_googlemaps">Google Maps (requires API key)</string>
     <string name="settings_google_maps_key">Google Maps API key</string>
     <string name="settings_google_maps_key_unset">Not set — tap to enter your API key</string>

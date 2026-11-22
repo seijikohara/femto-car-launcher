@@ -65,7 +65,7 @@ class SettingsScreenTest {
     private val googleMapsMapIdHintLabel = context.getString(R.string.settings_google_maps_map_id_hint)
     private val googleMapsMapIdSaveLabel = context.getString(R.string.settings_google_maps_map_id_save)
     private val googleMapsMapIdClearLabel = context.getString(R.string.settings_google_maps_map_id_clear)
-    private val accentOsmOnlyNoteLabel = context.getString(R.string.settings_map_accent_osm_only_note)
+    private val schemeOsmOnlyNoteLabel = context.getString(R.string.settings_map_scheme_osm_only_note)
     private val mapBuildings3dLabel = context.getString(R.string.settings_group_map_3d)
     private val mapTerrainLabel = context.getString(R.string.settings_group_map_terrain)
 
@@ -282,9 +282,9 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun accent_osm_only_note_shown_for_google_maps_backend() {
-        // Google Maps is not recolorable, so the note must explain the gap rather
-        // than leave it unexplained.
+    fun scheme_osm_only_note_shown_for_google_maps_backend() {
+        // Google Maps takes none of the map color schemes, so the note must
+        // explain the gap rather than leave it unexplained.
         setScreen(
             uiState =
                 SettingsUiState.Initial.copy(
@@ -293,7 +293,7 @@ class SettingsScreenTest {
                 ),
             category = R.string.settings_section_map,
         )
-        rule.onNodeWithText(accentOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText(schemeOsmOnlyNoteLabel).performScrollTo().assertIsDisplayed()
     }
 
     @Test

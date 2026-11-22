@@ -208,7 +208,7 @@ internal data class DisplaySettings(
     val assistantLaunch: AssistantLaunchSetting,
     val mapStyle: MapStyleSetting,
     // Independent colour schemes for the light and dark map contexts (which one
-    // applies follows [mapStyle] / the system theme). Both default to ACCENT.
+    // applies follows [mapStyle] / the system theme). Both default to STANDARD.
     val mapSchemeLight: MapColorScheme,
     val mapSchemeDark: MapColorScheme,
     val mapTiltDeg: Int,

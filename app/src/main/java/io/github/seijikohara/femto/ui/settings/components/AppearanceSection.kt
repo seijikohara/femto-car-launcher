@@ -82,8 +82,9 @@ internal fun AppearanceSection(
     // Light scheme applies for AUTO + LIGHT, Dark scheme for AUTO + DARK. AUTO
     // can use either (the system theme decides), so AUTO shows both; a fixed
     // LIGHT / DARK hides the scheme it never uses. Only the OpenStreetMap
-    // backend draws these independent colour schemes: ACCENT is the adaptive
-    // accent-tinted default, the rest fixed OpenFreeMap.
+    // backend draws these independent colour schemes: STANDARD is the bundled
+    // default palette, ACCENT the adaptive accent-tinted one, the rest fixed
+    // OpenFreeMap.
     val osm = uiState.mapBackend == MapBackend.OSM
     val lightSchemeShown = osm && uiState.mapStyle != MapStyleSetting.DARK
     val darkSchemeShown = osm && uiState.mapStyle != MapStyleSetting.LIGHT
