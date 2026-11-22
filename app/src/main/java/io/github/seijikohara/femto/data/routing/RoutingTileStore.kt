@@ -17,8 +17,10 @@ import io.github.seijikohara.femto.data.common.syncToDisk
 import io.github.seijikohara.femto.data.common.writeAtomically
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -99,6 +101,25 @@ internal enum class TileRefreshResult {
     STORAGE_FAILED,
 }
 
+/** What a [RoutingTileStore.check] of an installed tile found; it downloads nothing. */
+internal sealed interface TileCheckResult {
+    data object NotInstalled : TileCheckResult
+
+    /** Checked within the last [ROUTING_TILE_CHECK_INTERVAL_MS]; nothing was asked. */
+    data object NotDue : TileCheckResult
+
+    /** The server still has the installed file, or has none any more and the installed one stays; the check counts. */
+    data object Unchanged : TileCheckResult
+
+    /** The server has another file of [sizeBytes]; the check does not count, so a [RoutingTileStore.refresh] fetches it. */
+    data class Changed(
+        val sizeBytes: Long,
+    ) : TileCheckResult
+
+    /** No answer; the check does not count, and the installed tile stays. */
+    data object Unavailable : TileCheckResult
+}
+
 /**
  * The routing tiles on the device, and their downloads from brouter.de.
  *
@@ -135,8 +156,14 @@ internal class RoutingTileStore(
     // Orders the room checks, so two downloads cannot both claim the same free bytes.
     private val claimLock = Mutex()
 
+    // Counts the tile operations that have ended, so [installed] reads the directory again after each.
+    private val revision = MutableStateFlow(0L)
+
     /** The directory the engine reads the tiles from. */
     val segmentDir: File get() = File(root, SEGMENTS_DIR)
+
+    /** The installed tiles, as [installedTiles] lists them, read again whenever a tile operation of this store ends. */
+    val installed: Flow<List<InstalledRoutingTile>> = revision.map { installedTiles() }
 
     private val recordsDir get() = File(root, RECORDS_DIR)
     private val downloadsDir get() = File(root, DOWNLOADS_DIR)
@@ -178,17 +205,65 @@ internal class RoutingTileStore(
 
     /**
      * Check an installed tile against the server when its last check is [ROUTING_TILE_CHECK_INTERVAL_MS] old, and
-     * replace it when the server has a newer file. The installed file stays in place until the new one is whole.
+     * replace it when the server has a newer file. The installed file stays in place until the new one is whole. A
+     * download reports its progress through [onProgress], as a [fetch] does.
      */
-    suspend fun refresh(name: String): TileRefreshResult =
+    suspend fun refresh(
+        name: String,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ): TileRefreshResult =
         guarded(name) {
-            val data = dataFile(name)
-            // A tile installed without a record has nothing to send back and is compared by a plain look.
-            val record = recordOrNull(name)?.takeIf { it.file != null }
-            when {
-                !data.isFile -> TileRefreshResult.NOT_INSTALLED
-                record != null && !record.isDue() -> TileRefreshResult.NOT_DUE
-                else -> revalidate(name, kept = record?.file ?: RemoteFile(data.length(), null, null))
+            when (val due = dueCheck(name)) {
+                DueCheck.NotInstalled -> TileRefreshResult.NOT_INSTALLED
+                DueCheck.NotDue -> TileRefreshResult.NOT_DUE
+                is DueCheck.Due -> revalidate(name, due.kept, onProgress)
+            }
+        }
+
+    /**
+     * Ask the server, as [refresh] does, whether it has a newer file for an installed tile whose check is due, but
+     * download nothing: a route shows the size of a newer file before it is fetched, like the size of a missing one.
+     */
+    suspend fun check(name: String): TileCheckResult =
+        guarded(name) {
+            when (val due = dueCheck(name)) {
+                DueCheck.NotInstalled -> {
+                    TileCheckResult.NotInstalled
+                }
+
+                DueCheck.NotDue -> {
+                    TileCheckResult.NotDue
+                }
+
+                is DueCheck.Due -> {
+                    when (val check = feed.revalidate(tileUrl(name), due.kept)) {
+                        RevalidationResult.NotModified, RevalidationResult.Gone -> {
+                            writeRecord(name, RoutingTileRecord(due.kept, clock()))
+                            TileCheckResult.Unchanged
+                        }
+
+                        is RevalidationResult.Changed -> {
+                            TileCheckResult.Changed(check.file.sizeBytes)
+                        }
+
+                        RevalidationResult.Unavailable -> {
+                            TileCheckResult.Unavailable
+                        }
+                    }
+                }
+            }
+        }
+
+    /**
+     * Count an installed tile whose check is due as checked now, without asking the server: the driver chose to route
+     * with it rather than fetch the newer file a [check] found, so the question comes back a week later, not on the
+     * next route. False when the tile is not installed or its check is not due.
+     */
+    suspend fun markChecked(name: String): Boolean =
+        guarded(name) {
+            when (val due = dueCheck(name)) {
+                is DueCheck.Due -> writeRecord(name, RoutingTileRecord(due.kept, clock()))
+                DueCheck.NotInstalled, DueCheck.NotDue -> false
             }
         }
 
@@ -236,7 +311,13 @@ internal class RoutingTileStore(
     suspend fun deleteAll() {
         door.withLock {
             running.first { it == 0 }
-            withContext(ioDispatcher) { listOf(segmentDir, recordsDir, downloadsDir).forEach(File::deleteRecursively) }
+            try {
+                withContext(ioDispatcher) {
+                    listOf(segmentDir, recordsDir, downloadsDir).forEach(File::deleteRecursively)
+                }
+            } finally {
+                revision.update { it + 1 }
+            }
         }
     }
 
@@ -250,12 +331,35 @@ internal class RoutingTileStore(
             tileLocks.computeIfAbsent(name) { Mutex() }.withLock { withContext(ioDispatcher) { block() } }
         } finally {
             running.update { it - 1 }
+            revision.update { it + 1 }
         }
+    }
+
+    // A tile installed without a record has nothing to send back and is compared by a plain look.
+    private fun dueCheck(name: String): DueCheck {
+        val data = dataFile(name)
+        val record = recordOrNull(name)?.takeIf { it.file != null }
+        return when {
+            !data.isFile -> DueCheck.NotInstalled
+            record != null && !record.isDue() -> DueCheck.NotDue
+            else -> DueCheck.Due(kept = record?.file ?: RemoteFile(data.length(), null, null))
+        }
+    }
+
+    private sealed interface DueCheck {
+        data object NotInstalled : DueCheck
+
+        data object NotDue : DueCheck
+
+        data class Due(
+            val kept: RemoteFile,
+        ) : DueCheck
     }
 
     private suspend fun revalidate(
         name: String,
         kept: RemoteFile,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
     ): TileRefreshResult =
         when (val check = feed.revalidate(tileUrl(name), kept)) {
             // A tile the server no longer has keeps routing on the installed copy.
@@ -265,7 +369,7 @@ internal class RoutingTileStore(
             }
 
             is RevalidationResult.Changed -> {
-                when (install(name, check.file)) {
+                when (install(name, check.file, onProgress)) {
                     TileFetchResult.INSTALLED -> {
                         TileRefreshResult.UPDATED
                     }
@@ -422,8 +526,7 @@ internal class RoutingTileStore(
 
     private fun discardDownload(name: String) = listOf(partFile(name), pendingFile(name)).forEach(File::delete)
 
-    private fun RoutingTileRecord.isDue(): Boolean =
-        clock() - checkedAtEpochMs !in 0 until ROUTING_TILE_CHECK_INTERVAL_MS
+    private fun RoutingTileRecord.isDue(): Boolean = isCheckDue(checkedAtEpochMs, clock())
 
     private fun hasNoData(name: String): Boolean = recordOrNull(name)?.let { it.file == null } == true
 

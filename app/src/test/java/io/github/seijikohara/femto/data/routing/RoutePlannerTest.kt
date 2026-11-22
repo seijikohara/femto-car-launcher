@@ -20,6 +20,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RoutePlannerTest {
@@ -148,6 +149,42 @@ class RoutePlannerTest {
             search.cancelAndJoin()
 
             assertTrue(engine.terminated)
+        }
+
+    @Test
+    fun `no route has run before the first one`() =
+        runTest {
+            assertNull(planner(FakeRouteEngine()).lastRunOrNull())
+        }
+
+    @Test
+    fun `the last route's outcome and computing time are kept`() =
+        runTest {
+            installTile("E130_N30")
+            // Each read of the clock moves it on by 1.5 s: the search takes one step of it.
+            val clock = longArrayOf(0L)
+            val planner =
+                RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler)).planner(
+                    engine = FakeRouteEngine(outcome = TRACK),
+                    nanoTime = { clock[0].also { clock[0] += 1_500_000_000L } },
+                )
+
+            planner.route(MATSUYAMA, IMABARI)
+
+            assertEquals(RouteRun(RouteRunOutcome.FOUND, computingMs = 1_500L), planner.lastRunOrNull())
+        }
+
+    @Test
+    fun `a route that needs data is kept as such, and a later one replaces it`() =
+        runTest {
+            val planner = planner(FakeRouteEngine(outcome = TRACK))
+            planner.route(MATSUYAMA, IMABARI)
+            assertEquals(RouteRunOutcome.MISSING_TILES, planner.lastRunOrNull()?.outcome)
+
+            installTile("E130_N30")
+            planner.route(MATSUYAMA, IMABARI)
+
+            assertEquals(RouteRunOutcome.FOUND, planner.lastRunOrNull()?.outcome)
         }
 
     // The fixture's feed is never asked: the planner only reads which tiles are on disk.

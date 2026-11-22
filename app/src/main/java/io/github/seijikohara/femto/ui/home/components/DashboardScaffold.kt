@@ -315,6 +315,10 @@ private fun DashboardContent(
     // ViewModel. rememberSaveable keeps an open panel open across rotation.
     var appsExpanded by rememberSaveable { mutableStateOf(false) }
     var destinationExpanded by rememberSaveable { mutableStateOf(false) }
+    // A point a long press on the map picked, until the destination panel's
+    // ViewModel has taken it (DestinationPanelHost); the ViewModel keeps it
+    // from then on, across a rotation too.
+    var mapPick by remember { mutableStateOf<PlaceTarget.Point?>(null) }
     var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
     var calendarExpanded by rememberSaveable { mutableStateOf(false) }
     var weatherExpanded by rememberSaveable { mutableStateOf(false) }
@@ -495,6 +499,17 @@ private fun DashboardContent(
         mapSurface = mapSurface,
         attributionBottomInset = attributionBottomInset,
         routeLine = uiState.activeRoute?.line,
+        // Where routing is offered, a long press on the map opens the
+        // destination panel on the pressed point.
+        onLongPress =
+            if (uiState.routingAvailable) {
+                { point ->
+                    mapPick = PlaceTarget.Point(point.latitude, point.longitude)
+                    destinationExpanded = true
+                }
+            } else {
+                null
+            },
     )
 
     // While a panel is open, the sliver of viewport outside the overlay box —
@@ -569,6 +584,8 @@ private fun DashboardContent(
         onCloseApps = { appsExpanded = false },
         destinationExpanded = destinationExpanded,
         onCloseDestination = { destinationExpanded = false },
+        mapPick = mapPick,
+        onConsumeMapPick = { mapPick = null },
         dismissOpenPanel = dismissOpenPanel,
         modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
         spectrum = spectrum,
@@ -680,6 +697,9 @@ private fun DashboardOverlays(
     onCloseApps: () -> Unit,
     destinationExpanded: Boolean,
     onCloseDestination: () -> Unit,
+    // A point a long press on the map picked, for the destination panel to take.
+    mapPick: PlaceTarget.Point?,
+    onConsumeMapPick: () -> Unit,
     // Non-null while any panel is open: the inner outside-tap catcher's action.
     dismissOpenPanel: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -1123,6 +1143,8 @@ private fun DashboardOverlays(
                 onNavigate = { target, label -> onAction(HomeAction.Navigate(target, label)) },
                 onOpenMaps = { onAction(HomeAction.OpenMaps) },
                 onClose = onCloseDestination,
+                pickedPoint = mapPick,
+                onConsumePickedPoint = onConsumeMapPick,
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 modifier = Modifier.fillMaxSize(),

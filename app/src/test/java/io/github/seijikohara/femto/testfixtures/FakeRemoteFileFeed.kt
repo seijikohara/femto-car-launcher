@@ -51,6 +51,9 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
     var sentFile: RemoteFile? = null
     var stop: FakeDownloadStop? = null
 
+    /** How the download of one URL stops, ahead of [stop], so one file of several can fail. */
+    val stopsByUrl = mutableMapOf<String, FakeDownloadStop>()
+
     /** Whether a download held at [gateDownload]'s gate outlives its caller's cancel, as a blocking read does. */
     var gateOutlivesCancel: Boolean = false
 
@@ -70,11 +73,26 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
         return probeAnswers[url] ?: ProbeResult.Unavailable
     }
 
-    // The stores that revalidate are tested against the real transport, so no test of this fake needs an answer.
+    /** What [revalidate] answers by URL; `Unavailable` for any other. */
+    val revalidateAnswers = mutableMapOf<String, RevalidationResult>()
+
+    /** Every revalidated URL, in call order. */
+    val revalidatedUrls = mutableListOf<String>()
+
+    // The stores' own revalidation is tested against the real transport; this answers the tests above them.
     override suspend fun revalidate(
         url: String,
         kept: RemoteFile,
-    ): RevalidationResult = RevalidationResult.Unavailable
+    ): RevalidationResult {
+        revalidatedUrls += url
+        revalidateGate?.await()
+        return revalidateAnswers[url] ?: RevalidationResult.Unavailable
+    }
+
+    private var revalidateGate: CompletableDeferred<Unit>? = null
+
+    /** Hold every [revalidate] until the gate opens, so a test can see what goes on while a check is out. */
+    fun gateRevalidate(): CompletableDeferred<Unit> = CompletableDeferred<Unit>().also { revalidateGate = it }
 
     override suspend fun download(
         url: String,
@@ -90,7 +108,7 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
             if (!onRestart(file)) return TransferResult.Refused(file).also { part.delete() }
             restartGate?.await()
         }
-        val stop = stop
+        val stop = stopsByUrl[url] ?: stop
         val end = stop?.partBytes ?: file.sizeBytes
         if (stop != null && stop.partBytes == null) return stop.result.also { part.delete() }
         // The first write opens the part: from its start after a restart, after its bytes on a resume.

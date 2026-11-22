@@ -182,6 +182,34 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `the routing data row stays hidden where routing is not offered`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.routingData)
+        }
+
+    @Test
+    fun `the routing data row sums up the routing data where routing is offered`() =
+        runTest(dispatcher) {
+            val vm = viewModel(routingData = flowOf(RoutingDataSummary(tileCount = 2, totalBytes = 144_000_000L)))
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertEquals(RoutingDataSummary(tileCount = 2, totalBytes = 144_000_000L), vm.uiState.value.routingData)
+        }
+
+    @Test
+    fun `routing data that cannot be read leaves the rest of settings in place`() =
+        runTest(dispatcher) {
+            val vm = viewModel(routingData = flow { throw java.io.IOException("unreadable") })
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertNull(vm.uiState.value.routingData)
+            assertEquals(store.settings.first().mapBackend, vm.uiState.value.mapBackend)
+        }
+
+    @Test
     fun `SetMusicSpectrum writes the value to the store`() =
         runTest(dispatcher) {
             viewModel().onAction(SettingsAction.SetMusicSpectrum(true))
@@ -1550,6 +1578,7 @@ class SettingsViewModelTest {
         availableCalendars: CalendarCatalogState = CalendarCatalogState(hasAccess = true, calendars = emptyList()),
         updaterPort: UpdaterPort = updater,
         offlineRegionsAvailable: Boolean = false,
+        routingData: Flow<RoutingDataSummary?> = flowOf(null),
     ) = SettingsViewModel(
         store,
         fontStore,
@@ -1565,6 +1594,7 @@ class SettingsViewModelTest {
         videoGrants = FakeVideoSourceGrants(),
         offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = dispatcher,
+        routingData = routingData,
     )
 
     private companion object {

@@ -33,6 +33,9 @@ internal data class HomeUiState(
     // phase 3), or null: none is set, or this build or map backend offers no
     // routing (routingAvailableFlow).
     val activeRoute: ActiveRouteState? = null,
+    // Whether this build and map backend offer routing (routingAvailableFlow):
+    // a long press on the map then picks a destination.
+    val routingAvailable: Boolean = false,
 ) {
     companion object {
         val Initial: HomeUiState =

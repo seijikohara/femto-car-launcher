@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.voice.VoiceState
+import java.util.Locale
 
 /**
  * State for the destination panel. [motion] is the shared vehicle-motion
@@ -21,6 +22,10 @@ import io.github.seijikohara.femto.data.voice.VoiceState
  * nothing about routes. [geocoderAvailable] says whether text can become a
  * position on this device at all; without a geocoder only a saved point can be
  * routed to. [route] is where a route the panel asked for stands.
+ *
+ * [pickedPoint] is a point picked with a long press on the map, which the
+ * panel offers in place of the text entry until the driver goes back to the
+ * search or the panel closes. It is not saved unless the driver saves it.
  */
 internal data class DestinationUiState(
     val query: String,
@@ -31,6 +36,7 @@ internal data class DestinationUiState(
     val routeAvailable: Boolean = false,
     val geocoderAvailable: Boolean = false,
     val route: RouteStep = RouteStep.Idle,
+    val pickedPoint: PlaceTarget.Point? = null,
 ) {
     /**
      * Whether [target] can be routed to: a point always, text only through a
@@ -74,12 +80,19 @@ internal sealed interface RouteStep {
     /** The last fix is missing or old, and the device is asked where it is now. */
     data object FindingPosition : RouteStep
 
+    /** Routing data on the device whose weekly check is due is being checked against the server. */
+    data object CheckingData : RouteStep
+
     /** The geocoder is turning the destination's text into a position. */
     data object Locating : RouteStep
 
-    /** The route needs routing data the device lacks: [bytes] to download, on the driver's word. */
+    /**
+     * The route needs routing data the device lacks, or the server has rebuilt data the device holds: [bytes] to
+     * download, on the driver's word. [kind] says which.
+     */
     data class ConfirmDownload(
         val bytes: Long,
+        val kind: RouteDownload = RouteDownload.MISSING,
     ) : RouteStep
 
     data class Downloading(
@@ -110,6 +123,21 @@ internal data class LastFix(
     val point: PlaceTarget.Point,
     val elapsedRealtimeNanos: Long,
 )
+
+/** What a [RouteStep.ConfirmDownload] would fetch, which decides its sentence and its buttons. */
+internal enum class RouteDownload {
+    /** Data the route cannot do without: Download, or Cancel the route. */
+    MISSING,
+
+    /**
+     * Only newer data for areas already on the device, so an update never blocks the route: Update, or route with
+     * the stored data ([DestinationAction.UseStoredData]), which asks again a week later.
+     */
+    NEWER,
+
+    /** Both: the missing data is required, so one confirmation covers both, with Download or Cancel. */
+    MISSING_AND_NEWER,
+}
 
 /** Why a route did not come about; each has its own sentence in the panel. */
 internal enum class RouteFailure {
@@ -206,6 +234,26 @@ internal sealed interface DestinationAction {
         val origin: LastFix?,
     ) : DestinationAction
 
+    /**
+     * Offer [point], picked with a long press on the map, as the destination, in place of the text entry. Nothing
+     * is saved.
+     */
+    data class PickPoint(
+        val point: PlaceTarget.Point,
+    ) : DestinationAction
+
+    /** Put the picked point away and give the panel its text entry back; the panel sends it as it closes too. */
+    data object ClearPickedPoint : DestinationAction
+
+    /** Keep the picked point as a saved place labelled with its coordinates; not while moving. */
+    data object SavePickedPoint : DestinationAction
+
+    /**
+     * The driver declined newer data ([RouteDownload.NEWER]): the route is computed with the stored data at once, and
+     * the declined areas count as checked, so the question comes back after a week rather than on the next route.
+     */
+    data object UseStoredData : DestinationAction
+
     /** The driver agreed to the download [RouteStep.ConfirmDownload] asked about. */
     data object ConfirmDownload : DestinationAction
 
@@ -219,3 +267,9 @@ internal sealed interface DestinationAction {
      */
     data object DismissRoute : DestinationAction
 }
+
+/**
+ * The point as the panel names it: five decimals (about 1 m) of latitude and longitude. Locale.ROOT keeps the
+ * separator a dot in every locale, matching the hand-off URI.
+ */
+internal fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.ROOT, "%.5f, %.5f", latitude, longitude)

@@ -119,6 +119,10 @@ internal data class SettingsUiState(
     // fixed for the build, read once by SettingsViewModelFactory; defaulted on the field like
     // updates, since no store backs it.
     val offlineRegionsAvailable: Boolean = false,
+    // The routing data on the device while this build and map backend offer
+    // routing (routingAvailableFlow), else null and the Routing data row stays
+    // hidden; defaulted on the field like updates.
+    val routingData: RoutingDataSummary? = null,
 ) {
     companion object {
         // Seeded from the persistence defaults so the default values live in one
@@ -605,3 +609,9 @@ internal sealed interface TrackExportState {
 
     data object Failed : TrackExportState
 }
+
+/** The routing data on the device, as the Map category's Routing data row sums it up. */
+internal data class RoutingDataSummary(
+    val tileCount: Int,
+    val totalBytes: Long,
+)

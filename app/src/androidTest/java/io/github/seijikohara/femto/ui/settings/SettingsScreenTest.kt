@@ -561,6 +561,7 @@ class SettingsScreenTest {
                     onOpenDiagnostics = {},
                     onOpenLicenses = {},
                     onOpenOfflineRegions = {},
+                    onOpenRoutingData = {},
                     onOpenDocument = { onOpenDocument(it) },
                 )
             }

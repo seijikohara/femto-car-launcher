@@ -174,8 +174,20 @@ class PanelScreenshotTest {
             DestinationPanelSample(RouteStep.ConfirmDownload(bytes = 48_200_000L))
         }
 
+    // The panel a long press on the map opens: the picked point in place of
+    // the search, with Navigate and Route.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun destination_panel_map_point_head_unit() =
+        capture("destination-panel-head-unit-853x512-map-point") {
+            DestinationPanelSample(RouteStep.Idle, pickedPoint = PlaceTarget.Point(35.658581, 139.745433))
+        }
+
     @Composable
-    private fun DestinationPanelSample(route: RouteStep) {
+    private fun DestinationPanelSample(
+        route: RouteStep,
+        pickedPoint: PlaceTarget.Point? = null,
+    ) {
         DestinationPanel(
             uiState =
                 DestinationUiState(
@@ -194,6 +206,7 @@ class PanelScreenshotTest {
                     routeAvailable = true,
                     geocoderAvailable = true,
                     route = route,
+                    pickedPoint = pickedPoint,
                 ),
             lastFix = LastFix(PlaceTarget.Point(35.681236, 139.767125), elapsedRealtimeNanos = 0L),
             currentAddress = "1-9-1 Marunouchi",

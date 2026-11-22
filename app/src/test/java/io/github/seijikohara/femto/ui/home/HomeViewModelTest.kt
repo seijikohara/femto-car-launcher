@@ -1084,6 +1084,25 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `the dashboard knows where routing is offered, so a long press can pick a destination`() =
+        runTest {
+            val viewModel = routeViewModel(available = true)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertTrue(viewModel.uiState.value.routingAvailable)
+        }
+
+    @Test
+    fun `where routing is not offered a long press picks nothing`() =
+        runTest {
+            val viewModel = routeViewModel(available = false)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(fakeAddress(), viewModel.uiState.value.address, "the dashboard state has arrived")
+            assertFalse(viewModel.uiState.value.routingAvailable)
+        }
+
+    @Test
     fun `the progress carries each fix to the next, so a pass back along the road is not taken for this one`() =
         runTest {
             // On the way out, a fix nearer the way back: judged alone it would

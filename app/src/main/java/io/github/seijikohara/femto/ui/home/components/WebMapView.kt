@@ -17,6 +17,8 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +41,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -104,8 +108,9 @@ import kotlin.math.roundToLong
  * `fatal` for definitive never-going-to-render facts about the page (no WebGL
  * context, a missing BYO credential, map construction threw, or the page's map
  * data never arrived), `follow` for camera-follow state flips, `frames` for the
- * page's own frame cadence (diagnostics), and `bearing` (throttled) for the
- * compass overlay. A `fatal` swaps the
+ * page's own frame cadence (diagnostics), `bearing` (throttled) for the
+ * compass overlay, and `longpress` for a point the OSM page picked with a touch
+ * held still ([onLongPress]). A `fatal` swaps the
  * permanently-blank WebView for a static notice (centred in the exposed map
  * region, clear of the floating cards) that names the cause, pointing back at
  * the Settings Map section where a setting can fix it — same posture as
@@ -154,12 +159,19 @@ internal fun WebMapView(
     attributionBottomInset: Dp = 0.dp,
     // The route line, OSM backend only (see the route effect below); null draws none.
     routeLine: List<RoutePoint>? = null,
+    // A point picked by a long press on the OSM map; null ignores long presses.
+    // The Google page never reports one.
+    onLongPress: ((RoutePoint) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     // The bridge object below is registered once per WebView instance and would
     // otherwise capture the first composition's lambdas forever.
     val currentOnFollowChange by rememberUpdatedState(onFollowChange)
     val currentOnBearingChange by rememberUpdatedState(onBearingChange)
+    val currentOnLongPress by rememberUpdatedState(onLongPress)
+    // Tap or long press, decided on the main thread (MapPressArbiter); never
+    // read in composition.
+    val pressArbiter = remember { MapPressArbiter() }
     val bearingHolder = remember { floatArrayOf(0f) }
     val isDark =
         when (mapConfig.style) {
@@ -758,6 +770,22 @@ internal fun WebMapView(
                                     MapRuntimeSignals.recordGoogleLens(detail, mapPage)
                                 }
 
+                                // A touch held still on the OSM map
+                                // (webmap/src/long-press.ts): the point it
+                                // picked, for a destination. Only from the page
+                                // on screen, and never from the Google page,
+                                // where no route may be drawn. A press whose
+                                // finger lifted before this post ran was a tap.
+                                "longpress" -> {
+                                    longPressPointOrNull(detail)?.let { point ->
+                                        mainHandler.post {
+                                            val onPick = currentOnLongPress
+                                            val live = livePage[0] === this@apply && !googleMapsBackend
+                                            if (live && onPick != null && pressArbiter.claimLongPress()) onPick(point)
+                                        }
+                                    }
+                                }
+
                                 // Throttled camera bearing for the compass overlay.
                                 "bearing" -> {
                                     detail.toFloatOrNull()?.let { bearing ->
@@ -961,7 +989,21 @@ internal fun WebMapView(
         // (AndroidView's factory runs once per node otherwise).
         key(webView) {
             AndroidView(
-                modifier = Modifier.fillMaxSize().clickable { onTap() },
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        // The Initial pass runs before the click's Main pass,
+                        // so the release is recorded before the tap is judged.
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                pressArbiter.onFingerDown()
+                                do {
+                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                } while (event.changes.any { it.pressed })
+                                pressArbiter.onFingersUp()
+                            }
+                        }.clickable { if (pressArbiter.allowsTap()) onTap() },
                 factory = { webView },
             )
         }

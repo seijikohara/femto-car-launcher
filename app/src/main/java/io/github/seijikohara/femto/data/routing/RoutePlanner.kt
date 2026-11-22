@@ -20,6 +20,36 @@ internal const val ENGINE_MEMORY_CLASS_MB = 64
 
 private const val PROFILES_DIR = "profiles"
 
+private const val NANOS_PER_MILLI = 1_000_000L
+
+/**
+ * How one route search ended and how long [RoutePlanner.route] took, for the diagnostics report. It holds no position
+ * and no engine message: a message can name where the route ran.
+ */
+internal data class RouteRun(
+    val outcome: RouteRunOutcome,
+    val computingMs: Long,
+)
+
+internal enum class RouteRunOutcome {
+    FOUND,
+    MISSING_TILES,
+    NO_ROAD_DATA,
+    DATA_VERSION_MISMATCH,
+    TIMED_OUT,
+    FAILED,
+}
+
+private fun RouteResult.runOutcome(): RouteRunOutcome =
+    when (this) {
+        is RouteResult.Found -> RouteRunOutcome.FOUND
+        is RouteResult.MissingTiles -> RouteRunOutcome.MISSING_TILES
+        RouteResult.NoRoadData -> RouteRunOutcome.NO_ROAD_DATA
+        RouteResult.DataVersionMismatch -> RouteRunOutcome.DATA_VERSION_MISMATCH
+        RouteResult.TimedOut -> RouteRunOutcome.TIMED_OUT
+        is RouteResult.Failed -> RouteRunOutcome.FAILED
+    }
+
 /**
  * Routes computed on the device by BRouter from the installed routing tiles.
  *
@@ -35,8 +65,12 @@ internal class RoutePlanner(
     private val timeLimitMs: Long = ROUTE_TIME_LIMIT_MS,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val engineDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val nanoTime: () -> Long = System::nanoTime,
 ) {
     private val lock = Mutex()
+
+    @Volatile
+    private var lastRun: RouteRun? = null
 
     /** Compute a route from [origin] to [destination]; the tiles around both must be installed first. */
     suspend fun route(
@@ -44,12 +78,20 @@ internal class RoutePlanner(
         destination: RoutePoint,
     ): RouteResult =
         lock.withLock {
-            tiles
-                .missingTiles(routingTilesAround(origin, destination))
-                .takeIf { it.isNotEmpty() }
-                ?.let(RouteResult::MissingTiles)
-                ?: search(origin, destination).withoutNoDataTiles()
+            val startNanos = nanoTime()
+            (
+                tiles
+                    .missingTiles(routingTilesAround(origin, destination))
+                    .takeIf { it.isNotEmpty() }
+                    ?.let(RouteResult::MissingTiles)
+                    ?: search(origin, destination).withoutNoDataTiles()
+            ).also { result ->
+                lastRun = RouteRun(result.runOutcome(), computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI)
+            }
         }
+
+    /** How the last route this process computed ended, and how long it took; null before the first one. */
+    fun lastRunOrNull(): RouteRun? = lastRun
 
     // BRouter names the tile under the origin or the destination when it cannot open it, whether the tile is not
     // installed or does not exist, and the check above lets a tile known to have no data through. No download brings

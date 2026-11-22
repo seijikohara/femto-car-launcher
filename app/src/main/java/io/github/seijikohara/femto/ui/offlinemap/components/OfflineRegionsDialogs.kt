@@ -1,20 +1,15 @@
 package io.github.seijikohara.femto.ui.offlinemap.components
 
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import io.github.seijikohara.femto.data.map.offline.RegionOffer.Unavailable.Reason
+import io.github.seijikohara.femto.ui.common.MessageDialog
 import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsAction
 import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsDialog
 import io.github.seijikohara.femto.ui.settings.components.ChoiceDialog
-import io.github.seijikohara.femto.ui.theme.FemtoDimens
 
 /**
  * The dialog the sheet's state names: the answer to an offer, the confirmations that come before a delete
@@ -139,32 +134,3 @@ private fun unavailableText(reason: Reason): String =
             Reason.NETWORK, Reason.BUSY, Reason.ALREADY_SAVED -> R.string.offline_regions_offer_network
         },
     )
-
-// A plain message with one or two actions; [dismissLabel] null leaves the confirm action alone.
-@Composable
-private fun MessageDialog(
-    title: String?,
-    text: String,
-    confirmLabel: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-    dismissLabel: String? = null,
-) = AlertDialog(
-    onDismissRequest = onDismiss,
-    title = title?.let { { Text(text = it) } },
-    text = { Text(text = text) },
-    confirmButton = { DialogButton(label = confirmLabel, onClick = onConfirm) },
-    dismissButton = dismissLabel?.let { { DialogButton(label = it, onClick = onDismiss) } },
-)
-
-@Composable
-private fun DialogButton(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) = TextButton(
-    onClick = onClick,
-    modifier = modifier.heightIn(min = FemtoDimens.MinTouchTarget),
-) {
-    Text(text = label)
-}

@@ -73,6 +73,7 @@ import io.github.seijikohara.femto.ui.home.components.PanelVisibility
 import io.github.seijikohara.femto.ui.licenses.LicensesSheet
 import io.github.seijikohara.femto.ui.locale.resolved
 import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsSheet
+import io.github.seijikohara.femto.ui.routingdata.RoutingDataSheet
 import io.github.seijikohara.femto.ui.settings.SettingsDocument
 import io.github.seijikohara.femto.ui.settings.SettingsSheet
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -251,6 +252,8 @@ class MainActivity : ComponentActivity() {
                 var fontPickerSlot by rememberSaveable { mutableStateOf<FontSlot?>(null) }
                 // The saved map regions open over settings, like the font picker.
                 var showOfflineRegions by rememberSaveable { mutableStateOf(false) }
+                // The routing data opens over settings, like the saved map regions.
+                var showRoutingData by rememberSaveable { mutableStateOf(false) }
                 // Diagnostics opens over settings, like the font picker.
                 var showDiagnostics by rememberSaveable { mutableStateOf(false) }
                 // The open-source licenses sheet opens over settings, like diagnostics.
@@ -320,6 +323,7 @@ class MainActivity : ComponentActivity() {
                             showSettings ||
                             fontPickerSlot != null ||
                             showOfflineRegions ||
+                            showRoutingData ||
                             showDiagnostics ||
                             showLicenses,
                     fullscreen = fullscreen,
@@ -348,6 +352,7 @@ class MainActivity : ComponentActivity() {
                             onOpenSystemSettings = ::openSystemSettings,
                             onOpenFontPicker = { fontPickerSlot = it },
                             onOpenOfflineRegions = { showOfflineRegions = true },
+                            onOpenRoutingData = { showRoutingData = true },
                             onOpenDiagnostics = { showDiagnostics = true },
                             onOpenLicenses = { showLicenses = true },
                             onOpenDocument = ::openSettingsDocument,
@@ -366,6 +371,12 @@ class MainActivity : ComponentActivity() {
                     if (showOfflineRegions) {
                         OfflineRegionsSheet(
                             onDismiss = { showOfflineRegions = false },
+                            fullscreen = fullscreen,
+                        )
+                    }
+                    if (showRoutingData) {
+                        RoutingDataSheet(
+                            onDismiss = { showRoutingData = false },
                             fullscreen = fullscreen,
                         )
                     }

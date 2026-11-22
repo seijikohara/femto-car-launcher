@@ -61,6 +61,7 @@ class DestinationPanelTest {
         routeAvailable: Boolean = false,
         geocoderAvailable: Boolean = true,
         route: RouteStep = RouteStep.Idle,
+        pickedPoint: PlaceTarget.Point? = null,
     ) = rule.setContent {
         FemtoTheme {
             DestinationPanel(
@@ -74,6 +75,7 @@ class DestinationPanelTest {
                         routeAvailable = routeAvailable,
                         geocoderAvailable = geocoderAvailable,
                         route = route,
+                        pickedPoint = pickedPoint,
                     ),
                 lastFix = lastFix,
                 currentAddress = "1-9-1 Marunouchi",
@@ -427,6 +429,124 @@ class DestinationPanelTest {
         assertEquals(listOf(DestinationAction.CancelListening, DestinationAction.DismissRoute), actions)
     }
 
+    // --- newer routing data ----------------------------------------------------
+
+    @Test
+    fun newer_data_alone_offers_the_stored_data_and_never_blocks_the_route() {
+        setPanel(
+            stationary = true,
+            routeAvailable = true,
+            route = RouteStep.ConfirmDownload(1_000L, RouteDownload.NEWER),
+        )
+
+        rule.onNodeWithText("Cancel").assertDoesNotExist()
+        rule.onNodeWithText("Use stored data").performClick()
+        rule.onNodeWithText("Update").performClick()
+
+        assertEquals(listOf(DestinationAction.UseStoredData, DestinationAction.ConfirmDownload), actions)
+    }
+
+    @Test
+    fun missing_and_newer_data_say_the_missing_data_is_needed_and_can_be_cancelled() {
+        setPanel(
+            stationary = true,
+            routeAvailable = true,
+            route = RouteStep.ConfirmDownload(1_000L, RouteDownload.MISSING_AND_NEWER),
+        )
+
+        rule.onNodeWithText("which the route cannot do without", substring = true).assertIsDisplayed()
+        rule.onNodeWithText("Use stored data").assertDoesNotExist()
+        rule.onNodeWithText("Cancel").performClick()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.DismissRoute), actions)
+    }
+
+    // --- a point picked on the map ---------------------------------------------
+
+    @Test
+    fun a_picked_point_takes_the_search_place_with_its_coordinates() {
+        setPanel(stationary = true, pickedPoint = PICKED)
+
+        rule.onNodeWithText("35.65858, 139.74543").assertIsDisplayed()
+        rule.onNodeWithTag(DESTINATION_QUERY_TEST_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun navigate_hands_the_picked_point_off_without_a_label() {
+        setPanel(stationary = true, pickedPoint = PICKED)
+
+        rule.onNodeWithText("Navigate").performClick()
+
+        assertEquals(listOf<Pair<PlaceTarget, String>>(PICKED to ""), handoffs)
+    }
+
+    @Test
+    fun route_routes_to_the_picked_point_where_routing_is_offered() {
+        setPanel(stationary = true, pickedPoint = PICKED, routeAvailable = true)
+
+        rule.onNodeWithText("Route").performClick()
+
+        assertEquals(DestinationAction.RouteTo(PICKED, FIX), actions.last())
+    }
+
+    @Test
+    fun without_routing_the_picked_point_offers_no_route() {
+        setPanel(stationary = true, pickedPoint = PICKED, routeAvailable = false)
+
+        rule.onNodeWithText("Route").assertDoesNotExist()
+    }
+
+    @Test
+    fun moving_the_picked_point_cannot_be_saved_but_still_navigates() {
+        setPanel(stationary = false, pickedPoint = PICKED)
+
+        rule.onNodeWithText("Save point").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("Navigate").assertIsEnabled()
+    }
+
+    @Test
+    fun search_instead_puts_the_picked_point_away() {
+        setPanel(stationary = true, pickedPoint = PICKED)
+
+        rule.onNodeWithText("Search instead").performScrollTo().performClick()
+
+        assertEquals(DestinationAction.ClearPickedPoint, actions.last())
+    }
+
+    @Test
+    fun closing_the_panel_puts_the_picked_point_away() {
+        var visible by mutableStateOf(true)
+        rule.setContent {
+            FemtoTheme {
+                DestinationPanel(
+                    uiState =
+                        DestinationUiState(
+                            query = "",
+                            voice = VoiceState.Idle,
+                            places = emptyList(),
+                            motion = VehicleMotion.PARKED,
+                            pickedPoint = PICKED,
+                        ),
+                    lastFix = null,
+                    currentAddress = "",
+                    visible = visible,
+                    onAction = { actions += it },
+                    onMicTap = {},
+                    onNavigate = { _, _ -> },
+                    onOpenMaps = {},
+                    onClose = {},
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+        rule.waitForIdle()
+
+        visible = false
+        rule.waitForIdle()
+
+        assertEquals(listOf(DestinationAction.CancelListening, DestinationAction.ClearPickedPoint), actions)
+    }
+
     @Composable
     private fun RouteUnderWayPanel(visible: Boolean = true) =
         DestinationPanel(
@@ -453,6 +573,9 @@ class DestinationPanelTest {
 
 // The fix the panel holds; its age is the ViewModel's to judge, so any time serves.
 private val FIX = LastFix(PlaceTarget.Point(1.0, 2.0), elapsedRealtimeNanos = 0L)
+
+// A point a long press on the map picked.
+private val PICKED = PlaceTarget.Point(35.658581, 139.745433)
 
 private const val NO_HANDLER_LINE =
     "No app on this device can open a destination. Install a maps or navigation app."

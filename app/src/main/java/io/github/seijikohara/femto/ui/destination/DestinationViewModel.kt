@@ -27,9 +27,12 @@ import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteResult
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
+import io.github.seijikohara.femto.data.routing.TileCheckResult
 import io.github.seijikohara.femto.data.routing.TileFetchResult
+import io.github.seijikohara.femto.data.routing.TileRefreshResult
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.routing.routingTilesAround
+import io.github.seijikohara.femto.data.routing.tilesDueForCheck
 import io.github.seijikohara.femto.data.voice.SpeechInput
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import io.github.seijikohara.femto.data.voice.VoiceState
@@ -45,7 +48,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 /**
  * Drives the destination panel: the query (typed, or dictated through
@@ -70,6 +72,16 @@ import java.util.Locale
  * from a fix still fresh at [nowElapsedRealtimeNanos], else from the position
  * [currentFix] finds on request; with neither it says whether the position or
  * [hasLocationPermission] is missing.
+ *
+ * Before a route is computed, the installed tiles it may read whose weekly
+ * check is due at [nowEpochMs] are asked about with a conditional request
+ * ([tilesDueForCheck]); a tile the server has rebuilt joins the download the
+ * driver confirms, as a missing tile does. An update never blocks a route:
+ * with only newer data on offer, the driver may route with the stored data
+ * ([DestinationAction.UseStoredData]). Nothing is checked in the background.
+ *
+ * A point picked on the map ([DestinationAction.PickPoint]) stays here until
+ * the panel lets go of it; it is saved only on the driver's word.
  */
 internal class DestinationViewModel(
     private val placesStore: SavedPlacesStore,
@@ -84,6 +96,7 @@ internal class DestinationViewModel(
     private val nowElapsedRealtimeNanos: () -> Long,
     private val hasLocationPermission: () -> Boolean,
     private val currentFix: CurrentFixSource,
+    private val nowEpochMs: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -97,7 +110,9 @@ internal class DestinationViewModel(
     // kept for the steps that wait on the driver (a download to confirm, or to
     // redo after a version mismatch).
     private var routeEnds: RouteEnds? = null
-    private var tilesToFetch: List<String> = emptyList()
+    private var pendingDownload = TileDownload()
+
+    private val pickedPoint = MutableStateFlow<PlaceTarget.Point?>(null)
 
     private val entryState: Flow<DestinationUiState> =
         combine(
@@ -130,8 +145,14 @@ internal class DestinationViewModel(
             // Seeded off, so the entry never waits on the settings store.
             routingAvailable.onStart { emit(false) }.distinctUntilChanged(),
             routeStep,
-        ) { entry, available, step ->
-            entry.copy(routeAvailable = available, geocoderAvailable = placeLocator.available, route = step)
+            pickedPoint,
+        ) { entry, available, step, picked ->
+            entry.copy(
+                routeAvailable = available,
+                geocoderAvailable = placeLocator.available,
+                route = step,
+                pickedPoint = picked,
+            )
         }.stateIn(viewModelScope, WhileUiSubscribed, DestinationUiState.Initial)
 
     init {
@@ -203,10 +224,36 @@ internal class DestinationViewModel(
                 if (state.canRoute(action.target)) startRoute(action.target, action.origin)
             }
 
+            is DestinationAction.PickPoint -> {
+                pickedPoint.value = action.point
+            }
+
+            DestinationAction.ClearPickedPoint -> {
+                pickedPoint.value = null
+            }
+
+            DestinationAction.SavePickedPoint -> {
+                pickedPoint.value
+                    ?.takeIf { typingAllowed }
+                    ?.let { point -> save(label = point.coordinateLabel(), target = point) }
+            }
+
+            DestinationAction.UseStoredData -> {
+                val confirm = routeStep.value as? RouteStep.ConfirmDownload
+                val ends = routeEnds
+                val declined = pendingDownload.refresh
+                if (confirm?.kind == RouteDownload.NEWER && ends != null) {
+                    runRoute {
+                        declined.forEach { tiles.markChecked(it) }
+                        route(ends)
+                    }
+                }
+            }
+
             DestinationAction.ConfirmDownload -> {
                 val confirm = routeStep.value as? RouteStep.ConfirmDownload
                 val ends = routeEnds
-                if (confirm != null && ends != null) runRoute { fetchThenRoute(ends, tilesToFetch, confirm.bytes) }
+                if (confirm != null && ends != null) runRoute { fetchThenRoute(ends, pendingDownload, confirm.bytes) }
             }
 
             DestinationAction.DownloadAgain -> {
@@ -223,7 +270,7 @@ internal class DestinationViewModel(
                 routeJob?.cancel()
                 routeJob = null
                 routeEnds = null
-                tilesToFetch = emptyList()
+                pendingDownload = TileDownload()
                 routeStep.value = RouteStep.Idle
             }
         }
@@ -304,7 +351,13 @@ internal class DestinationViewModel(
             }
         }
 
+    // Computing from the start: the look at the tiles on the device is part of
+    // it, and only a check that asks the server says so on its own.
     private suspend fun route(ends: RouteEnds) {
+        routeStep.value = RouteStep.Computing
+        val needed = routingTilesAround(ends.origin, ends.destination)
+        val newer = newerTileSizes(needed)
+        if (newer.isNotEmpty()) return offerDownload(ends, missing = tiles.missingTiles(needed), newer = newer)
         routeStep.value = RouteStep.Computing
         when (val result = planner.route(ends.origin, ends.destination)) {
             is RouteResult.Found -> {
@@ -313,7 +366,7 @@ internal class DestinationViewModel(
             }
 
             is RouteResult.MissingTiles -> {
-                offerDownload(ends, result.names)
+                offerDownload(ends, missing = result.names, newer = emptyMap())
             }
 
             RouteResult.NoRoadData -> {
@@ -334,18 +387,36 @@ internal class DestinationViewModel(
         }
     }
 
-    // The driver sees the size before anything is fetched. Tiles the server
-    // has no data for weigh nothing, and fetching them only records that, so a
-    // download of nothing goes ahead without asking.
+    // The weekly check: the installed tiles among [needed] whose check is due,
+    // asked about one at a time with a conditional request, which costs the
+    // server nothing for a tile it has not rebuilt. A check without an answer
+    // leaves the installed tile to route with. Returns the rebuilt tiles with
+    // the sizes of their newer files, by name.
+    private suspend fun newerTileSizes(needed: List<String>): Map<String, Long> {
+        val due = tilesDueForCheck(needed, tiles.installedTiles(), nowEpochMs())
+        if (due.isNotEmpty()) routeStep.value = RouteStep.CheckingData
+        return due
+            .mapNotNull { name -> (tiles.check(name) as? TileCheckResult.Changed)?.let { name to it.sizeBytes } }
+            .toMap()
+    }
+
+    // The driver sees the size before anything is fetched: the missing tiles
+    // as the server announces them, and the newer files of rebuilt ones. Tiles
+    // the server has no data for weigh nothing, and fetching them only records
+    // that, so a download of nothing goes ahead without asking.
     private suspend fun offerDownload(
         ends: RouteEnds,
-        names: List<String>,
+        missing: List<String>,
+        newer: Map<String, Long>,
     ) {
-        tilesToFetch = names
-        when (val bytes = tiles.downloadSizeBytes(names)) {
-            null -> fail(RouteFailure.DOWNLOAD_FAILED)
-            0L -> fetchThenRoute(ends, names, totalBytes = 0L)
-            else -> routeStep.value = RouteStep.ConfirmDownload(bytes)
+        val download = TileDownload(fetch = missing, refresh = newer.keys.toList())
+        pendingDownload = download
+        val missingBytes = tiles.downloadSizeBytes(missing) ?: return fail(RouteFailure.DOWNLOAD_FAILED)
+        val bytes = missingBytes + newer.values.sum()
+        if (bytes == 0L) {
+            fetchThenRoute(ends, download, totalBytes = 0L)
+        } else {
+            routeStep.value = RouteStep.ConfirmDownload(bytes, downloadKind(missingBytes, newer.isNotEmpty()))
         }
     }
 
@@ -358,24 +429,33 @@ internal class DestinationViewModel(
     // inside the state's atomic update: a cancel always lands before the state
     // it writes, so one that slips between the read and the write fails the
     // update, whose retry then sees the job cancelled and drops the report.
+    //
+    // A rebuilt tile is replaced through the store's refresh, which asks once
+    // more and keeps the installed file until the new one is whole. Newer data
+    // never blocks a route: a replacement that fails leaves the installed tile
+    // to route with, counted as checked so the next route does not ask at
+    // once. Only a missing tile whose fetch fails stops the route.
     private suspend fun fetchThenRoute(
         ends: RouteEnds,
-        names: List<String>,
+        download: TileDownload,
         totalBytes: Long,
     ) {
         val job = currentCoroutineContext().job
         var finishedBytes = 0L
         routeStep.value = RouteStep.Downloading(receivedBytes = 0L, totalBytes = totalBytes)
-        for (name in names) {
+        for (name in download.fetch + download.refresh) {
             var tileBytes = 0L
-            val result =
-                tiles.fetch(name) { received, _ ->
-                    tileBytes = received
-                    routeStep.update { step ->
-                        if (job.isActive) RouteStep.Downloading(finishedBytes + received, totalBytes) else step
-                    }
+            val onProgress = { received: Long, _: Long ->
+                tileBytes = received
+                routeStep.update { step ->
+                    if (job.isActive) RouteStep.Downloading(finishedBytes + received, totalBytes) else step
                 }
-            result.failureOrNull()?.let { return fail(it) }
+            }
+            if (name in download.fetch) {
+                tiles.fetch(name, onProgress).failureOrNull()?.let { return fail(it) }
+            } else if (tiles.refresh(name, onProgress).failed()) {
+                tiles.markChecked(name)
+            }
             finishedBytes += tileBytes
         }
         route(ends)
@@ -395,6 +475,13 @@ private data class RouteEnds(
     val destination: RoutePoint,
 )
 
+// What a confirmed download fetches: missing tiles, and installed tiles the
+// server has rebuilt.
+private data class TileDownload(
+    val fetch: List<String> = emptyList(),
+    val refresh: List<String> = emptyList(),
+)
+
 // Why a tile's fetch stops the route, or null when the route goes on: the tile
 // is installed, or the server has none for it and the route does without.
 private fun TileFetchResult.failureOrNull(): RouteFailure? =
@@ -404,11 +491,32 @@ private fun TileFetchResult.failureOrNull(): RouteFailure? =
         TileFetchResult.NETWORK_FAILED, TileFetchResult.STORAGE_FAILED -> RouteFailure.DOWNLOAD_FAILED
     }
 
-private fun PlaceTarget.Point.toRoutePoint(): RoutePoint = RoutePoint(latitude = latitude, longitude = longitude)
+// Missing data the server sizes at nothing (tiles without data) needs no word,
+// so only newer data left means an update the driver may decline.
+private fun downloadKind(
+    missingBytes: Long,
+    hasNewer: Boolean,
+): RouteDownload =
+    when {
+        !hasNewer -> RouteDownload.MISSING
+        missingBytes == 0L -> RouteDownload.NEWER
+        else -> RouteDownload.MISSING_AND_NEWER
+    }
 
-// Five decimals (about 1 m) names a place without an address; Locale.ROOT
-// keeps the separator a dot in every locale, matching the hand-off URI.
-private fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.ROOT, "%.5f, %.5f", latitude, longitude)
+// Whether a rebuilt tile's replacement failed, leaving the installed tile in
+// place: replaced, unchanged, or no longer due or installed is no failure.
+private fun TileRefreshResult.failed(): Boolean =
+    when (this) {
+        TileRefreshResult.UPDATED,
+        TileRefreshResult.UNCHANGED,
+        TileRefreshResult.NOT_DUE,
+        TileRefreshResult.NOT_INSTALLED,
+        -> false
+
+        TileRefreshResult.NETWORK_FAILED, TileRefreshResult.NO_SPACE, TileRefreshResult.STORAGE_FAILED -> true
+    }
+
+private fun PlaceTarget.Point.toRoutePoint(): RoutePoint = RoutePoint(latitude = latitude, longitude = longitude)
 
 /**
  * Wires the production store, the shared vehicle-motion verdict (the same

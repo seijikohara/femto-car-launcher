@@ -27,6 +27,8 @@ import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.location.currentOrUnknown
+import io.github.seijikohara.femto.data.routing.RoutingTileStore
+import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateRepository
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
@@ -54,6 +56,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onStart
@@ -123,6 +126,9 @@ internal class SettingsViewModel(
     // The video grants cross into the document's provider, a Binder call that
     // can block; tests pass their own dispatcher.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    // The routing data on the device while routing is offered, else null
+    // (routingDataSummaryFlow); off unless a test turns it on.
+    routingData: Flow<RoutingDataSummary?> = flowOf(null),
 ) : ViewModel() {
     // VM-local export progress folded into the derived UiState below; every
     // other UiState field mirrors a persisted store, the updater's state aside.
@@ -299,14 +305,21 @@ internal class SettingsViewModel(
             trackExportState,
             dockStatusVisible,
             updates,
-            video,
-        ) { state, export, statusVisible, update, videoRows ->
+            // Seeded with none, so the rest of Settings never waits on the
+            // routing data's directory read.
+            combine(
+                video,
+                routingData.onStart { emit(null) }.catchAsDefault(TAG, "routing data", null),
+                ::Pair,
+            ),
+        ) { state, export, statusVisible, update, (videoRows, routing) ->
             state.copy(
                 trackExport = export,
                 dockStatusVisible = statusVisible,
                 updates = update,
                 video = videoRows,
                 offlineRegionsAvailable = offlineRegionsAvailable,
+                routingData = routing,
             )
         }.stateIn(
             viewModelScope,
@@ -790,6 +803,17 @@ internal class SettingsViewModelFactory(
             videoPreferences = VideoPreferences(application),
             videoGrants = ContentResolverVideoSourceGrants(application),
             offlineRegionsAvailable = application.resources.getBoolean(R.bool.offline_regions_enabled),
+            routingData =
+                routingDataSummaryFlow(
+                    available =
+                        routingAvailableFlow(
+                            enabled = application.resources.getBoolean(R.bool.routing_enabled),
+                            settings = DisplayPreferences(application).settings,
+                        ),
+                    // Reached only where routing is offered, so a build without
+                    // it never creates the store.
+                    installed = { RoutingTileStore.get(application).installed },
+                ),
         ) as T
     }
 
