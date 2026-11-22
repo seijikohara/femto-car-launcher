@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.routing.Route
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateManifest
@@ -26,6 +27,7 @@ import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
+import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
@@ -1082,6 +1084,25 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `the progress carries each fix to the next, so a pass back along the road is not taken for this one`() =
+        runTest {
+            // On the way out, a fix nearer the way back: judged alone it would
+            // leave 3.3 km where 18.9 km are left.
+            val location = MutableStateFlow<Location?>(fakeLocation(latitude = 0.0, longitude = 0.029))
+            val viewModel =
+                routeViewModel(locationFlow = location, available = true, route = fakeOutAndBackRoute())
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            location.value = fakeLocation(latitude = 0.00015, longitude = 0.03)
+
+            assertEquals(
+                18_925.0,
+                assertNotNull(viewModel.uiState.value.activeRoute).progress.remainingMeters,
+                1.0,
+            )
+        }
+
+    @Test
     fun `onAction ClearRoute clears the active route and emits no event`() =
         runTest {
             var clears = 0
@@ -1094,22 +1115,27 @@ class HomeViewModelTest {
             assertEquals(1, clears)
         }
 
-    private fun routeViewModel(
-        location: Location?,
+    // The route's progress runs on the test scheduler, so a test reads it as
+    // soon as its subscriber has.
+    private fun TestScope.routeViewModel(
+        location: Location? = null,
         available: Boolean,
         clearRoute: () -> Unit = {},
+        locationFlow: Flow<Location?> = flowOf(location),
+        route: Route = EQUATOR_ROUTE,
     ): HomeViewModel =
         HomeViewModel(
-            locationFlow = flowOf(location),
+            locationFlow = locationFlow,
             addressFlow = flowOf(fakeAddress()),
             weatherFlow = flowOf(null),
             musicStateFlow = flowOf(MusicCardState.NeedsPermission),
             calendarFlow = flowOf(null),
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(fakeTripState()),
-            routeFlow = flowOf(EQUATOR_ROUTE),
+            routeFlow = flowOf(route),
             routingAvailable = flowOf(available),
             clearRoute = clearRoute,
+            routeDispatcher = UnconfinedTestDispatcher(testScheduler),
         )
 
     private fun stubViewModel(

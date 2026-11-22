@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.github.seijikohara.femto.ui.home
 
 import android.app.Application
@@ -40,9 +42,7 @@ import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.Route
 import io.github.seijikohara.femto.data.routing.RoutePoint
-import io.github.seijikohara.femto.data.routing.RouteProgress
-import io.github.seijikohara.femto.data.routing.fullProgress
-import io.github.seijikohara.femto.data.routing.progressAt
+import io.github.seijikohara.femto.data.routing.progressFlow
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
@@ -57,6 +57,9 @@ import io.github.seijikohara.femto.data.update.skipped
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -65,7 +68,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -118,6 +123,9 @@ internal class HomeViewModel(
     routeFlow: Flow<Route?> = flowOf(null),
     routingAvailable: Flow<Boolean> = flowOf(false),
     private val clearRoute: () -> Unit = {},
+    // Where the active route's progress is worked out; tests pin it to their
+    // scheduler.
+    routeDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -167,11 +175,26 @@ internal class HomeViewModel(
         }
 
     // The active route while routing is offered here, else none: a switch to
-    // the Google backend hides it, and a switch back shows it again. Seeded
-    // with none, like the update badge, so the dashboard never waits on the
-    // settings store.
-    private val shownRoute: Flow<Route?> =
+    // the Google backend hides it, and a switch back shows it again. Its
+    // progress follows each fix along the line (Route.progressFlow), a pass
+    // over the route's points, so it runs here on the route and the fixes
+    // alone, off the main thread, rather than in the combine below, which
+    // every card's update re-runs. With no route it reads no fix and does no
+    // work. Seeded with none, like the update badge, so the dashboard never
+    // waits on the settings store.
+    private val activeRoute: Flow<ActiveRouteState?> =
         combine(routeFlow, routingAvailable) { route, available -> route?.takeIf { available } }
+            .distinctUntilChanged()
+            .flatMapLatest { route ->
+                route?.let { shown ->
+                    shown
+                        .progressFlow(
+                            locationFlow
+                                .catchAsDefault(TAG, "route location", null)
+                                .map { it?.toRoutePoint() },
+                        ).map { progress -> ActiveRouteState(line = shown.points, progress = progress) }
+                } ?: flowOf(null)
+            }.flowOn(routeDispatcher)
             .onStart { emit(null) }
             .distinctUntilChanged()
             .catchAsDefault(TAG, "route", null)
@@ -182,7 +205,7 @@ internal class HomeViewModel(
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            shownRoute,
+            activeRoute,
         ) { core, calendar, systemStatus, tripState, route ->
             HomeUiState(
                 location = core.location,
@@ -193,12 +216,7 @@ internal class HomeViewModel(
                 systemStatus = systemStatus,
                 tripState = tripState,
                 updateBadge = core.updateBadge,
-                activeRoute = route?.let {
-                    ActiveRouteState(
-                        line = it.points,
-                        progress = it.progressFrom(core.location),
-                    )
-                },
+                activeRoute = route,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, HomeUiState.Initial)
 
@@ -427,10 +445,7 @@ internal class HomeViewModel(
     }
 }
 
-// What is left of the route from the last fix; the whole route until a fix
-// arrives (the route itself started from one, so that wait is short).
-private fun Route.progressFrom(location: Location?): RouteProgress =
-    location?.let { progressAt(RoutePoint(latitude = it.latitude, longitude = it.longitude)) } ?: fullProgress()
+private fun Location.toRoutePoint(): RoutePoint = RoutePoint(latitude = latitude, longitude = longitude)
 
 // File-private holder that groups the first five slots (four sources and the
 // update badge) so the two-stage combine stays within Kotlin's typed

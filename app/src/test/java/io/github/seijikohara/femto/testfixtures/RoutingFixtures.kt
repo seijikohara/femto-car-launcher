@@ -124,6 +124,17 @@ internal fun fakeEquatorRoute(): Route =
         durationSeconds = 1_200,
     )
 
+/**
+ * A route east along the equator for 0.1° and back 0.0002° (about 22 m) north of it, as along the two carriageways of
+ * one road with a turn at the far end: 22,261 m, about its line's length, and 1,200 s.
+ */
+internal fun fakeOutAndBackRoute(): Route =
+    fakeRoute(
+        points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.0, 0.1), RoutePoint(0.0002, 0.1), RoutePoint(0.0002, 0.0)),
+        distanceMeters = 22_261,
+        durationSeconds = 1_200,
+    )
+
 /** A short route in the routing tile E130_N30, as the planner returns one. */
 internal fun fakeRoute(
     points: List<RoutePoint> =
