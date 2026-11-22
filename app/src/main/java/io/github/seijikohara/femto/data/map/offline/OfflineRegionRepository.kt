@@ -4,6 +4,10 @@ import android.content.Context
 import android.os.storage.StorageManager
 import android.util.Log
 import androidx.core.content.getSystemService
+import io.github.seijikohara.femto.data.common.download.ProbeResult
+import io.github.seijikohara.femto.data.common.download.RemoteFile
+import io.github.seijikohara.femto.data.common.download.TransferResult
+import io.github.seijikohara.femto.data.common.download.downloadHttpClient
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure.CORRUPT
@@ -525,7 +529,7 @@ internal class OfflineRegionRepository internal constructor(
                         root = File(noBackupDir, ROOT_DIR),
                         usableBytes = { storage?.allocatableBytesOrZero(noBackupDir) ?: 0L },
                     ),
-                feed = RegionFeedApi(regionHttpClient(), femtoUserAgent),
+                feed = RegionFeedApi(downloadHttpClient(), femtoUserAgent),
                 check = SqliteRegionFileCheck,
                 limit = { display.settings.first().offlineStorageLimit },
                 sizes = { snapshotSizes },

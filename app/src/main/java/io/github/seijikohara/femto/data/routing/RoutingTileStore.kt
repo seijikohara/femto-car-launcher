@@ -1,16 +1,16 @@
 package io.github.seijikohara.femto.data.routing
 
 import android.content.Context
+import io.github.seijikohara.femto.data.common.download.ProbeResult
+import io.github.seijikohara.femto.data.common.download.RemoteFile
+import io.github.seijikohara.femto.data.common.download.RemoteFileApi
+import io.github.seijikohara.femto.data.common.download.RemoteFileFeed
+import io.github.seijikohara.femto.data.common.download.RevalidationResult
+import io.github.seijikohara.femto.data.common.download.TransferResult
+import io.github.seijikohara.femto.data.common.download.downloadHttpClient
 import io.github.seijikohara.femto.data.common.femtoUserAgent
 import io.github.seijikohara.femto.data.common.syncToDisk
 import io.github.seijikohara.femto.data.common.writeAtomically
-import io.github.seijikohara.femto.data.map.offline.ProbeResult
-import io.github.seijikohara.femto.data.map.offline.RegionFeedApi
-import io.github.seijikohara.femto.data.map.offline.RemoteFile
-import io.github.seijikohara.femto.data.map.offline.RemoteFileFeed
-import io.github.seijikohara.femto.data.map.offline.RevalidationResult
-import io.github.seijikohara.femto.data.map.offline.TransferResult
-import io.github.seijikohara.femto.data.map.offline.regionHttpClient
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -321,7 +321,7 @@ internal class RoutingTileStore(
             instance ?: synchronized(this) {
                 instance ?: RoutingTileStore(
                     root = routingDir(context.applicationContext),
-                    feed = RegionFeedApi(regionHttpClient(), femtoUserAgent, hostPrefix = ROUTING_TILE_HOST_PREFIX),
+                    feed = RemoteFileApi(downloadHttpClient(), femtoUserAgent, hostPrefix = ROUTING_TILE_HOST_PREFIX),
                 ).also { instance = it }
             }
     }

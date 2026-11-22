@@ -1,7 +1,7 @@
 package io.github.seijikohara.femto.data.routing
 
-import io.github.seijikohara.femto.data.map.offline.RegionFeedApi
-import io.github.seijikohara.femto.data.map.offline.regionHttpClient
+import io.github.seijikohara.femto.data.common.download.RemoteFileApi
+import io.github.seijikohara.femto.data.common.download.downloadHttpClient
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -267,7 +267,7 @@ class RoutingTileStoreTest {
     private fun TestScope.store(): RoutingTileStore =
         RoutingTileStore(
             root = routingDir(),
-            feed = RegionFeedApi(regionHttpClient(), USER_AGENT, hostPrefix = server.url("/").toString()),
+            feed = RemoteFileApi(downloadHttpClient(), USER_AGENT, hostPrefix = server.url("/").toString()),
             hostPrefix = server.url("/").toString(),
             ioDispatcher = StandardTestDispatcher(testScheduler),
             clock = { now },

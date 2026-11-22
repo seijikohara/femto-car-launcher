@@ -1,5 +1,8 @@
 package io.github.seijikohara.femto.data.map.offline
 
+import io.github.seijikohara.femto.data.common.download.ProbeResult
+import io.github.seijikohara.femto.data.common.download.RemoteFile
+import io.github.seijikohara.femto.data.common.download.TransferResult
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure.CORRUPT
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure.GONE
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure.NETWORK
@@ -13,7 +16,7 @@ import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase.VERIFYIN
 import io.github.seijikohara.femto.data.map.offline.RegionOffer.Unavailable.Reason
 import io.github.seijikohara.femto.testfixtures.FakeDownloadStop
 import io.github.seijikohara.femto.testfixtures.FakeRegionFeed
-import io.github.seijikohara.femto.testfixtures.RequestedRegionDownload
+import io.github.seijikohara.femto.testfixtures.RequestedFileDownload
 import io.github.seijikohara.femto.testfixtures.pendingDownloadRecord
 import io.github.seijikohara.femto.testfixtures.region
 import io.github.seijikohara.femto.testfixtures.resizeSparse
@@ -180,7 +183,7 @@ class OfflineRegionRepositoryTest {
             runCurrent()
 
             assertEquals(
-                RequestedRegionDownload(monaco.fileUrl, files().partFile(monaco.id), monacoFile, heldBytes = 1_000L),
+                RequestedFileDownload(monaco.fileUrl, files().partFile(monaco.id), monacoFile, heldBytes = 1_000L),
                 feed.downloads.single(),
             )
         }
@@ -551,7 +554,7 @@ class OfflineRegionRepositoryTest {
 
             // A part of the old file beside the record of the new one would be resumed as a range of the new file.
             assertEquals(
-                RequestedRegionDownload(monaco.fileUrl, files().partFile(monaco.id), changed, heldBytes = 0L),
+                RequestedFileDownload(monaco.fileUrl, files().partFile(monaco.id), changed, heldBytes = 0L),
                 afterDeath.downloads.single(),
             )
             death.cancel()

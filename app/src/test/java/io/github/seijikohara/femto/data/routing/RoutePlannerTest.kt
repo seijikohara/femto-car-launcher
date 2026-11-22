@@ -1,6 +1,6 @@
 package io.github.seijikohara.femto.data.routing
 
-import io.github.seijikohara.femto.testfixtures.FakeRegionFeed
+import io.github.seijikohara.femto.testfixtures.FakeRemoteFileFeed
 import io.github.seijikohara.femto.testfixtures.FakeRouteEngine
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -141,7 +141,7 @@ class RoutePlannerTest {
     private fun TestScope.store(): RoutingTileStore =
         RoutingTileStore(
             root = File(tempFolder.root, "routing"),
-            feed = FakeRegionFeed(),
+            feed = FakeRemoteFileFeed(),
             ioDispatcher = StandardTestDispatcher(testScheduler),
         )
 

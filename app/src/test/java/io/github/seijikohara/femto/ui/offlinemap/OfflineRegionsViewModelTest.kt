@@ -1,12 +1,12 @@
 package io.github.seijikohara.femto.ui.offlinemap
 
+import io.github.seijikohara.femto.data.common.download.RemoteFile
 import io.github.seijikohara.femto.data.map.offline.CatalogRegion
 import io.github.seijikohara.femto.data.map.offline.OfflineRegionsState
 import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import io.github.seijikohara.femto.data.map.offline.RegionCatalog
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.data.map.offline.RegionOffer
-import io.github.seijikohara.femto.data.map.offline.RemoteFile
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeOfflineRegionsPort
 import io.github.seijikohara.femto.testfixtures.catalogRegion

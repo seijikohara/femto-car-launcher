@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.testfixtures
 
+import io.github.seijikohara.femto.data.common.download.RemoteFile
 import io.github.seijikohara.femto.data.map.offline.CatalogRegion
 import io.github.seijikohara.femto.data.map.offline.PendingDownloadRecord
 import io.github.seijikohara.femto.data.map.offline.REGION_HOST_PREFIX
@@ -8,7 +9,6 @@ import io.github.seijikohara.femto.data.map.offline.RegionDownload
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadFailure
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.data.map.offline.RegionPolygon
-import io.github.seijikohara.femto.data.map.offline.RemoteFile
 import io.github.seijikohara.femto.data.map.offline.SavedRegion
 import io.github.seijikohara.femto.data.map.offline.SavedRegionRecord
 import io.github.seijikohara.femto.data.map.offline.regionCatalogOrNull
