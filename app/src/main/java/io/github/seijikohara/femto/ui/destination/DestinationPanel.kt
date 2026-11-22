@@ -105,7 +105,9 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * for age; Save current location keeps its point as it is. While a route is
  * under way or has failed, [RouteStatus] takes the panel's body over. Closing
  * the panel stops the route under way; a configuration change, after which
- * the panel comes straight back, does not.
+ * the panel comes straight back, does not. [visible] says whether the host
+ * still wants the panel shown: it turns false as the panel starts to close,
+ * while the exit animation still draws it.
  *
  * A landscape panel puts the entry beside the saved places; a portrait panel
  * stacks them, the entry above, matching how [io.github.seijikohara.femto.ui.home.components.CalendarPanel]
@@ -116,6 +118,7 @@ internal fun DestinationPanel(
     uiState: DestinationUiState,
     lastFix: LastFix?,
     currentAddress: String,
+    visible: Boolean,
     onAction: (DestinationAction) -> Unit,
     onMicTap: () -> Unit,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
@@ -142,14 +145,22 @@ internal fun DestinationPanel(
     // comes straight back on the same ViewModel, which keeps the download or
     // the search running and shows it again; stopping it there would drop the
     // driver back at the entry with no word of why.
+    //
+    // The effect lives only while the host wants the panel shown, so it ends
+    // as the panel starts to close, not when the exit animation lets go of it:
+    // a rotation during that animation disposes the panel as a configuration
+    // change would, though the panel, already closed, does not come back, and
+    // the route would run on unseen and close the next open on its result.
     val activity = LocalActivity.current
     val currentOnAction by rememberUpdatedState(onAction)
     val currentRoute by rememberUpdatedState(uiState.route)
-    DisposableEffect(Unit) {
-        onDispose {
-            currentOnAction(DestinationAction.CancelListening)
-            val closing = activity?.isChangingConfigurations != true
-            if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
+    if (visible) {
+        DisposableEffect(Unit) {
+            onDispose {
+                currentOnAction(DestinationAction.CancelListening)
+                val closing = activity?.isChangingConfigurations != true
+                if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
+            }
         }
     }
     // Every hand-off cancels recognition first: the launch can pause the
@@ -652,12 +663,14 @@ private fun RouteFailure.messageRes(): Int =
  * cancelled by the panel) clears the query and closes the panel, as the apps
  * panel closes on a launch. The host also asks the ViewModel to look for an
  * app that takes the hand-off, on opening and on every return to the launcher,
- * and closes the panel the same way once a route is found.
+ * and closes the panel the same way once a route is found. [visible] is the
+ * panel's ([DestinationPanel]): the flag that shows and hides this host.
  */
 @Composable
 internal fun DestinationPanelHost(
     lastFix: LastFix?,
     currentAddress: String,
+    visible: Boolean,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
     onOpenMaps: () -> Unit,
     onClose: () -> Unit,
@@ -690,6 +703,7 @@ internal fun DestinationPanelHost(
         uiState = uiState,
         lastFix = lastFix,
         currentAddress = currentAddress,
+        visible = visible,
         onAction = viewModel::onAction,
         onMicTap = {
             when {
@@ -720,6 +734,7 @@ private fun DestinationPanelStoppedPreview() {
             uiState = PreviewState.copy(motion = VehicleMotion.PARKED, query = "Central Station"),
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -742,6 +757,7 @@ private fun DestinationPanelNoHandlerPreview() {
             ),
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -760,6 +776,7 @@ private fun DestinationPanelMovingPreview() {
             uiState = PreviewState,
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -784,6 +801,7 @@ private fun DestinationPanelRoutePreview() {
                 ),
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -803,6 +821,7 @@ private fun DestinationPanelRouteDownloadPreview() {
             uiState = PreviewState.copy(routeAvailable = true, route = RouteStep.ConfirmDownload(bytes = 48_200_000L)),
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },

@@ -1101,7 +1101,9 @@ private fun DashboardOverlays(
         // The destination panel, opened by the dock's NAVIGATION button (see
         // the parent's OpenDestinations interception). Like the apps panel it
         // needs no "has data" gate: with no fix it still takes a query, and
-        // only "Save current location" waits for one.
+        // only "Save current location" waits for one. The panel takes the
+        // flag too, since the exit animation keeps it composed after the flag
+        // has turned: what the close ends must end as the flag turns.
         AnimatedVisibility(
             visible = destinationExpanded,
             enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
@@ -1117,6 +1119,7 @@ private fun DashboardOverlays(
                         )
                     },
                 currentAddress = uiState.address?.displayString().orEmpty(),
+                visible = destinationExpanded,
                 onNavigate = { target, label -> onAction(HomeAction.Navigate(target, label)) },
                 onOpenMaps = { onAction(HomeAction.OpenMaps) },
                 onClose = onCloseDestination,

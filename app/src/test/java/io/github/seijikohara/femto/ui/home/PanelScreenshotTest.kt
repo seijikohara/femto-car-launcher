@@ -197,6 +197,7 @@ class PanelScreenshotTest {
                 ),
             lastFix = LastFix(PlaceTarget.Point(35.681236, 139.767125), elapsedRealtimeNanos = 0L),
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },

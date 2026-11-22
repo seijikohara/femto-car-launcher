@@ -77,6 +77,7 @@ class DestinationPanelTest {
                     ),
                 lastFix = lastFix,
                 currentAddress = "1-9-1 Marunouchi",
+                visible = true,
                 onAction = { actions += it },
                 onMicTap = { micTaps++ },
                 onNavigate = { target, label -> handoffs += target to label },
@@ -206,6 +207,7 @@ class DestinationPanelTest {
                             ),
                         lastFix = null,
                         currentAddress = "",
+                        visible = true,
                         onAction = { actions += it },
                         onMicTap = {},
                         onNavigate = { _, _ -> },
@@ -243,6 +245,7 @@ class DestinationPanelTest {
                         ),
                     lastFix = null,
                     currentAddress = "",
+                    visible = true,
                     onAction = { order += it.toString() },
                     onMicTap = {},
                     onNavigate = { _, label -> order += "navigate $label" },
@@ -400,8 +403,24 @@ class DestinationPanelTest {
         assertEquals(listOf<DestinationAction>(DestinationAction.CancelListening), actions)
     }
 
+    @Test
+    fun a_configuration_change_while_the_panel_closes_leaves_no_route_under_way() {
+        // The host's flag has turned and the exit animation still draws the
+        // panel when the rotation disposes it. The panel does not come back, so
+        // the route must have stopped as the flag turned.
+        var visible by mutableStateOf(true)
+        rule.setContent { FemtoTheme { RouteUnderWayPanel(visible = visible) } }
+        rule.waitForIdle()
+
+        visible = false
+        rule.waitForIdle()
+        rule.activityRule.scenario.recreate()
+
+        assertEquals(listOf(DestinationAction.CancelListening, DestinationAction.DismissRoute), actions)
+    }
+
     @Composable
-    private fun RouteUnderWayPanel() =
+    private fun RouteUnderWayPanel(visible: Boolean = true) =
         DestinationPanel(
             uiState =
                 DestinationUiState(
@@ -414,6 +433,7 @@ class DestinationPanelTest {
                 ),
             lastFix = null,
             currentAddress = "",
+            visible = visible,
             onAction = { actions += it },
             onMicTap = {},
             onNavigate = { _, _ -> },
