@@ -34,11 +34,11 @@ import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import io.github.seijikohara.femto.data.map.offline.RegionDownload
 import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.data.map.offline.SavedRegion
+import io.github.seijikohara.femto.ui.common.SheetCard
 import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.offlinemap.components.OfflineRegionsDialogHost
 import io.github.seijikohara.femto.ui.offlinemap.components.RegionDownloadRow
 import io.github.seijikohara.femto.ui.offlinemap.components.RegionPicker
-import io.github.seijikohara.femto.ui.offlinemap.components.RegionsCard
 import io.github.seijikohara.femto.ui.offlinemap.components.limitLabel
 import io.github.seijikohara.femto.ui.offlinemap.components.storageLimitLabel
 import io.github.seijikohara.femto.ui.settings.components.SettingRow
@@ -85,7 +85,7 @@ internal fun OfflineRegionsScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                 )
             }
-            RegionsCard(modifier = Modifier.weight(1f)) {
+            SheetCard(modifier = Modifier.weight(1f)) {
                 RegionList(uiState = uiState, onAction = onAction)
             }
         } else {

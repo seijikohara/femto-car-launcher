@@ -28,9 +28,9 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Trash2
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
+import io.github.seijikohara.femto.ui.common.MessageDialog
+import io.github.seijikohara.femto.ui.common.SheetCard
 import io.github.seijikohara.femto.ui.common.fileSize
-import io.github.seijikohara.femto.ui.offlinemap.components.MessageDialog
-import io.github.seijikohara.femto.ui.offlinemap.components.RegionsCard
 import io.github.seijikohara.femto.ui.settings.components.SettingRow
 import io.github.seijikohara.femto.ui.settings.components.SettingRowHorizontalInset
 import io.github.seijikohara.femto.ui.settings.components.SettingRowVerticalInset
@@ -74,7 +74,7 @@ internal fun RoutingDataScreen(
                 color = MaterialTheme.colorScheme.onBackground,
             )
         }
-        RegionsCard(modifier = Modifier.weight(1f)) {
+        SheetCard(modifier = Modifier.weight(1f)) {
             TileList(uiState = uiState, onAction = onAction)
         }
     }

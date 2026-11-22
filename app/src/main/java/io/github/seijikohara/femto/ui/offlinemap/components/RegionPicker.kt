@@ -30,6 +30,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.ui.common.SheetCard
 import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsAction
 import io.github.seijikohara.femto.ui.offlinemap.RegionPickerUiState
@@ -65,7 +66,7 @@ internal fun RegionPicker(
         title = (picker as? RegionPickerUiState.Level)?.parentName ?: stringResource(R.string.offline_regions_add),
         onBack = { onAction(OfflineRegionsAction.Back) },
     )
-    RegionsCard(modifier = Modifier.weight(1f)) {
+    SheetCard(modifier = Modifier.weight(1f)) {
         when (picker) {
             RegionPickerUiState.Loading -> {
                 Status(text = stringResource(R.string.offline_regions_picker_loading)) {
