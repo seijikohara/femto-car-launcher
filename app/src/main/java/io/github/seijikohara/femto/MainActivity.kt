@@ -49,8 +49,8 @@ import io.github.seijikohara.femto.data.dock.DockPreferences
 import io.github.seijikohara.femto.data.fonts.FontRepository
 import io.github.seijikohara.femto.data.fonts.FontSlot
 import io.github.seijikohara.femto.data.location.LocationGraph
-import io.github.seijikohara.femto.data.location.hasCoarseLocationPermission
 import io.github.seijikohara.femto.data.location.hasFineLocationPermission
+import io.github.seijikohara.femto.data.location.hasLocationPermission
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.destinationIntent
 import io.github.seijikohara.femto.data.places.geoCentreUri
@@ -692,7 +692,7 @@ class MainActivity : ComponentActivity() {
                     // started without a location grant, so gate on it. The toggle
                     // then takes effect on the next foreground once the user grants
                     // location, rather than crashing the launcher here.
-                    if (enabled && (hasFineLocationPermission() || hasCoarseLocationPermission())) {
+                    if (enabled && hasLocationPermission()) {
                         ensurePostNotificationsPermission()
                         startBackgroundRanging()
                     } else if (!enabled) {

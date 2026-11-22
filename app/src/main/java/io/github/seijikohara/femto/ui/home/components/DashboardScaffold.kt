@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.ui.destination.DestinationPanelHost
+import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
@@ -493,6 +494,7 @@ private fun DashboardContent(
         onOpenLicenses = { onAction(HomeAction.OpenLicenses) },
         mapSurface = mapSurface,
         attributionBottomInset = attributionBottomInset,
+        routeLine = uiState.activeRoute?.line,
     )
 
     // While a panel is open, the sliver of viewport outside the overlay box —
@@ -830,6 +832,9 @@ private fun DashboardOverlays(
                 glassConfig = glassConfig,
                 motionTier = motionTier,
                 onExpand = onExpandTrip,
+                route = uiState.activeRoute?.progress,
+                onClearRoute = { onAction(HomeAction.ClearRoute) },
+                clock = clock,
                 modifier =
                     Modifier
                         .onSizeChanged { onOverlayHeightChange(it.height) }
@@ -1096,7 +1101,9 @@ private fun DashboardOverlays(
         // The destination panel, opened by the dock's NAVIGATION button (see
         // the parent's OpenDestinations interception). Like the apps panel it
         // needs no "has data" gate: with no fix it still takes a query, and
-        // only "Save current location" waits for one.
+        // only "Save current location" waits for one. The panel takes the
+        // flag too, since the exit animation keeps it composed after the flag
+        // has turned: what the close ends must end as the flag turns.
         AnimatedVisibility(
             visible = destinationExpanded,
             enter = Motion.panelEnter(motionTier, MaterialTheme.motionScheme),
@@ -1104,8 +1111,15 @@ private fun DashboardOverlays(
             modifier = Modifier.fillMaxSize().padding(outerPad),
         ) {
             DestinationPanelHost(
-                currentPoint = uiState.location?.let { PlaceTarget.Point(it.latitude, it.longitude) },
+                lastFix =
+                    uiState.location?.let {
+                        LastFix(
+                            PlaceTarget.Point(it.latitude, it.longitude),
+                            elapsedRealtimeNanos = it.elapsedRealtimeNanos,
+                        )
+                    },
                 currentAddress = uiState.address?.displayString().orEmpty(),
+                visible = destinationExpanded,
                 onNavigate = { target, label -> onAction(HomeAction.Navigate(target, label)) },
                 onOpenMaps = { onAction(HomeAction.OpenMaps) },
                 onClose = onCloseDestination,

@@ -6,6 +6,8 @@ import io.github.seijikohara.femto.data.common.download.RemoteFileFeed
 import io.github.seijikohara.femto.data.common.download.RevalidationResult
 import io.github.seijikohara.femto.data.common.download.TransferResult
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -36,7 +38,9 @@ internal data class FakeDownloadStop(
  * [gateRestart], if one is set, and only then opens the part from its start, which truncates it, as the transport does
  * when it opens its output stream. The part then grows halfway to its end, which is reported; the download waits at
  * the gate of [gateDownload], if one is set; and the part grows to its end — the whole file, or the length of [stop] —
- * which is reported again. Lengths are set without writing bytes, so a part can stand for gigabytes.
+ * which is reported again. With [gateOutlivesCancel] set, the wait at that gate goes on after the caller is cancelled,
+ * so the second report comes after the cancel. Lengths are set without writing bytes, so a part can stand for
+ * gigabytes.
  */
 internal open class FakeRemoteFileFeed : RemoteFileFeed {
     val probeAnswers = mutableMapOf<String, ProbeResult>()
@@ -46,6 +50,9 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
 
     var sentFile: RemoteFile? = null
     var stop: FakeDownloadStop? = null
+
+    /** Whether a download held at [gateDownload]'s gate outlives its caller's cancel, as a blocking read does. */
+    var gateOutlivesCancel: Boolean = false
 
     /** Every download, in call order. */
     val downloads = mutableListOf<RequestedFileDownload>()
@@ -90,7 +97,7 @@ internal open class FakeRemoteFileFeed : RemoteFileFeed {
         val halfway = ((if (restarts) 0L else part.length()) + end) / 2
         part.resizeSparse(halfway)
         onProgress(halfway, file.sizeBytes)
-        downloadGate?.await()
+        if (gateOutlivesCancel) withContext(NonCancellable) { downloadGate?.await() } else downloadGate?.await()
         part.resizeSparse(end)
         onProgress(end, file.sizeBytes)
         return stop?.result ?: TransferResult.Complete(file)

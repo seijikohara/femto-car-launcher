@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.destination
 
 import android.Manifest
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -8,12 +9,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -24,22 +27,28 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,6 +57,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Mic
 import com.composables.icons.lucide.Navigation
+import com.composables.icons.lucide.Route
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Trash2
 import dev.chrisbanes.haze.HazeState
@@ -58,6 +68,7 @@ import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.voice.VoiceState
+import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MaximizePanel
 import io.github.seijikohara.femto.ui.home.components.PanelIconButton
@@ -87,6 +98,17 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * Navigate, the keyboard's Go key and the saved places hand off nothing, and
  * the same line says why; typing and saving still work for later.
  *
+ * Where routing is available ([DestinationUiState.routeAvailable]), a Route
+ * action sits beside Navigate and on each saved place that can be routed to
+ * ([DestinationUiState.canRoute]); it works in every motion state, like a tap
+ * on a saved place. A route starts from [lastFix], which the ViewModel checks
+ * for age; Save current location keeps its point as it is. While a route is
+ * under way or has failed, [RouteStatus] takes the panel's body over. Closing
+ * the panel stops the route under way; a configuration change, after which
+ * the panel comes straight back, does not. [visible] says whether the host
+ * still wants the panel shown: it turns false as the panel starts to close,
+ * while the exit animation still draws it.
+ *
  * A landscape panel puts the entry beside the saved places; a portrait panel
  * stacks them, the entry above, matching how [io.github.seijikohara.femto.ui.home.components.CalendarPanel]
  * reflows. Pure UI: [DestinationPanelHost] owns the ViewModel.
@@ -94,8 +116,9 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
 @Composable
 internal fun DestinationPanel(
     uiState: DestinationUiState,
-    currentPoint: PlaceTarget.Point?,
+    lastFix: LastFix?,
     currentAddress: String,
+    visible: Boolean,
     onAction: (DestinationAction) -> Unit,
     onMicTap: () -> Unit,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
@@ -116,9 +139,29 @@ internal fun DestinationPanel(
     // Closing the panel (or the panel leaving composition any other way)
     // cancels a mic still listening: nothing on screen would show the
     // microphone open, and a late result must not refill the next open.
+    // A route under way stops only when the panel closes: nothing would show it
+    // running, and its result would land after the driver gave up on it. A
+    // configuration change (a rotation) disposes the panel too, but the panel
+    // comes straight back on the same ViewModel, which keeps the download or
+    // the search running and shows it again; stopping it there would drop the
+    // driver back at the entry with no word of why.
+    //
+    // The effect lives only while the host wants the panel shown, so it ends
+    // as the panel starts to close, not when the exit animation lets go of it:
+    // a rotation during that animation disposes the panel as a configuration
+    // change would, though the panel, already closed, does not come back, and
+    // the route would run on unseen and close the next open on its result.
+    val activity = LocalActivity.current
     val currentOnAction by rememberUpdatedState(onAction)
-    DisposableEffect(Unit) {
-        onDispose { currentOnAction(DestinationAction.CancelListening) }
+    val currentRoute by rememberUpdatedState(uiState.route)
+    if (visible) {
+        DisposableEffect(Unit) {
+            onDispose {
+                currentOnAction(DestinationAction.CancelListening)
+                val closing = activity?.isChangingConfigurations != true
+                if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
+            }
+        }
     }
     // Every hand-off cancels recognition first: the launch can pause the
     // activity before the panel's exit animation disposes it.
@@ -126,17 +169,22 @@ internal fun DestinationPanel(
         onAction(DestinationAction.CancelListening)
         onNavigate(target, label)
     }
+    val route: (PlaceTarget) -> Unit = { target ->
+        onAction(DestinationAction.CancelListening)
+        onAction(DestinationAction.RouteTo(target, lastFix))
+    }
     // Read off the BoxWithConstraints receiver here: inside the layouts below
     // the outer receiver is out of reach (see CalendarPanel).
     val portrait = maxHeight > maxWidth
     val entry: @Composable (Modifier) -> Unit = { entryModifier ->
         DestinationEntry(
             uiState = uiState,
-            currentPoint = currentPoint,
+            lastFix = lastFix,
             currentAddress = currentAddress,
             onAction = onAction,
             onMicTap = onMicTap,
             onNavigate = handOff,
+            onRoute = route,
             modifier = entryModifier,
         )
     }
@@ -145,12 +193,18 @@ internal fun DestinationPanel(
             places = uiState.places,
             typingAllowed = uiState.typingAllowed,
             handOffAvailable = uiState.handOffAvailable,
+            canRoute = uiState::canRoute,
             onNavigate = handOff,
+            onRoute = route,
             onDelete = { onAction(DestinationAction.DeletePlace(it)) },
             modifier = placesModifier,
         )
     }
-    if (portrait) {
+    // On Done the host closes the panel, and the entry comes back for the exit
+    // fade rather than a status with nothing left to say.
+    if (uiState.route != RouteStep.Idle && uiState.route != RouteStep.Done) {
+        RouteStatus(step = uiState.route, minHeight = maxHeight, onAction = onAction, modifier = Modifier.fillMaxSize())
+    } else if (portrait) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
@@ -171,16 +225,17 @@ internal fun DestinationPanel(
     }
 }
 
-// The query field with its mic, the motion or voice line, Navigate, and the
-// two save buttons.
+// The query field with its mic, the motion or voice line, Navigate (with Route
+// beside it where text can be routed to), and the two save buttons.
 @Composable
 private fun DestinationEntry(
     uiState: DestinationUiState,
-    currentPoint: PlaceTarget.Point?,
+    lastFix: LastFix?,
     currentAddress: String,
     onAction: (DestinationAction) -> Unit,
     onMicTap: () -> Unit,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
+    onRoute: (PlaceTarget) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier,
@@ -228,20 +283,28 @@ private fun DestinationEntry(
         typingAllowed = uiState.typingAllowed,
         handOffAvailable = uiState.handOffAvailable,
     )
-    Button(
-        onClick = navigate,
-        enabled = canNavigate,
-        modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
+    val queryTarget = PlaceTarget.Query(query)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
     ) {
-        FemtoIcon(
-            imageVector = Lucide.Navigation,
-            contentDescription = null,
-            modifier = Modifier.size(FemtoDimens.InlineIconSize),
-        )
-        Text(
-            text = stringResource(R.string.destination_navigate),
-            modifier = Modifier.padding(start = ButtonDefaults.IconSpacing),
-        )
+        Button(
+            onClick = navigate,
+            enabled = canNavigate,
+            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            ButtonLabel(icon = Lucide.Navigation, text = stringResource(R.string.destination_navigate))
+        }
+        // Needs no app to hand off to: the route is drawn on the launcher's own map.
+        if (uiState.canRoute(queryTarget)) {
+            FilledTonalButton(
+                onClick = { onRoute(queryTarget) },
+                enabled = query.isNotEmpty(),
+                modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+            ) {
+                ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
+            }
+        }
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -256,9 +319,9 @@ private fun DestinationEntry(
         }
         FilledTonalButton(
             onClick = {
-                currentPoint?.let { onAction(DestinationAction.SaveCurrentLocation(it, currentAddress)) }
+                lastFix?.point?.let { onAction(DestinationAction.SaveCurrentLocation(it, currentAddress)) }
             },
-            enabled = uiState.typingAllowed && currentPoint != null,
+            enabled = uiState.typingAllowed && lastFix != null,
             modifier = Modifier.weight(2f).heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
             Text(text = stringResource(R.string.destination_save_location))
@@ -330,14 +393,17 @@ private fun MicButton(
 )
 
 // The saved places in insertion order (newest last). A row tap hands the
-// place off in any motion state while an app can take it; the trailing
-// delete shows only while stopped.
+// place off in any motion state while an app can take it; a trailing Route
+// shows on each place that can be routed to, in any motion state; the
+// trailing delete shows only while stopped.
 @Composable
 private fun SavedPlaces(
     places: List<SavedPlace>,
     typingAllowed: Boolean,
     handOffAvailable: Boolean,
+    canRoute: (PlaceTarget) -> Boolean,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
+    onRoute: (PlaceTarget) -> Unit,
     onDelete: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
@@ -362,7 +428,9 @@ private fun SavedPlaces(
                     place = place,
                     showDelete = typingAllowed,
                     navigable = handOffAvailable,
+                    routable = canRoute(place.target),
                     onNavigate = { onNavigate(place.target, place.label) },
+                    onRoute = { onRoute(place.target) },
                     onDelete = { onDelete(place.id) },
                 )
             }
@@ -375,7 +443,9 @@ private fun SavedPlaceRow(
     place: SavedPlace,
     showDelete: Boolean,
     navigable: Boolean,
+    routable: Boolean,
     onNavigate: () -> Unit,
+    onRoute: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) = Row(
@@ -420,6 +490,14 @@ private fun SavedPlaceRow(
             }
         }
     }
+    if (routable) {
+        PanelIconButton(
+            icon = Lucide.Route,
+            description = stringResource(R.string.destination_route_place, place.label),
+            onClick = onRoute,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+    }
     if (showDelete) {
         PanelIconButton(
             icon = Lucide.Trash2,
@@ -429,6 +507,158 @@ private fun SavedPlaceRow(
     }
 }
 
+@Composable
+private fun RowScope.ButtonLabel(
+    icon: ImageVector,
+    text: String,
+) {
+    FemtoIcon(
+        imageVector = icon,
+        contentDescription = null,
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    )
+    Text(
+        text = text,
+        modifier = Modifier.padding(start = ButtonDefaults.IconSpacing),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+// Caps the status column on a wide panel, so a sentence stays a readable line
+// length rather than running across a head unit's whole width.
+private val RouteStatusMaxWidth = 560.dp
+
+/**
+ * The route under way, or why it did not come about: one sentence, a progress
+ * bar while something runs, and the buttons that step on. Each failure keeps
+ * its own sentence; a version mismatch offers the data again. Centred in a
+ * column at least [minHeight] tall (the panel body's), which scrolls when a
+ * large font makes it taller.
+ */
+@Composable
+private fun RouteStatus(
+    step: RouteStep,
+    minHeight: Dp,
+    onAction: (DestinationAction) -> Unit,
+    modifier: Modifier = Modifier,
+) = Column(
+    modifier = modifier.verticalScroll(rememberScrollState()).heightIn(min = minHeight),
+    verticalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding, Alignment.CenterVertically),
+    horizontalAlignment = Alignment.CenterHorizontally,
+) {
+    // The cap first: a fill applied before it would pin the width to the panel's.
+    val widthModifier = Modifier.widthIn(max = RouteStatusMaxWidth).fillMaxWidth()
+    Text(
+        text = routeStepMessage(step),
+        style = MaterialTheme.typography.drawerBody(),
+        textAlign = TextAlign.Center,
+        modifier = widthModifier,
+    )
+    when (step) {
+        is RouteStep.Downloading -> {
+            LinearProgressIndicator(
+                progress = { if (step.totalBytes > 0) step.receivedBytes.toFloat() / step.totalBytes else 0f },
+                modifier = widthModifier,
+            )
+        }
+
+        RouteStep.FindingPosition, RouteStep.Locating, RouteStep.Computing -> {
+            LinearProgressIndicator(modifier = widthModifier)
+        }
+
+        else -> {}
+    }
+    Row(
+        modifier = widthModifier,
+        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    ) {
+        val buttonModifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget)
+        val dismiss = { onAction(DestinationAction.DismissRoute) }
+        when (step) {
+            is RouteStep.ConfirmDownload -> {
+                FilledTonalButton(onClick = dismiss, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_cancel))
+                }
+                Button(onClick = { onAction(DestinationAction.ConfirmDownload) }, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_download))
+                }
+            }
+
+            RouteStep.Failed(RouteFailure.DATA_VERSION_MISMATCH) -> {
+                FilledTonalButton(onClick = dismiss, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_cancel))
+                }
+                Button(onClick = { onAction(DestinationAction.DownloadAgain) }, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_download_again))
+                }
+            }
+
+            is RouteStep.Failed -> {
+                Button(onClick = dismiss, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_dismiss))
+                }
+            }
+
+            else -> {
+                FilledTonalButton(onClick = dismiss, modifier = buttonModifier) {
+                    Text(text = stringResource(R.string.destination_route_cancel))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun routeStepMessage(step: RouteStep): String =
+    when (step) {
+        RouteStep.FindingPosition -> {
+            stringResource(R.string.destination_route_finding_position)
+        }
+
+        RouteStep.Locating -> {
+            stringResource(R.string.destination_route_locating)
+        }
+
+        is RouteStep.ConfirmDownload -> {
+            stringResource(R.string.destination_route_download_prompt, fileSize(step.bytes))
+        }
+
+        is RouteStep.Downloading -> {
+            stringResource(
+                R.string.destination_route_downloading,
+                fileSize(step.receivedBytes.coerceAtMost(step.totalBytes)),
+                fileSize(step.totalBytes),
+            )
+        }
+
+        RouteStep.Computing -> {
+            stringResource(R.string.destination_route_computing)
+        }
+
+        is RouteStep.Failed -> {
+            stringResource(step.reason.messageRes())
+        }
+
+        RouteStep.Idle, RouteStep.Done -> {
+            ""
+        }
+    }
+
+private fun RouteFailure.messageRes(): Int =
+    when (this) {
+        RouteFailure.NO_FIX -> R.string.destination_route_no_fix
+        RouteFailure.NO_LOCATION_PERMISSION -> R.string.destination_route_no_permission
+        RouteFailure.PLACE_NOT_FOUND -> R.string.destination_route_failed_place_not_found
+        RouteFailure.LOOKUP_FAILED -> R.string.destination_route_failed_lookup
+        RouteFailure.NO_ROAD_DATA -> R.string.destination_route_failed_no_road_data
+        RouteFailure.NO_SPACE -> R.string.destination_route_failed_no_space
+        RouteFailure.TIMED_OUT -> R.string.destination_route_failed_timed_out
+        RouteFailure.DATA_VERSION_MISMATCH -> R.string.destination_route_failed_data_version
+        RouteFailure.DOWNLOAD_FAILED -> R.string.destination_route_failed_download
+        RouteFailure.NO_ROUTE -> R.string.destination_route_failed
+    }
+
 /**
  * Binds [DestinationViewModel] to [DestinationPanel] and owns the
  * RECORD_AUDIO request, the same way the assistant sheet does: the mic asks
@@ -436,12 +666,15 @@ private fun SavedPlaceRow(
  * the typed and saved paths in place. A hand-off (recognition already
  * cancelled by the panel) clears the query and closes the panel, as the apps
  * panel closes on a launch. The host also asks the ViewModel to look for an
- * app that takes the hand-off, on opening and on every return to the launcher.
+ * app that takes the hand-off, on opening and on every return to the launcher,
+ * and closes the panel the same way once a route is found. [visible] is the
+ * panel's ([DestinationPanel]): the flag that shows and hides this host.
  */
 @Composable
 internal fun DestinationPanelHost(
-    currentPoint: PlaceTarget.Point?,
+    lastFix: LastFix?,
     currentAddress: String,
+    visible: Boolean,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
     onOpenMaps: () -> Unit,
     onClose: () -> Unit,
@@ -460,10 +693,21 @@ internal fun DestinationPanelHost(
     // once, so this runs as the panel opens, and again whenever the user comes
     // back from another app, which is where a maps app gets installed.
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.onAction(DestinationAction.CheckHandOff) }
+    // A found route is the dashboard's now: the panel steps back and closes,
+    // clearing the query as a hand-off does.
+    val currentOnClose by rememberUpdatedState(onClose)
+    LaunchedEffect(uiState.route) {
+        if (uiState.route == RouteStep.Done) {
+            viewModel.onAction(DestinationAction.DismissRoute)
+            viewModel.onAction(DestinationAction.ClearQuery)
+            currentOnClose()
+        }
+    }
     DestinationPanel(
         uiState = uiState,
-        currentPoint = currentPoint,
+        lastFix = lastFix,
         currentAddress = currentAddress,
+        visible = visible,
         onAction = viewModel::onAction,
         onMicTap = {
             when {
@@ -492,8 +736,9 @@ private fun DestinationPanelStoppedPreview() {
     FemtoTheme {
         DestinationPanel(
             uiState = PreviewState.copy(motion = VehicleMotion.PARKED, query = "Central Station"),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -514,8 +759,9 @@ private fun DestinationPanelNoHandlerPreview() {
                 query = "Central Station",
                 handOffAvailable = false,
             ),
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -532,8 +778,54 @@ private fun DestinationPanelMovingPreview() {
     FemtoTheme {
         DestinationPanel(
             uiState = PreviewState,
-            currentPoint = PlaceTarget.Point(35.681236, 139.767125),
+            lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",
+            visible = true,
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun DestinationPanelRoutePreview() {
+    FemtoTheme {
+        DestinationPanel(
+            uiState =
+                PreviewState.copy(
+                    motion = VehicleMotion.PARKED,
+                    query = "Central Station",
+                    routeAvailable = true,
+                    geocoderAvailable = true,
+                ),
+            lastFix = PreviewFix,
+            currentAddress = "1-9-1 Marunouchi",
+            visible = true,
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Composable
+private fun DestinationPanelRouteDownloadPreview() {
+    FemtoTheme {
+        DestinationPanel(
+            uiState = PreviewState.copy(routeAvailable = true, route = RouteStep.ConfirmDownload(bytes = 48_200_000L)),
+            lastFix = PreviewFix,
+            currentAddress = "1-9-1 Marunouchi",
+            visible = true,
             onAction = {},
             onMicTap = {},
             onNavigate = { _, _ -> },
@@ -555,3 +847,5 @@ private val PreviewState =
             ),
         motion = VehicleMotion.MOVING,
     )
+
+private val PreviewFix = LastFix(PlaceTarget.Point(35.681236, 139.767125), elapsedRealtimeNanos = 0L)

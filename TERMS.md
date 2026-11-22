@@ -1,6 +1,6 @@
 # Terms of Service
 
-**Effective date: 2026-09-18**
+**Effective date: 2026-11-22**
 
 These terms apply to Femto Car Launcher ("the app"), an Android home launcher distributed as a signed Android package (APK) from this repository's releases. Installing or using the app means accepting these terms. The app is provided free of charge, requires no account, and carries no advertising software development kit (SDK) and no analytics SDK of its own. The one exception is the optional Google Maps provider, whose Maps JavaScript application programming interface (API) collects usage data for Google when you enable the provider; the [Privacy Policy](PRIVACY.md) describes that collection and everything else the app does with data.
 
@@ -32,6 +32,10 @@ When the Google Maps provider is in use, your use of Google Maps features and co
 Your own key is additionally governed by the [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms), which you accept with Google when you create the key. Those terms restrict what a Google Maps key may be used for; read them before you attach a billing account. A **Google Maps Platform terms** link sits beside the key field in **Settings → Map**.
 
 **Prohibited Territories.** The Google Maps Platform Terms of Service bar distributing or marketing an application that uses the Google Maps Core Services in the territories on Google's [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories) list. **The Google Maps provider is therefore not offered in those territories**, and the app must not be installed there with that provider enabled. The default OpenStreetMap provider is unaffected. Distribution is through GitHub Releases and is subject to GitHub's own trade controls, which do not cover every territory on Google's list — so this restriction relies in part on you.
+
+## Route previews
+
+In builds that offer them, the app computes a route on the device with the BRouter engine and draws it on the OpenStreetMap map. The routing data is built from OpenStreetMap (© OpenStreetMap contributors, under the [Open Database License](https://opendatacommons.org/licenses/odbl/)) and published by brouter.de, from where the app downloads it once you confirm. Route previews are provided as-is, like the rest of the app: a route can miss a road, use a road that is closed or not open to your vehicle, or not be found at all. The distance left and the arrival time are estimates from the routing data alone and know nothing of traffic, roadworks, or weather. A route preview does not guide you; the road, its signs, and the law come first, and you remain responsible for every decision you make while driving.
 
 ## Open-source components
 

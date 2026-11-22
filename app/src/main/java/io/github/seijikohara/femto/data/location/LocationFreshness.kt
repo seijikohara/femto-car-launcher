@@ -16,4 +16,14 @@ internal const val LOCATION_STALE_THRESHOLD_MS = 10_000L
  * fix look stale.
  */
 internal fun Location.isFresh(nowElapsedRealtimeNanos: Long): Boolean =
-    nowElapsedRealtimeNanos - elapsedRealtimeNanos <= LOCATION_STALE_THRESHOLD_MS * 1_000_000L
+    isFresh(fixElapsedRealtimeNanos = elapsedRealtimeNanos, nowElapsedRealtimeNanos = nowElapsedRealtimeNanos)
+
+/**
+ * Return whether a fix taken at [fixElapsedRealtimeNanos] is still fresh at
+ * [nowElapsedRealtimeNanos]: [Location.isFresh] for a fix whose time was kept
+ * apart from its [Location], both on the elapsed-realtime clock.
+ */
+internal fun isFresh(
+    fixElapsedRealtimeNanos: Long,
+    nowElapsedRealtimeNanos: Long,
+): Boolean = nowElapsedRealtimeNanos - fixElapsedRealtimeNanos <= LOCATION_STALE_THRESHOLD_MS * 1_000_000L

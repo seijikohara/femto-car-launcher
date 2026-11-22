@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.data.routing.RouteProgress
+import io.github.seijikohara.femto.ui.home.ActiveRouteState
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import java.time.Clock
@@ -35,6 +37,20 @@ internal object DashboardFixtures {
     val fixedClock: Clock = Clock.fixed(Instant.parse("2026-05-01T10:08:00Z"), ZoneOffset.UTC)
 
     val state: HomeUiState = fakeHomeUiState()
+
+    /**
+     * [state] with an active route (issue #389 phase 3), as a nightly build on the OSM backend shows it: 12.4 km and
+     * 18 minutes left, which the fixed clock turns into a 10:26 arrival. The still map draws no line; the speed
+     * readout's route row is what the goldens hold.
+     */
+    val routeState: HomeUiState =
+        state.copy(
+            activeRoute =
+                ActiveRouteState(
+                    line = fakeRoute().points,
+                    progress = RouteProgress(remainingMeters = 12_400.0, remainingSeconds = 1_080.0),
+                ),
+        )
 
     // Decoded once per JVM. The captures are smaller than the widest geometry
     // (2000x1200), so Crop upscales there — acceptable because the backdrop is

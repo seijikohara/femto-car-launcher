@@ -141,16 +141,40 @@ internal class RoutingTileStore(
     private val recordsDir get() = File(root, RECORDS_DIR)
     private val downloadsDir get() = File(root, DOWNLOADS_DIR)
 
-    /** Make sure the tile [name] is installed, downloading it when it is not; an installed tile asks nothing. */
-    suspend fun fetch(name: String): TileFetchResult =
+    /**
+     * Make sure the tile [name] is installed, downloading it when it is not; an installed tile asks nothing. A download
+     * reports the bytes the part holds so far and the file's size through [onProgress].
+     */
+    suspend fun fetch(
+        name: String,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ): TileFetchResult =
         guarded(name) {
             val record = recordOrNull(name)
             when {
                 dataFile(name).isFile -> TileFetchResult.INSTALLED
                 record != null && record.file == null && !record.isDue() -> TileFetchResult.NO_DATA
-                else -> download(name)
+                else -> download(name, onProgress)
             }
         }
+
+    /**
+     * The bytes a [fetch] of each of [names] would download, as the server announces them, so the driver sees the size
+     * before anything is fetched: an installed tile and one known to have no data count nothing, and so does one the
+     * server answers it has none for. Null when the server could not say for one of them. Nothing is stored: the
+     * [fetch] that follows asks again.
+     */
+    suspend fun downloadSizeBytes(names: List<String>): Long? =
+        missingTiles(names)
+            .map { name ->
+                when (val probe = feed.probe(tileUrl(name))) {
+                    is ProbeResult.Found -> probe.file.sizeBytes
+                    ProbeResult.Gone -> 0L
+                    ProbeResult.SizeUnknown, ProbeResult.Unavailable -> null
+                }
+            }.takeIf { sizes -> null !in sizes }
+            ?.filterNotNull()
+            ?.sum()
 
     /**
      * Check an installed tile against the server when its last check is [ROUTING_TILE_CHECK_INTERVAL_MS] old, and
@@ -271,9 +295,12 @@ internal class RoutingTileStore(
             }
         }
 
-    private suspend fun download(name: String): TileFetchResult =
+    private suspend fun download(
+        name: String,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
+    ): TileFetchResult =
         when (val probe = feed.probe(tileUrl(name))) {
-            is ProbeResult.Found -> install(name, probe.file)
+            is ProbeResult.Found -> install(name, probe.file, onProgress)
             ProbeResult.Gone -> TileFetchResult.NO_DATA.also { writeRecord(name, RoutingTileRecord(null, clock())) }
             ProbeResult.SizeUnknown, ProbeResult.Unavailable -> TileFetchResult.NETWORK_FAILED
         }
@@ -284,6 +311,7 @@ internal class RoutingTileStore(
     private suspend fun install(
         name: String,
         file: RemoteFile,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): TileFetchResult {
         val part = partFile(name)
         val ready = pendingOrNull(name) == file || (part.deletedOrAbsent() && writePending(name, file))
@@ -291,7 +319,7 @@ internal class RoutingTileStore(
             when {
                 !ready -> TileFetchResult.STORAGE_FAILED
                 !claimRoom(name, file.sizeBytes - part.length()) -> TileFetchResult.NO_SPACE
-                else -> transfer(name, file)
+                else -> transfer(name, file, onProgress)
             }
         } finally {
             claimedBytes.remove(name)
@@ -301,6 +329,7 @@ internal class RoutingTileStore(
     private suspend fun transfer(
         name: String,
         file: RemoteFile,
+        onProgress: (receivedBytes: Long, totalBytes: Long) -> Unit,
     ): TileFetchResult {
         val part = partFile(name)
         // Why onRestart declined the file the server sent instead, for the refusal the transport reports next.
@@ -319,7 +348,10 @@ internal class RoutingTileStore(
                         false
                     }
                 },
-                onProgress = { receivedBytes, totalBytes -> claimedBytes[name] = totalBytes - receivedBytes },
+                onProgress = { receivedBytes, totalBytes ->
+                    claimedBytes[name] = totalBytes - receivedBytes
+                    onProgress(receivedBytes, totalBytes)
+                },
             )
         return when (result) {
             is TransferResult.Complete -> {

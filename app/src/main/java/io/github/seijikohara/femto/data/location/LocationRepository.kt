@@ -34,6 +34,10 @@ import kotlinx.coroutines.flow.shareIn
 
 private const val TAG = "LocationRepository"
 
+// Every provider the launcher reads a position from, each on its own (rawLocationFlow says why both): the one list
+// for the location flow's registrations and for a request for the current position ([PlatformCurrentFixSource]).
+internal val LocationProviders: List<String> = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)
+
 internal class LocationRepository(
     private val context: Context,
     // User-tunable request parameters (see [LocationSettings]); a change while
@@ -80,7 +84,7 @@ internal class LocationRepository(
             val listener = LocationListenerCompat { location -> trySend(location) }
             var seeded = false
 
-            listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
+            LocationProviders.forEach { provider ->
                 runCatching {
                     locationManager.getLastKnownLocation(provider)
                 }.onSuccess { cached ->
@@ -167,17 +171,18 @@ internal class LocationRepository(
     // The repository factory already builds one LocationRepository and passes the single flow
     // instance to all consumers, so returning the shared flow makes that sharing real.
     fun locationFlow(): Flow<Location?> = shared
+}
 
-    private fun logProviderFailure(
-        stage: String,
-        provider: String,
-        error: Throwable,
-    ) = when (error) {
-        // A coarse-only grant makes GPS_PROVIDER throw SecurityException by design.
-        is SecurityException -> Log.d(TAG, "$stage $provider denied", error)
+// Top-level for [PlatformCurrentFixSource], whose per-provider requests fail the same two ways.
+internal fun logProviderFailure(
+    stage: String,
+    provider: String,
+    error: Throwable,
+) = when (error) {
+    // A coarse-only grant makes GPS_PROVIDER throw SecurityException by design.
+    is SecurityException -> Log.d(TAG, "$stage $provider denied", error)
 
-        else -> Log.w(TAG, "$stage $provider failed", error)
-    }
+    else -> Log.w(TAG, "$stage $provider failed", error)
 }
 
 private fun LocationSettings.toLocationRequest(): LocationRequestCompat =

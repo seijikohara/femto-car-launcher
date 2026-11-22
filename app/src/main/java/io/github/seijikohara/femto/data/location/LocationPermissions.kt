@@ -30,3 +30,6 @@ internal fun Context.hasCoarseLocationPermission(): Boolean =
         this,
         Manifest.permission.ACCESS_COARSE_LOCATION,
     ) == PackageManager.PERMISSION_GRANTED
+
+/** Either grant: a coarse-only one still delivers fixes (see [hasCoarseLocationPermission]). */
+internal fun Context.hasLocationPermission(): Boolean = hasFineLocationPermission() || hasCoarseLocationPermission()

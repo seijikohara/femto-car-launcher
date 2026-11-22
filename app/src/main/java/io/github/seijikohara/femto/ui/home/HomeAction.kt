@@ -101,6 +101,9 @@ internal sealed interface HomeAction {
 
     data object ResetTrip : HomeAction
 
+    /** The speed readout's clear button on the route row: the active route goes, from the map too. */
+    data object ClearRoute : HomeAction
+
     /** The dock's long-press menu: swap a nav button one step within the visible order. */
     data class MoveDockNav(
         val id: DockNavId,

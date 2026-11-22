@@ -21,6 +21,10 @@ The OpenStreetMap provider can load a hosted MapLibre style you name (**Settings
 - A drag detaches the camera for free panning. The camera re-attaches after a pause, or immediately when you tap the locate button.
 - Zoom buttons and a compass sit at the screen edge, within reach of the driver on either side of the car.
 
+## Route preview (nightly builds)
+
+Nightly builds can draw a route on the OpenStreetMap provider. Tap **Route** in the destination panel, beside **Navigate** or on a saved place, and the launcher computes the route on the device from the current GPS position with the BRouter engine. An old position does not count as where you are: the launcher then asks the device for its current position, which can take up to about half a minute, and the panel says what is missing if none comes or while location access is off. The routing data comes from brouter.de, built from OpenStreetMap, one 5° × 5° area at a time: the first route through an area shows the download size and downloads only after you confirm, and the data then stays on the device for later routes. Text you route to goes to the device's geocoder to find the place, so routing to text needs a device with one; a saved position routes without it. The map draws the line, and a row under the speed readout shows the distance left, the arrival time and a button that clears the route. The arrival time knows no traffic, and the launcher gives no turn-by-turn guidance: **Navigate** still hands the destination to your navigation app. A long route can take a minute to compute or run out of time; a closer destination works better. The route lasts until you clear it or the app restarts. Route preview stays in nightly builds until I have checked it on a head unit.
+
 ## Depth and style
 
 Optional three-dimensional buildings and terrain relief add depth on the OpenStreetMap provider. Map colors default to the Standard scheme, a clean palette for both the light and the dark theme. They can instead follow the launcher's accent color, or use the provider's own styles unchanged.

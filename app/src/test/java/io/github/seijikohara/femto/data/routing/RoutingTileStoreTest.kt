@@ -458,6 +458,54 @@ class RoutingTileStoreTest {
             assertEquals("bytes=$held-", List(4) { server.takeRequest() }.last().getHeader("Range"))
         }
 
+    // --- download size and progress ---------------------------------------------
+
+    @Test
+    fun `the download size adds up what the server announces for each missing tile`() =
+        runTest {
+            val store = store(fakeFeed(TILE_FILE, TILE_FILE.copy(sizeBytes = 32)))
+
+            assertEquals(TILE_BYTES.size + 32L, store.downloadSizeBytes(listOf(TILE, OTHER_TILE)))
+        }
+
+    @Test
+    fun `an installed tile adds nothing to the download size and is not asked about`() =
+        runTest {
+            val store = installed()
+            val feed = fakeFeed(TILE_FILE, TILE_FILE.copy(sizeBytes = 32))
+
+            val size = store(feed).downloadSizeBytes(listOf(TILE, OTHER_TILE))
+
+            assertEquals(32L, size)
+            assertEquals(listOf("${hostPrefix()}$OTHER_TILE.rd5"), feed.probedUrls)
+        }
+
+    @Test
+    fun `a tile the server has none for adds nothing to the download size`() =
+        runTest {
+            val feed = fakeFeed(TILE_FILE).apply { probeAnswers["${hostPrefix()}$OTHER_TILE.rd5"] = ProbeResult.Gone }
+
+            assertEquals(TILE_BYTES.size.toLong(), store(feed).downloadSizeBytes(listOf(TILE, OTHER_TILE)))
+        }
+
+    @Test
+    fun `the download size is unknown when the server cannot say for one tile`() =
+        runTest {
+            // The fake transport answers Unavailable for OTHER_TILE, which it has no answer for.
+            assertNull(store(fakeFeed(TILE_FILE)).downloadSizeBytes(listOf(TILE, OTHER_TILE)))
+        }
+
+    @Test
+    fun `a fetch reports its progress against the file's size`() =
+        runTest {
+            val store = store(fakeFeed(TILE_FILE))
+            val reports = mutableListOf<Pair<Long, Long>>()
+
+            store.fetch(TILE) { receivedBytes, totalBytes -> reports += receivedBytes to totalBytes }
+
+            assertEquals(listOf(5L to 10L, 10L to 10L), reports)
+        }
+
     // --- delete -----------------------------------------------------------------
 
     @Test

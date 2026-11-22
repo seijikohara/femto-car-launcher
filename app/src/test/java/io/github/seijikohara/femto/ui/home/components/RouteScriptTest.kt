@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import io.github.seijikohara.femto.data.routing.RoutePoint
 import org.junit.Test
 import java.util.Locale
 import kotlin.test.assertEquals
@@ -9,7 +10,7 @@ class RouteScriptTest {
         assertEquals(
             "window.setRoute && setRoute([35.681236,139.767125,-33.868800,151.209300], '#3367D6', '#FFFFFF')",
             setRouteScript(
-                listOf(MapRoutePoint(35.681236, 139.767125), MapRoutePoint(-33.8688, 151.2093)),
+                listOf(RoutePoint(35.681236, 139.767125), RoutePoint(-33.8688, 151.2093)),
                 lineColor = LINE,
                 casingColor = CASING,
             ),
@@ -20,7 +21,7 @@ class RouteScriptTest {
         assertEquals(
             "window.setRoute && setRoute([0.000010,-0.000020,0.000000,180.000000], '#3367D6', '#FFFFFF')",
             setRouteScript(
-                listOf(MapRoutePoint(0.00001, -0.00002), MapRoutePoint(-0.0000004, 180.0)),
+                listOf(RoutePoint(0.00001, -0.00002), RoutePoint(-0.0000004, 180.0)),
                 lineColor = LINE,
                 casingColor = CASING,
             ),
@@ -28,7 +29,7 @@ class RouteScriptTest {
     }
 
     @Test fun `the device locale never changes the numbers`() {
-        val points = listOf(MapRoutePoint(48.137154, 11.576124), MapRoutePoint(48.2, 11.6))
+        val points = listOf(RoutePoint(48.137154, 11.576124), RoutePoint(48.2, 11.6))
         val expected = setRouteScript(points, lineColor = LINE, casingColor = CASING)
         val original = Locale.getDefault()
         try {
@@ -51,7 +52,7 @@ class RouteScriptTest {
             assertEquals(
                 CLEAR_ROUTE_SCRIPT,
                 setRouteScript(
-                    listOf(MapRoutePoint(35.68, 139.76), MapRoutePoint(bad, 139.7), MapRoutePoint(35.7, 139.7)),
+                    listOf(RoutePoint(35.68, 139.76), RoutePoint(bad, 139.7), RoutePoint(35.7, 139.7)),
                     lineColor = LINE,
                     casingColor = CASING,
                 ),
@@ -61,17 +62,17 @@ class RouteScriptTest {
     }
 
     @Test fun `an out-of-range coordinate clears the route`() {
-        listOf(MapRoutePoint(90.5, 0.0), MapRoutePoint(0.0, -180.5)).forEach { bad ->
+        listOf(RoutePoint(90.5, 0.0), RoutePoint(0.0, -180.5)).forEach { bad ->
             assertEquals(
                 CLEAR_ROUTE_SCRIPT,
-                setRouteScript(listOf(MapRoutePoint(0.0, 0.0), bad), lineColor = LINE, casingColor = CASING),
+                setRouteScript(listOf(RoutePoint(0.0, 0.0), bad), lineColor = LINE, casingColor = CASING),
                 "$bad",
             )
         }
     }
 
     @Test fun `fewer than two points clear the route`() {
-        listOf(emptyList(), listOf(MapRoutePoint(35.68, 139.76))).forEach { points ->
+        listOf(emptyList(), listOf(RoutePoint(35.68, 139.76))).forEach { points ->
             assertEquals(CLEAR_ROUTE_SCRIPT, setRouteScript(points, lineColor = LINE, casingColor = CASING))
         }
     }
