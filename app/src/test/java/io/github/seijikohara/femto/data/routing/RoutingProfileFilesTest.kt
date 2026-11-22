@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.routing
 
+import io.github.seijikohara.femto.testfixtures.shippedAssetFile
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -47,12 +48,11 @@ class RoutingProfileFilesTest {
         model.getDeclaredConstructor()
     }
 
-    private fun profileFiles() = RoutingProfileFiles(dir()) { path -> File("src/main/assets/$path").inputStream() }
+    private fun profileFiles() = RoutingProfileFiles(dir()) { path -> shippedAssetFile(path).inputStream() }
 
     private fun dir(): File = File(tempFolder.root, "profiles")
 
-    // Gradle runs unit tests with the module directory as the working directory.
-    private fun shippedAsset(name: String): File = File("src/main/assets/$ROUTING_ASSET_DIR/$name")
+    private fun shippedAsset(name: String): File = shippedAssetFile("$ROUTING_ASSET_DIR/$name")
 
     private companion object {
         val MODEL_DECLARATION = Regex("""(?m)^---model:(\S+)""")

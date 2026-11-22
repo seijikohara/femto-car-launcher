@@ -16,7 +16,7 @@ import java.io.File
 internal const val ROUTE_TIME_LIMIT_MS = 60_000L
 
 /** BRouter's default memory class, in MB, which sizes the engine's caches. */
-private const val ENGINE_MEMORY_CLASS_MB = 64
+internal const val ENGINE_MEMORY_CLASS_MB = 64
 
 private const val PROFILES_DIR = "profiles"
 
