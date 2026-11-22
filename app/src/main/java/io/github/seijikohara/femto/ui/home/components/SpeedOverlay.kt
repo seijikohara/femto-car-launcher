@@ -207,8 +207,8 @@ internal fun SpeedOverlay(
                 .padding(
                     start = FemtoDimens.OverlayPaddingHorizontal,
                     end = FemtoDimens.OverlayPaddingHorizontal,
-                    top = FemtoDimens.OverlayPaddingVertical - MetricRowTopAir,
-                    bottom = FemtoDimens.OverlayPaddingVertical,
+                    top = RowInkGap - MetricRowTopAir,
+                    bottom = RowInkGap - AddressRowAir,
                 ),
     ) {
         MetricRow(
@@ -226,11 +226,10 @@ internal fun SpeedOverlay(
         )
         // Always render the address row (even with no fix / unresolved address) so
         // the overlay keeps a stable height instead of collapsing then growing when
-        // the address arrives. The 5 dp gaps keep the metric row's breathing room in
-        // step with the address row's.
-        Box(modifier = Modifier.height(5.dp))
+        // the address arrives.
+        Box(modifier = Modifier.height(RowInkGap - MetricRowBottomAir))
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = FemtoDimens.DividerAlpha))
-        Box(modifier = Modifier.height(5.dp))
+        Box(modifier = Modifier.height(RowInkGap - AddressRowAir))
         ZeroIntrinsicWidth {
             AddressRow(text = shortAddress.ifBlank { NO_ADDRESS_PLACEHOLDER }, altitudeM = altitudeM)
         }
@@ -328,11 +327,17 @@ private fun NowMetric(
 // (see [ResetReportedHeight]).
 private val SeparatorHeight = 36.dp
 
-// The air the metric row's line boxes carry above their ink (the small metric
-// labels sit about 3dp below their box), taken off the card's top padding so
-// the gap from the card's top edge to the first ink matches the address row's
-// gap to the bottom edge.
-private val MetricRowTopAir = 3.dp
+// The gap from each row's ink to the nearest card edge or to the divider: the
+// same above and below both rows, so the two rows read as one balanced card.
+private val RowInkGap = 11.dp
+
+// The air each row's line boxes carry beyond their ink at the default font
+// settings, measured on the head-unit geometry. The paddings and the divider
+// gaps subtract it, so [RowInkGap] lands on the visible text rather than on
+// the line boxes.
+private val MetricRowTopAir = 4.dp
+private val MetricRowBottomAir = 3.dp
+private val AddressRowAir = 1.dp
 
 @Composable
 private fun Separator() =
