@@ -182,6 +182,17 @@ describe("showRoute", () => {
         expect(map.sources[ROUTE_SOURCE_ID]).toBeUndefined();
     });
 
+    it("adds nothing while the style is still loading", () => {
+        // MapLibre refuses new sources until the style has loaded.
+        const map = fakeMap(LABELED);
+        map.addSource = () => {
+            throw new Error("Style is not done loading.");
+        };
+        expect(() => showRoute(map, route())).toThrow("Style is not done loading.");
+        expect(map.getLayersOrder()).toEqual(LABELED.map((l) => l.id));
+        expect(map.sources[ROUTE_SOURCE_ID]).toBeUndefined();
+    });
+
     it("clearing a map without a route touches nothing", () => {
         const map = fakeMap(LABELED);
         showRoute(map, null);

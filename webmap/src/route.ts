@@ -137,9 +137,9 @@ export function routeInsertIndex(layers: readonly { type: string }[]): number {
 // their source, which MapLibre requires), then, for a route, add it at
 // routeInsertIndex — the place injectFeatures gives it on a style swap.
 // Removal is guarded by presence, since MapLibre reports removing a missing
-// layer as a map error. Throws, before adding anything, while a swapped-in
-// style is still loading; the caller leaves the route to that swap, whose
-// injectFeatures reads the same state.
+// layer as a map error. Throws, before adding anything, while the style is
+// still loading; the caller then relies on the next style push's
+// injectFeatures, which reads the same state (see syncRoute in osm.ts).
 export function showRoute(map: RouteMap, route: RouteLine | null): void {
     for (const id of ROUTE_LAYER_IDS) {
         if (map.getLayer(id)) map.removeLayer(id);

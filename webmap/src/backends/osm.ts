@@ -373,9 +373,12 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             try {
                 showRoute(liveMap, state.route);
             } catch (e) {
-                // A swapped-in style still loading refuses new sources. Nothing
-                // is lost: that swap's transformStyle has not run yet, and it
-                // injects the route from the state set above.
+                // A style still loading refuses new sources. On the first
+                // load that is the constructor's style, which has no
+                // transformStyle: the route is recovered by the host's
+                // page-ready setStyleUrl push, whose transformStyle
+                // (applyStyle) reads state.route when its style arrives —
+                // as does every later setStyleUrl / setFeatures swap.
                 log(
                     `route deferred to the style load: ${e instanceof Error ? e.message : String(e)}`,
                 );

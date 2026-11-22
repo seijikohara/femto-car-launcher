@@ -1,10 +1,42 @@
-import { describe, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
     BEARING_REPORT_INTERVAL_MS,
     createBearingReporter,
     frameSampleDetail,
+    installPendingStubs,
     redactSecrets,
 } from "./bridge";
+
+describe("installPendingStubs: route", () => {
+    const ROUTE: Parameters<Window["setRoute"]> = [
+        [35.68, 139.76, 35.69, 139.69],
+        "#3367D6",
+        "#FFFFFF",
+    ];
+
+    // The test environment has no DOM; the stubs only need a window to
+    // install themselves on.
+    beforeEach(() => {
+        vi.stubGlobal("window", {});
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("leaves no route pending when a clear follows the route", () => {
+        const pending = installPendingStubs();
+        window.setRoute(...ROUTE);
+        window.clearRoute();
+        expect(pending.setRoute).toBeNull();
+    });
+
+    it("keeps the route pending when it follows a clear", () => {
+        const pending = installPendingStubs();
+        window.clearRoute();
+        window.setRoute(...ROUTE);
+        expect(pending.setRoute).toEqual(ROUTE);
+    });
+});
 
 describe("redactSecrets", () => {
     it("redacts an access_token query value", () => {
