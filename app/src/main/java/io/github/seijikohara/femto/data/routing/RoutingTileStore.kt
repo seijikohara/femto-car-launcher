@@ -242,11 +242,27 @@ internal class RoutingTileStore(
 
             is RevalidationResult.Changed -> {
                 when (install(name, check.file)) {
-                    TileFetchResult.INSTALLED -> TileRefreshResult.UPDATED
-                    TileFetchResult.NO_DATA -> TileRefreshResult.UNCHANGED
-                    TileFetchResult.NETWORK_FAILED -> TileRefreshResult.NETWORK_FAILED
-                    TileFetchResult.NO_SPACE -> TileRefreshResult.NO_SPACE
-                    TileFetchResult.STORAGE_FAILED -> TileRefreshResult.STORAGE_FAILED
+                    TileFetchResult.INSTALLED -> {
+                        TileRefreshResult.UPDATED
+                    }
+
+                    // Gone by the time of the download: the installed tile stays, checked now, as after a 304.
+                    TileFetchResult.NO_DATA -> {
+                        writeRecord(name, RoutingTileRecord(kept, clock()))
+                        TileRefreshResult.UNCHANGED
+                    }
+
+                    TileFetchResult.NETWORK_FAILED -> {
+                        TileRefreshResult.NETWORK_FAILED
+                    }
+
+                    TileFetchResult.NO_SPACE -> {
+                        TileRefreshResult.NO_SPACE
+                    }
+
+                    TileFetchResult.STORAGE_FAILED -> {
+                        TileRefreshResult.STORAGE_FAILED
+                    }
                 }
             }
 

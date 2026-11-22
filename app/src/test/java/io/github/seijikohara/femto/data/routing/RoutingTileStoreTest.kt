@@ -276,6 +276,22 @@ class RoutingTileStoreTest {
             assertFalse(partFile().exists() || pendingFile().exists())
         }
 
+    @Test
+    fun `a tile gone by the time of its replacement is not checked again for a week`() =
+        runTest {
+            val store = installed()
+            server.enqueue(headResponse(NEW_BYTES.size, NEW_ETAG))
+            server.enqueue(MockResponse().setResponseCode(404))
+            now += ROUTING_TILE_CHECK_INTERVAL_MS
+            store.refresh(TILE)
+
+            now += ROUTING_TILE_CHECK_INTERVAL_MS - 1
+            val result = store.refresh(TILE)
+
+            assertEquals(TileRefreshResult.NOT_DUE, result)
+            assertEquals(4, server.requestCount)
+        }
+
     // --- free space -------------------------------------------------------------
 
     @Test
