@@ -85,12 +85,17 @@ internal class DeviceFactsCollector(
             if (performanceClass == 0) "0 (none)" else performanceClass.toString()
         }
 
+    // pip and freeform are the two platform routes by which another app's
+    // video can share the screen with the dashboard: that app's own
+    // picture-in-picture window, or a window placed with launch bounds.
     private fun deviceFeaturesLabel(): String {
         val packageManager = context.packageManager
         return listOf(
             "automotive" to PackageManager.FEATURE_AUTOMOTIVE,
             "leanback" to PackageManager.FEATURE_LEANBACK,
             "touchscreen" to PackageManager.FEATURE_TOUCHSCREEN,
+            "pip" to PackageManager.FEATURE_PICTURE_IN_PICTURE,
+            "freeform" to PackageManager.FEATURE_FREEFORM_WINDOW_MANAGEMENT,
         ).joinToString { (label, feature) -> "$label=${packageManager.hasSystemFeature(feature)}" }
     }
 
