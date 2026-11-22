@@ -563,7 +563,7 @@ private fun RouteStatus(
             )
         }
 
-        RouteStep.Locating, RouteStep.Computing -> {
+        RouteStep.FindingPosition, RouteStep.Locating, RouteStep.Computing -> {
             LinearProgressIndicator(modifier = widthModifier)
         }
 
@@ -612,6 +612,10 @@ private fun RouteStatus(
 @Composable
 private fun routeStepMessage(step: RouteStep): String =
     when (step) {
+        RouteStep.FindingPosition -> {
+            stringResource(R.string.destination_route_finding_position)
+        }
+
         RouteStep.Locating -> {
             stringResource(R.string.destination_route_locating)
         }

@@ -12,7 +12,9 @@ import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.geocoding.PlaceLocator
 import io.github.seijikohara.femto.data.geocoding.PlaceLookup
 import io.github.seijikohara.femto.data.geocoding.PlatformPlaceLocator
+import io.github.seijikohara.femto.data.location.CurrentFixSource
 import io.github.seijikohara.femto.data.location.LocationGraph
+import io.github.seijikohara.femto.data.location.PlatformCurrentFixSource
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.location.hasLocationPermission
 import io.github.seijikohara.femto.data.location.isFresh
@@ -65,8 +67,9 @@ import java.util.Locale
  * [tiles], [planner] computes the route, and a found route becomes the one in
  * [activeRoute] that the dashboard draws. One route runs at a time; a new one
  * or [DestinationAction.DismissRoute] cancels the one under way. A route starts
- * only from a fix still fresh at [nowElapsedRealtimeNanos]; without one it
- * says whether the fix or [hasLocationPermission] is missing.
+ * from a fix still fresh at [nowElapsedRealtimeNanos], else from the position
+ * [currentFix] finds on request; with neither it says whether the position or
+ * [hasLocationPermission] is missing.
  */
 internal class DestinationViewModel(
     private val placesStore: SavedPlacesStore,
@@ -80,6 +83,7 @@ internal class DestinationViewModel(
     private val activeRoute: ActiveRouteStore,
     private val nowElapsedRealtimeNanos: () -> Long,
     private val hasLocationPermission: () -> Boolean,
+    private val currentFix: CurrentFixSource,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -234,25 +238,45 @@ internal class DestinationViewModel(
         viewModelScope.launch { placesStore.add(label, target) }
     }
 
-    // The location flow replays its last fix after the receiver goes quiet (a
-    // head unit started in an underground car park holds yesterday's), so only
-    // a fresh fix is a start: an old one would route from elsewhere and offer
-    // routing data for the wrong area.
     private fun startRoute(
         target: PlaceTarget,
         origin: LastFix?,
-    ) {
-        val start = origin?.takeIf { isFresh(it.elapsedRealtimeNanos, nowElapsedRealtimeNanos()) }
-        if (start == null) {
-            routeJob?.cancel()
-            fail(if (hasLocationPermission()) RouteFailure.NO_FIX else RouteFailure.NO_LOCATION_PERMISSION)
-            return
-        }
-        runRoute {
+    ) = runRoute {
+        startOrNull(origin)?.let { start ->
             destinationOrNull(target)?.let { destination ->
-                RouteEnds(origin = start.point.toRoutePoint(), destination = destination)
+                RouteEnds(origin = start, destination = destination)
                     .also { routeEnds = it }
                     .let { route(it) }
+            }
+        }
+    }
+
+    // The location flow replays its last fix after the receiver goes quiet (a
+    // head unit started in an underground car park holds yesterday's), so only
+    // a fresh fix is a start: an old one would route from elsewhere and offer
+    // routing data for the wrong area. An old fix is no sign of a lost position,
+    // though. The flow forwards nothing until the vehicle has moved the minimum
+    // distance the driver set, so a parked vehicle, which is where a route gets
+    // planned, holds an old fix for good, and a coarse-only grant, whose fixes
+    // the platform slows down, holds one most of the time. So the route asks
+    // for the current position in place of an old fix. Null when there is no
+    // start, whose reason is already on screen; without the grant nothing is
+    // asked, since no position can come.
+    private suspend fun startOrNull(origin: LastFix?): RoutePoint? {
+        val fresh = origin?.takeIf { isFresh(it.elapsedRealtimeNanos, nowElapsedRealtimeNanos()) }
+        return when {
+            fresh != null -> {
+                fresh.point.toRoutePoint()
+            }
+
+            !hasLocationPermission() -> {
+                null.also { fail(RouteFailure.NO_LOCATION_PERMISSION) }
+            }
+
+            else -> {
+                routeStep.value = RouteStep.FindingPosition
+                currentFix.currentFixOrNull()?.let { RoutePoint(latitude = it.latitude, longitude = it.longitude) }
+                    ?: null.also { fail(RouteFailure.NO_FIX) }
             }
         }
     }
@@ -392,8 +416,8 @@ private fun PlaceTarget.Point.coordinateLabel(): String = String.format(Locale.R
  * platform recognizer, the package manager's view of `geo:` handlers, and
  * the routing stack: the build's `routing_enabled` flag with the map backend,
  * the platform geocoder, the shared planner and tile store, the one active
- * route the dashboard reads, and the boot clock and location grant a route's
- * start is judged by.
+ * route the dashboard reads, the boot clock and location grant a route's start
+ * is judged by, and the platform's answer to where the device is now.
  */
 internal val DestinationViewModelFactory =
     viewModelFactory {
@@ -416,6 +440,7 @@ internal val DestinationViewModelFactory =
                 activeRoute = ActiveRouteStore.shared,
                 nowElapsedRealtimeNanos = SystemClock::elapsedRealtimeNanos,
                 hasLocationPermission = application::hasLocationPermission,
+                currentFix = PlatformCurrentFixSource(application),
             )
         }
     }

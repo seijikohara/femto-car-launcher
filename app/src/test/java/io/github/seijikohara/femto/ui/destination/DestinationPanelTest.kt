@@ -355,6 +355,14 @@ class DestinationPanelTest {
     }
 
     @Test
+    fun finding_the_position_says_so_and_cancel_puts_it_away() {
+        setPanel(stationary = true, routeAvailable = true, route = RouteStep.FindingPosition)
+        rule.onNodeWithText("Finding your position…").assertIsDisplayed()
+        rule.onNodeWithText("Cancel").performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.DismissRoute), actions)
+    }
+
+    @Test
     fun without_the_location_permission_a_route_asks_for_it() {
         setPanel(
             stationary = true,

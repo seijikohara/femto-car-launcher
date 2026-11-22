@@ -195,6 +195,7 @@
     <string name="destination_route">Route</string>
     <!-- %1$s = the saved place's label -->
     <string name="destination_route_place">Route to %1$s</string>
+    <string name="destination_route_finding_position">Finding your position…</string>
     <string name="destination_route_locating">Looking up the place…</string>
     <string name="destination_route_no_fix">No current GPS position. A route starts from where you are now, so try again once the GPS finds your position.</string>
     <string name="destination_route_no_permission">A route starts from where you are now. Grant location access to route.</string>

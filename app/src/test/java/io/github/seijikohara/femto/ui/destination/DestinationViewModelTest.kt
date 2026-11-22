@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.destination
 
 import io.github.seijikohara.femto.data.geocoding.PlaceLookup
+import io.github.seijikohara.femto.data.location.CurrentFix
 import io.github.seijikohara.femto.data.location.LOCATION_STALE_THRESHOLD_MS
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
@@ -9,6 +10,7 @@ import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
+import io.github.seijikohara.femto.testfixtures.FakeCurrentFixSource
 import io.github.seijikohara.femto.testfixtures.FakePlaceLocator
 import io.github.seijikohara.femto.testfixtures.FakeSavedPlacesStore
 import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
@@ -55,9 +57,12 @@ class DestinationViewModelTest {
     private lateinit var routing: RoutingFixture
     private val activeRoute = ActiveRouteStore()
 
-    // The boot clock a route's start is judged by, and the location grant.
+    // The boot clock a route's start is judged by, the location grant, and
+    // what the device answers when asked where it is now: nothing, unless a
+    // test sets a position.
     private var nowNanos = NOW_NANOS
     private var locationGranted = true
+    private val currentFix = FakeCurrentFixSource()
 
     @Before
     fun setUp() {
@@ -92,6 +97,7 @@ class DestinationViewModelTest {
             activeRoute = activeRoute,
             nowElapsedRealtimeNanos = { nowNanos },
             hasLocationPermission = { locationGranted },
+            currentFix = currentFix,
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -406,7 +412,7 @@ class DestinationViewModelTest {
         }
 
     @Test
-    fun without_a_fix_the_route_says_it_starts_from_one() =
+    fun without_a_fix_and_with_no_position_to_be_found_the_route_says_it_starts_from_one() =
         runTest {
             val viewModel = subscribedViewModel(routingAvailable = true)
 
@@ -420,10 +426,11 @@ class DestinationViewModelTest {
         runTest {
             // The location flow replays its last fix after the receiver goes
             // quiet: a head unit started in an underground car park holds one
-            // from elsewhere, which must not become the start.
+            // from elsewhere, which must not become the start even when no
+            // current position can be found in its place.
             val viewModel = subscribedViewModel(routingAvailable = true)
             routing.offerTile(TILE, sizeBytes = TILE_BYTES)
-            nowNanos = NOW_NANOS + LOCATION_STALE_THRESHOLD_MS * 1_000_000L + 1L
+            nowNanos = STALE_NANOS
 
             viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
             advanceUntilIdle()
@@ -447,6 +454,106 @@ class DestinationViewModelTest {
         }
 
     @Test
+    fun a_fresh_fix_is_the_start_without_asking_for_the_current_position() =
+        runTest {
+            currentFix.answer = HERE
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(
+                0 to listOf(ORIGIN.point.toRoutePoint()),
+                currentFix.requests to routing.engine.requests.map { it.origin },
+            )
+        }
+
+    @Test
+    fun an_old_fix_gives_way_to_the_current_position_as_the_start() =
+        runTest {
+            // A parked vehicle: the flow forwards no fix until the vehicle has
+            // moved the minimum distance, so the last one is old though the
+            // receiver knows where it is.
+            currentFix.answer = HERE
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            nowNanos = STALE_NANOS
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Done, viewModel.uiState.value.route)
+            assertEquals(listOf(RoutePoint(HERE.latitude, HERE.longitude)), routing.engine.requests.map { it.origin })
+        }
+
+    @Test
+    fun without_a_fix_the_current_position_is_the_start() =
+        runTest {
+            currentFix.answer = HERE
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, origin = null))
+            advanceUntilIdle()
+
+            assertEquals(listOf(RoutePoint(HERE.latitude, HERE.longitude)), routing.engine.requests.map { it.origin })
+        }
+
+    @Test
+    fun the_route_says_it_is_finding_the_position_while_the_request_is_out() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            currentFix.gateRequest()
+            nowNanos = STALE_NANOS
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.FindingPosition, viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_position_request_that_runs_out_of_time_is_no_fix() =
+        runTest {
+            // The source gives up after its time limit and answers with none.
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            val gate = currentFix.gateRequest()
+            nowNanos = STALE_NANOS
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_FIX), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun dismissing_while_the_position_is_sought_withdraws_the_request_and_starts_no_route() =
+        runTest {
+            currentFix.answer = HERE
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            val gate = currentFix.gateRequest()
+            nowNanos = STALE_NANOS
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(1, currentFix.withdrawn)
+            assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
+            assertEquals(emptyList(), routing.engine.requests)
+        }
+
+    @Test
     fun without_the_location_permission_the_route_says_it_needs_it() =
         runTest {
             // No grant, so no fix will ever come: waiting for one would not help.
@@ -456,6 +563,17 @@ class DestinationViewModelTest {
             viewModel.onAction(DestinationAction.RouteTo(DESTINATION, origin = null))
 
             assertEquals(RouteStep.Failed(RouteFailure.NO_LOCATION_PERMISSION), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun without_the_location_permission_no_position_is_asked_for() =
+        runTest {
+            locationGranted = false
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, origin = null))
+
+            assertEquals(0, currentFix.requests)
         }
 
     @Test
@@ -754,6 +872,12 @@ class DestinationViewModelTest {
         // at NOW_NANOS, fresh unless a test moves the clock on.
         val ORIGIN = LastFix(PlaceTarget.Point(33.84, 132.77), elapsedRealtimeNanos = NOW_NANOS)
         val DESTINATION = PlaceTarget.Point(34.07, 133.0)
+
+        // The first boot-clock reading at which ORIGIN is no longer fresh.
+        const val STALE_NANOS = NOW_NANOS + LOCATION_STALE_THRESHOLD_MS * 1_000_000L + 1L
+
+        // Where the device says it is when asked: a little off ORIGIN, in the same routing tile.
+        val HERE = CurrentFix(latitude = 33.85, longitude = 132.78)
 
         // Another destination in the same routing tile.
         val OTHER_DESTINATION = PlaceTarget.Point(33.95, 132.9)

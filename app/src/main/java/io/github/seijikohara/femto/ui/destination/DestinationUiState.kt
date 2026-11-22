@@ -71,6 +71,9 @@ internal data class DestinationUiState(
 internal sealed interface RouteStep {
     data object Idle : RouteStep
 
+    /** The last fix is missing or old, and the device is asked where it is now. */
+    data object FindingPosition : RouteStep
+
     /** The geocoder is turning the destination's text into a position. */
     data object Locating : RouteStep
 
@@ -100,7 +103,8 @@ internal sealed interface RouteStep {
  * the elapsed-realtime clock ([elapsedRealtimeNanos], as the fix's
  * `Location.getElapsedRealtimeNanos`). The location flow keeps replaying its
  * last fix after the receiver goes quiet, so the fix may be old; a route judges
- * its age (`isFresh`) as it starts.
+ * its age (`isFresh`) as it starts, and asks for the current position in place
+ * of an old fix.
  */
 internal data class LastFix(
     val point: PlaceTarget.Point,
@@ -109,7 +113,7 @@ internal data class LastFix(
 
 /** Why a route did not come about; each has its own sentence in the panel. */
 internal enum class RouteFailure {
-    /** No current fix (none yet, or only an old one): a route starts from the current position. */
+    /** No current position: the last fix is missing or old, and asking for the current one brought none. */
     NO_FIX,
 
     /** No location permission, so no fix will come: a route starts from the current position. */
@@ -193,8 +197,9 @@ internal sealed interface DestinationAction {
     /**
      * Compute a route from [origin] (the last fix, null without one) to
      * [target] on the launcher's own map. A fix that is no longer fresh counts
-     * as none. Ignored unless [DestinationUiState.canRoute] holds; allowed in
-     * every motion state.
+     * as none, and the route then starts from the current position it asks
+     * for. Ignored unless [DestinationUiState.canRoute] holds; allowed in every
+     * motion state.
      */
     data class RouteTo(
         val target: PlaceTarget,
