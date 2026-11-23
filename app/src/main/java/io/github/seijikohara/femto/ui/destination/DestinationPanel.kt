@@ -104,7 +104,7 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * it too leaves the launcher.
  *
  * Where routing is available ([DestinationUiState.routeAvailable]), a Show
- * route action sits beside Open in maps app and on each saved place that can
+ * route action sits under Open in maps app and on each saved place that can
  * be routed to ([DestinationUiState.canRoute]); it works in every motion
  * state, like a tap on a saved place. Two chips under it pick the roads the
  * next route avoids ([RouteConditionChips]). A route starts from [lastFix],
@@ -247,7 +247,7 @@ internal fun DestinationPanel(
 }
 
 // The query field with its mic, the motion or voice line, Open in maps app
-// (with Show route beside it where text can be routed to), and the two save
+// (with Show route under it where text can be routed to), and the two save
 // buttons.
 @Composable
 private fun DestinationEntry(
@@ -306,29 +306,26 @@ private fun DestinationEntry(
         handOffAvailable = uiState.handOffAvailable,
     )
     val queryTarget = PlaceTarget.Query(query)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    // One action to a row: side by side, half a row cuts "Open in maps app" at
+    // the body text floor on a head unit and on a phone.
+    Button(
+        onClick = navigate,
+        enabled = canNavigate,
+        modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
     ) {
-        Button(
-            onClick = navigate,
-            enabled = canNavigate,
-            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ButtonLabel(icon = Lucide.ExternalLink, text = stringResource(R.string.destination_navigate))
+    }
+    // Needs no app to hand off to: the route is drawn on the launcher's own map.
+    if (uiState.canRoute(queryTarget)) {
+        FilledTonalButton(
+            onClick = { onRoute(queryTarget) },
+            enabled = query.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
-            ButtonLabel(icon = Lucide.ExternalLink, text = stringResource(R.string.destination_navigate))
-        }
-        // Needs no app to hand off to: the route is drawn on the launcher's own map.
-        if (uiState.canRoute(queryTarget)) {
-            FilledTonalButton(
-                onClick = { onRoute(queryTarget) },
-                enabled = query.isNotEmpty(),
-                modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
-            ) {
-                ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
-            }
+            ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
         }
     }
-    // Shown wherever routing is, not only beside Show route: without a geocoder the
+    // Shown wherever routing is, not only under Show route: without a geocoder the
     // saved points still route, under these conditions.
     if (uiState.routeAvailable) RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
     Row(
@@ -355,7 +352,7 @@ private fun DestinationEntry(
 }
 
 // A point picked with a long press on the map, in place of the text entry: its
-// coordinates, Open in maps app (the point's `geo:` hand-off) with Show route beside it, and
+// coordinates, Open in maps app (the point's `geo:` hand-off) with Show route under it, and
 // the way to keep it or to go back to the search. Nothing here types, so only
 // saving waits for a stop, as every save does.
 @Composable
@@ -395,27 +392,23 @@ private fun PickedPointEntry(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    // One action to a row, as in the search entry.
+    Button(
+        onClick = { onNavigate(point, "") },
+        enabled = uiState.handOffAvailable,
+        modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
     ) {
-        Button(
-            onClick = { onNavigate(point, "") },
-            enabled = uiState.handOffAvailable,
-            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
-        ) {
-            ButtonLabel(icon = Lucide.ExternalLink, text = stringResource(R.string.destination_navigate))
-        }
-        if (uiState.canRoute(point)) {
-            FilledTonalButton(
-                onClick = { onRoute(point) },
-                modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
-            ) {
-                ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
-            }
-        }
+        ButtonLabel(icon = Lucide.ExternalLink, text = stringResource(R.string.destination_navigate))
     }
-    if (uiState.canRoute(point)) RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
+    if (uiState.canRoute(point)) {
+        FilledTonalButton(
+            onClick = { onRoute(point) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
+        ) {
+            ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
+        }
+        RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),

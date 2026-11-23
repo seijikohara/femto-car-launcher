@@ -185,7 +185,7 @@
     <string name="destination_title">Destination</string>
     <string name="destination_open_maps">Open maps app</string>
     <string name="destination_query_hint">Search for a place or address</string>
-    <!-- Hands the destination to another app; named for that, beside Show route, which stays on the launcher's map. -->
+    <!-- Hands the destination to another app; named for that, above Show route, which stays on the launcher's map. -->
     <string name="destination_navigate">Open in maps app</string>
     <string name="destination_save_query">Save</string>
     <string name="destination_save_location">Save current location</string>

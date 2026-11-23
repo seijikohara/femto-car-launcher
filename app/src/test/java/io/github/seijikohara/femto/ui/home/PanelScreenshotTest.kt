@@ -160,7 +160,7 @@ class PanelScreenshotTest {
         capture("apps-panel-head-unit-853x512-dark", darkTheme = true) { AppsPanelSample() }
 
     // Destination panel with route preview (issue #389 phase 3, nightly builds
-    // only): Show route beside Open in maps app and on each saved place, the route condition
+    // only): Show route under Open in maps app and on each saved place, the route condition
     // chips under it (one on), then the download confirmation that takes the
     // panel's body over. The tests run the stable build, where routing is off,
     // so the state turns it on explicitly.
