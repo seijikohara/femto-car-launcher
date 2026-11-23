@@ -71,8 +71,9 @@ import kotlinx.coroutines.launch
  * in [activeRoute], with its destination and the engine's reference, which the
  * dashboard draws and the rerouter routes again from. One route runs at a time;
  * a new one or [DestinationAction.DismissRoute] cancels the one under way, and
- * every route run first stops a running reroute ([cancelReroute]), so it never
- * waits for the planner behind one. A route starts
+ * every route run stops a running reroute ([cancelReroute]) when it starts and
+ * again right before each search, so it never waits for the planner behind
+ * one. A route starts
  * from a fix still fresh at [nowElapsedRealtimeNanos], else from the position
  * [currentFix] finds on request; with neither it says whether the position or
  * [hasLocationPermission] is missing.
@@ -365,6 +366,8 @@ internal class DestinationViewModel(
         val newer = newerTileSizes(needed)
         if (newer.isNotEmpty()) return offerDownload(ends, missing = tiles.missingTiles(needed), newer = newer)
         routeStep.value = RouteStep.Computing
+        // Checking or downloading data takes time, during which a reroute of the old route may have started.
+        cancelReroute()
         when (val result = planner.route(ends.origin, ends.destination)) {
             is RouteResult.Found -> {
                 activeRoute.start(result.route, ends.destination, result.reference)

@@ -648,6 +648,26 @@ class DestinationViewModelTest {
             assertEquals(1, rerouteCancels)
         }
 
+    // A reroute of the old route may start while the data downloads; the search after it must not wait for one.
+    @Test
+    fun the_search_after_a_download_cancels_a_running_reroute() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val gate = routing.feed.gateDownload()
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+            val cancelsBeforeTheSearch = rerouteCancels
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(cancelsBeforeTheSearch + 1, rerouteCancels)
+        }
+
     @Test
     fun a_route_runs_while_moving() =
         runTest {
