@@ -45,6 +45,15 @@ class OffRouteWatchTest {
         assertEquals(FollowEvent.LeftRoute(fixAt(6, accuracy = 40f)), far.last())
     }
 
+    // A car park beside the road: 120 m from the line is inside the 130 m that 65 m of accuracy allows.
+    @Test
+    fun `a poor fix near the line does not arm the watch`() {
+        val parked = Reading(offLineMeters = 120.0, speed = 0f, accuracy = 65f)
+        val readings = listOf(parked) + List(10) { Reading(offLineMeters = 110.0, accuracy = 5f) }
+
+        assertEquals(List(11) { null }, events(readings))
+    }
+
     @Test
     fun `a fix without speed never counts as moving`() {
         assertEquals(List(11) { null }, events(listOf(ON_LINE) + List(10) { OFF_LINE.copy(speed = null) }))

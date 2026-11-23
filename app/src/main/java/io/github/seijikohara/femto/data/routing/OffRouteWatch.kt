@@ -58,8 +58,9 @@ internal sealed interface FollowEvent {
  * Only fixes with a speed are judged. The location stack interleaves the network provider's fixes, which carry no
  * speed and a wide accuracy, with the GPS ones; judged, a single one would reset the hold or count as back on the
  * line. A vehicle counts as off the route when it moves and its fixes stay farther from the line than the threshold
- * for [OFF_ROUTE_HOLD_MS]. The watch arms only once a fix has been on the line, or after [OFF_ROUTE_ARM_MOVING_MS] of
- * moving, and stays quiet within [OFF_ROUTE_QUIET_NEAR_END_METERS] of the end. A stop restarts the hold, and so does a
+ * for [OFF_ROUTE_HOLD_MS]. The watch arms only once a fix has been within [OFF_ROUTE_FLOOR_METERS] of the line, however
+ * accurate, or after [OFF_ROUTE_ARM_MOVING_MS] of moving, and stays quiet within [OFF_ROUTE_QUIET_NEAR_END_METERS] of
+ * the end. A stop restarts the hold, and so does a
  * gap of more than [LOCATION_STALE_THRESHOLD_MS] between fixes, as after a tunnel or a replayed old fix. Still off the
  * route after [FollowEvent.LeftRoute], it raises the event again after another hold.
  */
@@ -93,10 +94,13 @@ internal fun OffRouteWatch.advance(
     val gapMs = lastFixMs?.let { fix.elapsedMs - it }
     if (fix.speedMetersPerSecond == null || (gapMs != null && gapMs < 0)) return copy(event = null)
     val continuous = gapMs != null && gapMs <= LOCATION_STALE_THRESHOLD_MS
+    // The widened threshold keeps a poor fix from counting as having left; it must not let one count as having been
+    // on the line, which is what arms the watch.
+    val onFloor = offLineMeters <= OFF_ROUTE_FLOOR_METERS
     val onLine = offLineMeters <= offRouteThresholdMeters(fix.accuracyMeters)
     val movingSince = movingSinceMs?.takeIf { continuous } ?: fix.elapsedMs
     val nowMoving = fix.moving
-    val nowArmed = armed || onLine || (nowMoving && fix.elapsedMs - movingSince >= OFF_ROUTE_ARM_MOVING_MS)
+    val nowArmed = armed || onFloor || (nowMoving && fix.elapsedMs - movingSince >= OFF_ROUTE_ARM_MOVING_MS)
     val offSince =
         (offSinceMs?.takeIf { continuous } ?: fix.elapsedMs)
             .takeIf { !onLine && nowMoving && remainingMeters > OFF_ROUTE_QUIET_NEAR_END_METERS }
