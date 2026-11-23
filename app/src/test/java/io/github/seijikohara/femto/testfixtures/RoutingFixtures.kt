@@ -8,6 +8,7 @@ import io.github.seijikohara.femto.data.routing.EnginePosition
 import io.github.seijikohara.femto.data.routing.ROUTE_TIME_LIMIT_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_HOST_PREFIX
 import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RoutingProfileFiles
@@ -201,6 +202,22 @@ internal fun fakeParallelRoadsRoute(): Route =
         points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.0, 0.1), RoutePoint(0.002, 0.1), RoutePoint(0.002, 0.0)),
         distanceMeters = 22_461,
         durationSeconds = 1_200,
+    )
+
+/** A fix at [point] taken at [elapsedMs] on the boot clock, moving at 10 m/s unless [speedMetersPerSecond] says not. */
+internal fun fakeRouteFix(
+    point: RoutePoint,
+    elapsedMs: Long,
+    speedMetersPerSecond: Float? = 10f,
+    accuracyMeters: Float? = null,
+    bearingDegrees: Float? = null,
+): RouteFix =
+    RouteFix(
+        point = point,
+        accuracyMeters = accuracyMeters,
+        speedMetersPerSecond = speedMetersPerSecond,
+        bearingDegrees = bearingDegrees,
+        elapsedMs = elapsedMs,
     )
 
 /** A short route in the routing tile E130_N30, as the planner returns one. */

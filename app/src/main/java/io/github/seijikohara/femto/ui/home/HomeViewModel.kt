@@ -41,8 +41,9 @@ import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePoint
-import io.github.seijikohara.femto.data.routing.progressFlow
+import io.github.seijikohara.femto.data.routing.followFlow
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
@@ -176,7 +177,7 @@ internal class HomeViewModel(
 
     // The active route while routing is offered here, else none: a switch to
     // the Google backend hides it, and a switch back shows it again. Its
-    // progress follows each fix along the line (Route.progressFlow), a pass
+    // progress follows each fix along the line (Route.followFlow), a pass
     // over the route's points, so it runs here on the route and the fixes
     // alone, off the main thread, rather than in the combine below, which
     // every card's update re-runs. With no route it reads no fix and does no
@@ -188,11 +189,11 @@ internal class HomeViewModel(
             .flatMapLatest { route ->
                 route?.let { shown ->
                     shown
-                        .progressFlow(
+                        .followFlow(
                             locationFlow
                                 .catchAsDefault(TAG, "route location", null)
-                                .map { it?.toRoutePoint() },
-                        ).map { progress -> ActiveRouteState(line = shown.points, progress = progress) }
+                                .map { it?.toRouteFix() },
+                        ).map { follow -> ActiveRouteState(line = shown.points, progress = follow.progress) }
                 } ?: flowOf(null)
             }.flowOn(routeDispatcher)
             .onStart { emit(null) }
@@ -453,7 +454,17 @@ internal class HomeViewModel(
     }
 }
 
-private fun Location.toRoutePoint(): RoutePoint = RoutePoint(latitude = latitude, longitude = longitude)
+// Each reading only when the fix carries it: a missing speed must read as unknown, not as standing still.
+private fun Location.toRouteFix(): RouteFix =
+    RouteFix(
+        point = RoutePoint(latitude = latitude, longitude = longitude),
+        accuracyMeters = accuracy.takeIf { hasAccuracy() },
+        speedMetersPerSecond = speed.takeIf { hasSpeed() },
+        bearingDegrees = bearing.takeIf { hasBearing() },
+        elapsedMs = elapsedRealtimeNanos / NANOS_PER_MILLI,
+    )
+
+private const val NANOS_PER_MILLI = 1_000_000L
 
 // File-private holder that groups the first five slots (four sources and the
 // update badge) so the two-stage combine stays within Kotlin's typed
