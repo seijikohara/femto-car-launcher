@@ -19,8 +19,11 @@ import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
+import io.github.seijikohara.femto.data.routing.RerouteStats
+import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RouteRun
+import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -112,14 +115,15 @@ internal fun mapFactsFrom(
 
 /**
  * What the route preview (#389 phase 3) needs to be judged on a head unit: whether the build and backend offer it,
- * the routing data on the device, the last route, and the geocoder that text destinations need. [tiles] is null
- * when the build offers no routing, which reads no file.
+ * the routing data on the device, the last route, the reroutes, and the geocoder that text destinations need. [tiles]
+ * is null when the build offers no routing, which reads no file.
  */
 internal data class RoutingFacts(
     val buildEnabled: Boolean,
     val tiles: List<InstalledRoutingTile>?,
     val lastRun: RouteRun?,
     val geocoderPresent: Boolean,
+    val reroutes: RerouteStats? = null,
 )
 
 // Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
@@ -152,15 +156,24 @@ private fun routingFacts(
             add(
                 DiagnosticFact(
                     "Last route",
-                    FactValue.Text(
-                        facts.lastRun
-                            ?.let { "${it.outcome.name.lowercase().replace('_', ' ')}, ${it.computingMs} ms" }
-                            ?: "none this session",
-                    ),
+                    FactValue.Text(facts.lastRun?.let { "${it.outcome.label()}, ${it.computingMs} ms" } ?: NO_RUN_YET),
                 ),
             )
+            add(DiagnosticFact("Last reroute", FactValue.Text(facts.reroutes?.summaryOrNull() ?: NO_RUN_YET)))
         }
         add(DiagnosticFact("Geocoder", FactValue.Text(if (facts.geocoderPresent) "present" else "absent")))
+    }
+
+private const val NO_RUN_YET = "none this session"
+
+private fun RouteRunOutcome.label(): String = name.lowercase().replace('_', ' ')
+
+// Whether the reroute had a reference tells a slow reroute from a fast one: with it, BRouter stops where the new
+// route rejoins the old one.
+private fun RerouteStats.summaryOrNull(): String? =
+    last?.let { run ->
+        val reference = if (usedReference == true) "with reference" else "without reference"
+        "${run.outcome.label()}, ${run.computingMs} ms, $count this session, $reference"
     }
 
 // Counts and sizes only: the choice of regions can say where the owner drives, so no name enters the report.
@@ -468,6 +481,7 @@ internal class MapFactsCollector(
             tiles = if (enabled) RoutingTileStore.get(context).installedTiles() else null,
             lastRun = if (enabled) RoutePlanner.get(context).lastRunOrNull() else null,
             geocoderPresent = Geocoder.isPresent(),
+            reroutes = if (enabled) Rerouter.get(context).stats.value else null,
         )
     }
 }

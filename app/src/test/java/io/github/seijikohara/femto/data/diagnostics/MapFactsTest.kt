@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.data.map.offline.SavedRegion
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
+import io.github.seijikohara.femto.data.routing.RerouteStats
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import org.junit.Test
@@ -527,9 +528,34 @@ class MapFactsTest {
                 DiagnosticFact("Routing", FactValue.Text("available")),
                 DiagnosticFact("Routing data", FactValue.Text("2 tiles, 144 MB")),
                 DiagnosticFact("Last route", FactValue.Text("timed out, 60012 ms")),
+                DiagnosticFact("Last reroute", FactValue.Text("none this session")),
                 DiagnosticFact("Geocoder", FactValue.Text("absent")),
             ),
             facts,
+        )
+    }
+
+    @Test
+    fun `the last reroute reports its outcome, time, count and whether it had a reference`() {
+        val reroutes = RerouteStats(3, RouteRun(RouteRunOutcome.FOUND, computingMs = 63L), usedReference = true)
+
+        val facts = routingFacts(RoutingFacts(true, emptyList(), null, true, reroutes = reroutes))
+
+        assertEquals(
+            FactValue.Text("found, 63 ms, 3 this session, with reference"),
+            facts.single { it.label == "Last reroute" }.value,
+        )
+    }
+
+    @Test
+    fun `a reroute without a reference says so`() {
+        val reroutes = RerouteStats(1, RouteRun(RouteRunOutcome.MISSING_TILES, computingMs = 5L), usedReference = false)
+
+        val facts = routingFacts(RoutingFacts(true, emptyList(), null, true, reroutes = reroutes))
+
+        assertEquals(
+            FactValue.Text("missing tiles, 5 ms, 1 this session, without reference"),
+            facts.single { it.label == "Last reroute" }.value,
         )
     }
 
@@ -558,7 +584,7 @@ class MapFactsTest {
         routing: RoutingFacts,
         backend: MapBackend = MapBackend.OSM,
     ): List<DiagnosticFact> {
-        val label = setOf("Routing", "Routing data", "Last route", "Geocoder")
+        val label = setOf("Routing", "Routing data", "Last route", "Last reroute", "Geocoder")
         return facts(backend = backend, routing = routing).filter { it.label in label }
     }
 
