@@ -51,11 +51,10 @@ internal data class RerouteStats(
  *
  * One reroute runs at a time, and the next in the same session starts no sooner than [REROUTE_MIN_INTERVAL_MS] after
  * the last one ended; a reroute that was cancelled never ended in that sense, and a new session, a route the driver
- * just set, may reroute at once. A reroute
- * belongs to its session of [store]: it replaces the route only while that session is current, and a session that
- * ends (a clear, or a new route) cancels it, which frees the planner for the route that ended it. A found route
- * replaces the old one; one that needs data the device does not hold leaves the old line with
- * [RerouteStatus.NO_DATA], and any other failure with [RerouteStatus.FAILED].
+ * just set, may reroute at once. A reroute belongs to its session of [store]: it replaces the route only while that
+ * session is current, and a session that ends (a clear, or a new route) cancels it, which frees the planner for the
+ * route that ended it. A found route replaces the old one; one that needs data the device does not hold leaves the old
+ * line with [RerouteStatus.NO_DATA], and any other failure with [RerouteStatus.FAILED].
  *
  * A reroute writes to [store] only under [lock] and only while it has not been cancelled, and whoever cancels it
  * ([onBackOnRoute], [cancel]) settles the status under the same lock. So a result that arrives after a cancel never
