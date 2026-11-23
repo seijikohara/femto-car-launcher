@@ -169,6 +169,45 @@ class RerouterTest {
         }
 
     @Test
+    fun `a reroute that ran thirty seconds holds the next for thirty seconds after it ended`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            planner.computingMs = REROUTE_MIN_INTERVAL_MS
+            planner.answer.complete(RouteResult.Failed("no track found"))
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+            planner.computingMs = 0L
+
+            nowMs += REROUTE_MIN_INTERVAL_MS - 1
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+            val callsWithinTheInterval = planner.calls.size
+            nowMs += 1
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertEquals(1 to 2, callsWithinTheInterval to planner.calls.size)
+        }
+
+    @Test
+    fun `after a reroute that back on the route cancelled, the next LeftRoute reroutes at once`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+            rerouter.onBackOnRoute(session)
+            runCurrent()
+
+            nowMs += 1_000L
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertEquals(2, planner.calls.size)
+        }
+
+    @Test
     fun `a new session may reroute at once`() =
         runTest {
             val rerouter = rerouter()

@@ -20,8 +20,9 @@ import java.io.File
 import kotlin.math.roundToInt
 
 /**
- * The least time between the starts of two reroutes of one session. A vehicle that drives off the road network, or
- * where no routing data lies, keeps leaving every new line; this keeps it from rerouting without end.
+ * The least time from the end of one reroute of a session to the start of the next. A vehicle that drives off the road
+ * network, or where no routing data lies, keeps leaving every new line; this keeps it from rerouting without end. It
+ * counts from the end, so a slow reroute does not leave the next one free to start at once.
  */
 internal const val REROUTE_MIN_INTERVAL_MS = 30_000L
 
@@ -47,7 +48,8 @@ internal data class RerouteStats(
  * [route] reads only the routing data on the device and never the network.
  *
  * One reroute runs at a time, and the next in the same session starts no sooner than [REROUTE_MIN_INTERVAL_MS] after
- * the last; a new session, a route the driver just set, may reroute at once. A reroute
+ * the last one ended; a reroute that was cancelled never ended in that sense, and a new session, a route the driver
+ * just set, may reroute at once. A reroute
  * belongs to its session of [store]: it replaces the route only while that session is current, and a session that
  * ends (a clear, or a new route) cancels it, which frees the planner for the route that ended it. A found route
  * replaces the old one; one that needs data the device does not hold leaves the old line with
@@ -71,8 +73,9 @@ internal class Rerouter(
 ) {
     private val lock = Any()
 
-    // The last reroute started, running or not; guarded by [lock].
+    // Guarded by [lock]: the last reroute started, running or not, and the last one that ended with a result.
     private var running: RunningReroute? = null
+    private var lastFinished: FinishedReroute? = null
 
     private val mutableStats = MutableStateFlow(RerouteStats(count = 0, last = null, usedReference = null))
 
@@ -88,12 +91,10 @@ internal class Rerouter(
         synchronized(lock) {
             val now = nowMs()
             val held =
-                running?.let { last ->
-                    last.job.isActive || (last.session == session && now - last.startedMs < REROUTE_MIN_INTERVAL_MS)
-                } == true
+                running?.job?.isActive == true ||
+                    lastFinished?.let { it.session == session && now - it.finishedMs < REROUTE_MIN_INTERVAL_MS } == true
             if (held) return
-            running =
-                RunningReroute(session, now, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
+            running = RunningReroute(session, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
         }
     }
 
@@ -169,9 +170,12 @@ internal class Rerouter(
         val replaced =
             synchronized(lock) {
                 job.isActive &&
-                    when (result) {
-                        is RouteResult.Found -> store.replace(session, result.route, keptReference)
-                        else -> false.also { store.setStatus(session, result.failureStatus()) }
+                    run {
+                        lastFinished = FinishedReroute(session, finishedMs = nowMs())
+                        when (result) {
+                            is RouteResult.Found -> store.replace(session, result.route, keptReference)
+                            else -> false.also { store.setStatus(session, result.failureStatus()) }
+                        }
                     }
             }
         if (result is RouteResult.Found) {
@@ -179,11 +183,16 @@ internal class Rerouter(
         }
     }
 
-    // A reroute, the session it belongs to, and when it started on [nowMs]'s clock.
+    // A reroute and the session it belongs to.
     private class RunningReroute(
         val session: Long,
-        val startedMs: Long,
         val job: Job,
+    )
+
+    // When the last reroute that ended with a result did so, on [nowMs]'s clock, and its session.
+    private class FinishedReroute(
+        val session: Long,
+        val finishedMs: Long,
     )
 
     companion object {
