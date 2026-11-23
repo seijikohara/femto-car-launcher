@@ -19,14 +19,15 @@ import kotlin.test.assertEquals
 @Config(sdk = [33])
 class RoutePreferencesTest {
     @Test
-    fun `conditions round-trip and start as none`() =
+    fun `each update changes the stored conditions it names, starting from none`() =
         runTest {
             val store = RoutePreferences(ApplicationProvider.getApplicationContext())
             val initial = store.conditions.first()
 
-            store.setConditions(RouteConditions(avoidMotorways = true, avoidTolls = true))
+            store.update { it.copy(avoidMotorways = true) }
+            store.update { it.copy(avoidTolls = true) }
             val both = store.conditions.first()
-            store.setConditions(RouteConditions(avoidTolls = true))
+            store.update { it.copy(avoidMotorways = false) }
 
             assertEquals(RouteConditions(), initial)
             assertEquals(RouteConditions(avoidMotorways = true, avoidTolls = true), both)

@@ -296,11 +296,11 @@ internal class DestinationViewModel(
             }
 
             is DestinationAction.SetAvoidMotorways -> {
-                storeConditions(state.conditions.copy(avoidMotorways = action.on))
+                updateConditions { it.copy(avoidMotorways = action.on) }
             }
 
             is DestinationAction.SetAvoidTolls -> {
-                storeConditions(state.conditions.copy(avoidTolls = action.on))
+                updateConditions { it.copy(avoidTolls = action.on) }
             }
         }
     }
@@ -314,8 +314,10 @@ internal class DestinationViewModel(
         viewModelScope.launch { placesStore.add(label, target) }
     }
 
-    private fun storeConditions(conditions: RouteConditions) {
-        viewModelScope.launch { conditionsStore.setConditions(conditions) }
+    // Each chip changes its own condition on the stored value, not on what the
+    // panel showed: a second tap before the first is written must not undo it.
+    private fun updateConditions(transform: (RouteConditions) -> RouteConditions) {
+        viewModelScope.launch { conditionsStore.update(transform) }
     }
 
     // The conditions are read once, as the run starts, and travel with its two

@@ -698,6 +698,21 @@ class DestinationViewModelTest {
             assertEquals(routeConditions.conditions.value, viewModel.uiState.value.conditions)
         }
 
+    // A slow disk: the second tap comes before the first is written, and must not undo it.
+    @Test
+    fun two_chip_taps_back_to_back_both_land() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            val writes = routeConditions.holdWrites()
+
+            viewModel.onAction(DestinationAction.SetAvoidTolls(on = true))
+            viewModel.onAction(DestinationAction.SetAvoidMotorways(on = true))
+            writes.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(RouteConditions(avoidMotorways = true, avoidTolls = true), routeConditions.conditions.value)
+        }
+
     // The chip is changed while the run waits on the routing data on the device.
     @Test
     fun a_route_run_passes_the_conditions_read_at_its_start() =

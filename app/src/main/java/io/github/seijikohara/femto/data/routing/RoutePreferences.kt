@@ -24,7 +24,11 @@ internal interface RouteConditionsStore {
     /** The conditions the next route runs under: none until the driver picks one. */
     val conditions: Flow<RouteConditions>
 
-    suspend fun setConditions(conditions: RouteConditions)
+    /**
+     * Replace the stored conditions with [transform] of them, read and written in one step, so two chips tapped in
+     * quick succession each change their own condition rather than the second undoing the first.
+     */
+    suspend fun update(transform: (RouteConditions) -> RouteConditions)
 }
 
 internal class RoutePreferences(
@@ -32,10 +36,13 @@ internal class RoutePreferences(
 ) : RouteConditionsStore {
     override val conditions: Flow<RouteConditions> = context.routeDataStore.data.routeConditions()
 
-    override suspend fun setConditions(conditions: RouteConditions) {
+    // DataStore's edit runs one transaction at a time on the stored value.
+    override suspend fun update(transform: (RouteConditions) -> RouteConditions) {
         context.routeDataStore.editOrLog(TAG) { prefs ->
-            prefs[AvoidMotorwaysKey] = conditions.avoidMotorways
-            prefs[AvoidTollsKey] = conditions.avoidTolls
+            transform(prefs.toRouteConditions()).let { updated ->
+                prefs[AvoidMotorwaysKey] = updated.avoidMotorways
+                prefs[AvoidTollsKey] = updated.avoidTolls
+            }
         }
     }
 }
@@ -45,10 +52,7 @@ internal class RoutePreferences(
  * conditions, so a route still runs, the way it did before any was picked.
  */
 internal fun Flow<Preferences>.routeConditions(): Flow<RouteConditions> =
-    catchIoAsDefaults(TAG)
-        .map { prefs ->
-            RouteConditions(
-                avoidMotorways = prefs[AvoidMotorwaysKey] ?: false,
-                avoidTolls = prefs[AvoidTollsKey] ?: false,
-            )
-        }.distinctUntilChanged()
+    catchIoAsDefaults(TAG).map { it.toRouteConditions() }.distinctUntilChanged()
+
+private fun Preferences.toRouteConditions(): RouteConditions =
+    RouteConditions(avoidMotorways = this[AvoidMotorwaysKey] ?: false, avoidTolls = this[AvoidTollsKey] ?: false)
