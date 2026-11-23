@@ -9,7 +9,9 @@ import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.EngineOutcome
+import io.github.seijikohara.femto.data.routing.REFERENCE_PRUNE_GRACE_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_CHECK_INTERVAL_MS
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.FakeCurrentFixSource
@@ -17,10 +19,12 @@ import io.github.seijikohara.femto.testfixtures.FakeDownloadStop
 import io.github.seijikohara.femto.testfixtures.FakePlaceLocator
 import io.github.seijikohara.femto.testfixtures.FakeSavedPlacesStore
 import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
+import io.github.seijikohara.femto.testfixtures.HeldDispatcher
 import io.github.seijikohara.femto.testfixtures.RoutingFixture
 import io.github.seijikohara.femto.testfixtures.fakeEngineTrack
 import io.github.seijikohara.femto.testfixtures.fakeRoute
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +44,10 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -67,6 +74,9 @@ class DestinationViewModelTest {
     private var locationGranted = true
     private val currentFix = FakeCurrentFixSource()
 
+    // How often a route run has stopped the rerouter.
+    private var rerouteCancels = 0
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -86,6 +96,7 @@ class DestinationViewModelTest {
         motionFlow: Flow<VehicleMotion> = motion,
         routingAvailable: Boolean = false,
         placeLocator: FakePlaceLocator = FakePlaceLocator(),
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): DestinationViewModel {
         routing = RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler))
         return DestinationViewModel(
@@ -102,6 +113,8 @@ class DestinationViewModelTest {
             hasLocationPermission = { locationGranted },
             currentFix = currentFix,
             nowEpochMs = { routing.nowEpochMs },
+            cancelReroute = { rerouteCancels++ },
+            ioDispatcher = ioDispatcher,
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -591,7 +604,97 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
-            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(fakeRoute(), activeRoute.active.value?.route)
+        }
+
+    @Test
+    fun a_found_route_starts_a_session_with_the_destination_and_reference() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            routing.engine.writesReference = true
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            val active = assertNotNull(activeRoute.active.value)
+            val written = assertNotNull(
+                routing.engine.requests
+                    .single()
+                    .referenceOut,
+            )
+            assertEquals(RoutePoint(DESTINATION.latitude, DESTINATION.longitude), active.destination)
+            assertEquals(written, active.reference)
+            assertEquals(RerouteStatus.NONE, active.reroute)
+        }
+
+    @Test
+    fun a_found_route_deletes_the_references_of_earlier_routes() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            val earlier = earlierReference()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertFalse(earlier.exists())
+        }
+
+    @Test
+    fun the_references_are_pruned_off_the_main_thread() =
+        runTest {
+            val io = HeldDispatcher().apply { hold = true }
+            val viewModel = subscribedViewModel(routingAvailable = true, ioDispatcher = io)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            val earlier = earlierReference()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val keptUntilTheIoRuns = earlier.exists()
+
+            io.releaseNewestFirst()
+
+            assertEquals(true to false, keptUntilTheIoRuns to earlier.exists())
+        }
+
+    // A reference an earlier route left, written long enough ago that a prune may delete it.
+    private fun earlierReference(): File =
+        File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply {
+            writeText("x")
+            setLastModified(routing.nowEpochMs - 2 * REFERENCE_PRUNE_GRACE_MS)
+        }
+
+    @Test
+    fun a_route_run_cancels_a_running_reroute() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+
+            assertEquals(1, rerouteCancels)
+        }
+
+    // A reroute of the old route may start while the data downloads; the search after it must not wait for one.
+    @Test
+    fun the_search_after_a_download_cancels_a_running_reroute() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val gate = routing.feed.gateDownload()
+            viewModel.onAction(DestinationAction.ConfirmDownload)
+            advanceUntilIdle()
+            val cancelsBeforeTheSearch = rerouteCancels
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertEquals(cancelsBeforeTheSearch + 1, rerouteCancels)
         }
 
     @Test
@@ -682,7 +785,7 @@ class DestinationViewModelTest {
             gate.complete(Unit)
             advanceUntilIdle()
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
-            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(fakeRoute(), activeRoute.active.value?.route)
         }
 
     @Test
@@ -806,7 +909,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
-            assertNull(activeRoute.route.value)
+            assertNull(activeRoute.active.value?.route)
             assertEquals(emptyList(), routing.engine.requests)
         }
 
@@ -846,7 +949,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
-            assertNull(activeRoute.route.value)
+            assertNull(activeRoute.active.value?.route)
         }
 
     @Test
@@ -1026,7 +1129,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
-            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(fakeRoute(), activeRoute.active.value?.route)
             assertEquals(emptyList(), routing.feed.downloads)
             assertEquals(
                 routing.nowEpochMs,

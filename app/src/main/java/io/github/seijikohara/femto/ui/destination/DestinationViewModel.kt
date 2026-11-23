@@ -23,6 +23,7 @@ import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
 import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
+import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteResult
@@ -36,6 +37,8 @@ import io.github.seijikohara.femto.data.routing.tilesDueForCheck
 import io.github.seijikohara.femto.data.voice.SpeechInput
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import io.github.seijikohara.femto.data.voice.VoiceState
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +51,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Drives the destination panel: the query (typed, or dictated through
@@ -66,9 +70,13 @@ import kotlinx.coroutines.launch
  * A route on the launcher's own map (issue #389 phase 3) runs here too, while
  * [routingAvailable] says so: text becomes a position through [placeLocator],
  * missing routing data is sized and, on the driver's word, fetched through
- * [tiles], [planner] computes the route, and a found route becomes the one in
- * [activeRoute] that the dashboard draws. One route runs at a time; a new one
- * or [DestinationAction.DismissRoute] cancels the one under way. A route starts
+ * [tiles], [planner] computes the route, and a found route starts a new session
+ * in [activeRoute], with its destination and the engine's reference, which the
+ * dashboard draws and the rerouter routes again from. One route runs at a time;
+ * a new one or [DestinationAction.DismissRoute] cancels the one under way, and
+ * every route run stops a running reroute ([cancelReroute]) when it starts and
+ * again right before each search, so it never waits for the planner behind
+ * one. A route starts
  * from a fix still fresh at [nowElapsedRealtimeNanos], else from the position
  * [currentFix] finds on request; with neither it says whether the position or
  * [hasLocationPermission] is missing.
@@ -97,6 +105,9 @@ internal class DestinationViewModel(
     private val hasLocationPermission: () -> Boolean,
     private val currentFix: CurrentFixSource,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
+    private val cancelReroute: () -> Unit = {},
+    // Where the panel's own file work runs, off the main thread; tests pin it to their scheduler.
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -330,6 +341,7 @@ internal class DestinationViewModel(
 
     private fun runRoute(block: suspend () -> Unit) {
         routeJob?.cancel()
+        cancelReroute()
         routeJob = viewModelScope.launch { block() }
     }
 
@@ -359,10 +371,14 @@ internal class DestinationViewModel(
         val newer = newerTileSizes(needed)
         if (newer.isNotEmpty()) return offerDownload(ends, missing = tiles.missingTiles(needed), newer = newer)
         routeStep.value = RouteStep.Computing
+        // Checking or downloading data takes time, during which a reroute of the old route may have started.
+        cancelReroute()
         when (val result = planner.route(ends.origin, ends.destination)) {
             is RouteResult.Found -> {
-                activeRoute.set(result.route)
+                activeRoute.start(result.route, ends.destination, result.reference)
                 routeStep.value = RouteStep.Done
+                // The new session replaced every earlier route, whose references no reroute reads again.
+                withContext(ioDispatcher) { planner.pruneReferences(setOfNotNull(result.reference)) }
             }
 
             is RouteResult.MissingTiles -> {
@@ -525,7 +541,8 @@ private fun PlaceTarget.Point.toRoutePoint(): RoutePoint = RoutePoint(latitude =
  * the routing stack: the build's `routing_enabled` flag with the map backend,
  * the platform geocoder, the shared planner and tile store, the one active
  * route the dashboard reads, the boot clock and location grant a route's start
- * is judged by, and the platform's answer to where the device is now.
+ * is judged by, the platform's answer to where the device is now, and the
+ * shared rerouter a route run stops.
  */
 internal val DestinationViewModelFactory =
     viewModelFactory {
@@ -549,6 +566,7 @@ internal val DestinationViewModelFactory =
                 nowElapsedRealtimeNanos = SystemClock::elapsedRealtimeNanos,
                 hasLocationPermission = application::hasLocationPermission,
                 currentFix = PlatformCurrentFixSource(application),
+                cancelReroute = Rerouter.get(application)::cancel,
             )
         }
     }

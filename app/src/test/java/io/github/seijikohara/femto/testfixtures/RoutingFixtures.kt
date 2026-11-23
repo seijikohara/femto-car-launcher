@@ -8,6 +8,7 @@ import io.github.seijikohara.femto.data.routing.EnginePosition
 import io.github.seijikohara.femto.data.routing.ROUTE_TIME_LIMIT_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_HOST_PREFIX
 import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RoutingProfileFiles
@@ -28,7 +29,7 @@ internal class RoutingFixture(
     private val dispatcher: CoroutineDispatcher,
     /** The bytes the store's volume can still allocate. */
     var freeBytes: Long = PLENTY_OF_ROOM_BYTES,
-    /** The store's wall clock, which dates each check of a tile. */
+    /** The wall clock of the store, which dates each check of a tile, and of the planner, which ages each reference. */
     var nowEpochMs: Long = FIXTURE_EPOCH_MS,
 ) {
     val feed = FakeRemoteFileFeed()
@@ -45,6 +46,9 @@ internal class RoutingFixture(
 
     val profilesDir: File get() = File(root, "routing/profiles")
 
+    /** Where the planner keeps the engine's references, as the app's cache directory holds them. */
+    val referenceDir: File get() = File(root, "routing-references")
+
     fun planner(
         engine: FakeRouteEngine = this.engine,
         profiles: RoutingProfileFiles = RoutingProfileFiles(profilesDir) { FakeRoutingProfileBytes.inputStream() },
@@ -55,11 +59,13 @@ internal class RoutingFixture(
         RoutePlanner(
             tiles = tiles,
             profiles = profiles,
+            referenceDir = referenceDir,
             engine = engine,
             timeLimitMs = timeLimitMs,
             ioDispatcher = dispatcher,
             engineDispatcher = engineDispatcher,
             nanoTime = nanoTime,
+            nowEpochMs = { nowEpochMs },
         )
 
     fun installTile(name: String) = installRoutingTile(root, name)
@@ -197,6 +203,22 @@ internal fun fakeParallelRoadsRoute(): Route =
         points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.0, 0.1), RoutePoint(0.002, 0.1), RoutePoint(0.002, 0.0)),
         distanceMeters = 22_461,
         durationSeconds = 1_200,
+    )
+
+/** A fix at [point] taken at [elapsedMs] on the boot clock, moving at 10 m/s unless [speedMetersPerSecond] says not. */
+internal fun fakeRouteFix(
+    point: RoutePoint,
+    elapsedMs: Long,
+    speedMetersPerSecond: Float? = 10f,
+    accuracyMeters: Float? = null,
+    bearingDegrees: Float? = null,
+): RouteFix =
+    RouteFix(
+        point = point,
+        accuracyMeters = accuracyMeters,
+        speedMetersPerSecond = speedMetersPerSecond,
+        bearingDegrees = bearingDegrees,
+        elapsedMs = elapsedMs,
     )
 
 /** A short route in the routing tile E130_N30, as the planner returns one. */

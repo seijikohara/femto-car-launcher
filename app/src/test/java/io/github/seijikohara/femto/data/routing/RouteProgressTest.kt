@@ -4,7 +4,9 @@ import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
 import io.github.seijikohara.femto.testfixtures.fakeParallelRoadsRoute
 import io.github.seijikohara.femto.testfixtures.fakeRoute
+import io.github.seijikohara.femto.testfixtures.fakeRouteFix
 import io.github.seijikohara.femto.testfixtures.fakeSameRoadOutAndBackRoute
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -191,18 +193,43 @@ class RouteProgressTest {
     }
 
     @Test
-    fun `the progress flow starts with the whole route and carries each fix to the next`() =
+    fun `the follow flow starts with the whole route and carries each fix to the next`() =
         runTest {
             val outAndBack = fakeOutAndBackRoute()
+            val fixes =
+                flowOf(
+                    null,
+                    fakeRouteFix(RoutePoint(0.0, 0.029), elapsedMs = 0L),
+                    fakeRouteFix(RoutePoint(0.00015, 0.03), elapsedMs = 1_000L),
+                )
 
-            val progress =
-                outAndBack
-                    .progressFlow(flowOf(null, RoutePoint(0.0, 0.029), RoutePoint(0.00015, 0.03)))
-                    .toList()
+            val progress = outAndBack.followFlow(fixes).toList().map { it.progress }
 
             assertEquals(3, progress.size)
             assertEquals(RouteProgress(OUT_AND_BACK_METERS.toDouble(), OUT_AND_BACK_SECONDS.toDouble()), progress[0])
             assertEquals(OUT_AND_BACK_LEFT_AT_0_03_OUT, progress[2].remainingMeters, TOLERANCE_METERS)
+        }
+
+    // --- Leaving the line ---------------------------------------------------
+
+    @Test
+    fun `offLineMeters is zero on the line and the perpendicular distance beside it`() {
+        val beside = RoutePoint(latitude = 100.0 / METERS_PER_DEGREE, longitude = 0.1)
+
+        assertEquals(0.0, line.offLineMeters(RoutePoint(0.0, 0.1)), TOLERANCE_METERS)
+        assertEquals(100.0, line.offLineMeters(beside), TOLERANCE_METERS)
+    }
+
+    @Test
+    fun `followFlow emits LeftRoute from the fixes`() =
+        runTest {
+            // On the line at 0 s, then about 110 m north of it, moving, a fix a second for six seconds.
+            val onLine = fakeRouteFix(RoutePoint(0.0, 0.05), elapsedMs = 0L)
+            val offLine = (1..6).map { second -> fakeRouteFix(RoutePoint(0.001, 0.05), elapsedMs = second * 1_000L) }
+
+            val events = route.followFlow((listOf(onLine) + offLine).asFlow()).toList().mapNotNull { it.event }
+
+            assertEquals(listOf<FollowEvent>(FollowEvent.LeftRoute(offLine.last())), events)
         }
 
     private companion object {

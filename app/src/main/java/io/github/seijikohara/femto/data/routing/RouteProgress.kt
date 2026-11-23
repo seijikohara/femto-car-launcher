@@ -99,8 +99,8 @@ internal class RouteLine(
         position: RoutePoint,
         previous: LinePosition,
     ): LinePosition {
-        val x = longitudeDelta(position.longitude, originLongitude) * scaleX
-        val y = (position.latitude - originLatitude) * METERS_PER_DEGREE
+        val x = xOf(position)
+        val y = yOf(position)
         val from = (previous.travelledMeters - BACKTRACK_METERS).coerceAtLeast(0.0)
         return segments()
             .filter { travelledAt[it + 1] >= from }
@@ -143,6 +143,20 @@ internal class RouteLine(
             RouteProgress(remainingMeters = distanceMeters * share, remainingSeconds = durationSeconds * share)
         }
 
+    /**
+     * Return the distance from [position] to the nearest point of the whole line, in the line's plane. A line without
+     * a segment has nowhere to leave, so every position is on it.
+     */
+    fun offLineMeters(position: RoutePoint): Double {
+        val x = xOf(position)
+        val y = yOf(position)
+        return segments().minOfOrNull { nearestOn(it, x, y, from = 0.0).distanceSquared }?.let(::sqrt) ?: 0.0
+    }
+
+    private fun xOf(position: RoutePoint): Double = longitudeDelta(position.longitude, originLongitude) * scaleX
+
+    private fun yOf(position: RoutePoint): Double = (position.latitude - originLatitude) * METERS_PER_DEGREE
+
     private fun segments(): Sequence<Int> = (0 until xs.size - 1).asSequence()
 
     // The point of segment [i] nearest (x, y), kept at or past [from] along the line.
@@ -172,21 +186,46 @@ internal class RouteLine(
     }
 }
 
+/** What [followFlow] reports at a fix: what is left of the route, and what the off-route watch noticed there. */
+internal data class RouteFollow(
+    val progress: RouteProgress,
+    val event: FollowEvent?,
+)
+
 /**
- * What is left of this route from each fix in [positions], each placed on the line from where the last one lay
- * ([RouteLine.follow]); the whole route until the first fix. The line is flattened once, when the flow is collected.
+ * What is left of this route from each fix in [fixes], each placed on the line from where the last one lay
+ * ([RouteLine.follow]), and whether the vehicle has left the route ([OffRouteWatch]); the whole route until the first
+ * fix. Emits when the progress changes or the watch raises an event. The line is flattened once, when the flow is
+ * collected, and each fix costs one more pass over it, for its distance from the whole line.
  */
-internal fun Route.progressFlow(positions: Flow<RoutePoint?>): Flow<RouteProgress> =
+internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
     flow {
-        val line = RouteLine(this@progressFlow)
+        val line = RouteLine(this@followFlow)
         emitAll(
-            positions
+            fixes
                 .filterNotNull()
-                .runningFold(LinePosition.Start) { previous, position -> line.follow(position, previous) }
-                .distinctUntilChanged()
-                .map(line::progressAt),
+                .runningFold(FollowStep(LinePosition.Start, line.progressAt(LinePosition.Start), OffRouteWatch())) {
+                    step,
+                    fix,
+                    ->
+                    val position = line.follow(fix.point, step.position)
+                    val progress = line.progressAt(position)
+                    FollowStep(
+                        position = position,
+                        progress = progress,
+                        watch = step.watch.advance(fix, line.offLineMeters(fix.point), progress.remainingMeters),
+                    )
+                }.map { step -> RouteFollow(step.progress, step.watch.event) }
+                .distinctUntilChanged(),
         )
     }
+
+// The follow's state between fixes: where the last fix lay on the line, what was left from there, and the watch.
+private data class FollowStep(
+    val position: LinePosition,
+    val progress: RouteProgress,
+    val watch: OffRouteWatch,
+)
 
 // A segment's point nearest a fix: the squared distance to it, and the length of line behind it.
 private data class LineMatch(

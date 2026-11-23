@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.data.system.SystemStatus
@@ -53,8 +54,12 @@ internal data class HomeUiState(
     }
 }
 
-/** The active route as the dashboard shows it: its [line] in travel order and what is left of it from the last fix. */
+/**
+ * The active route as the dashboard shows it: its [line] in travel order, what is left of it from the last fix, and
+ * where an automatic reroute of it stands.
+ */
 internal data class ActiveRouteState(
     val line: List<RoutePoint>,
     val progress: RouteProgress,
+    val reroute: RerouteStatus = RerouteStatus.NONE,
 )

@@ -33,16 +33,21 @@ import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.location.isGpsFix
 import io.github.seijikohara.femto.data.location.vehicleMotionFlow
 import io.github.seijikohara.femto.data.location.withParkedDwell
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
+import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
-import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.FollowEvent
+import io.github.seijikohara.femto.data.routing.RerouteStatus
+import io.github.seijikohara.femto.data.routing.Rerouter
+import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePoint
-import io.github.seijikohara.femto.data.routing.progressFlow
+import io.github.seijikohara.femto.data.routing.followFlow
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.system.SystemStatus
 import io.github.seijikohara.femto.data.system.SystemStatusRepository
@@ -68,10 +73,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -120,9 +127,13 @@ internal class HomeViewModel(
     // The active route (ActiveRouteStore) and whether this build and map backend
     // offer routing (routingAvailableFlow). Default to none and off, so previews
     // and tests that do not exercise routing show none of it.
-    routeFlow: Flow<Route?> = flowOf(null),
+    activeRouteFlow: Flow<ActiveRoute?> = flowOf(null),
     routingAvailable: Flow<Boolean> = flowOf(false),
     private val clearRoute: () -> Unit = {},
+    // Where the follow reports that the vehicle left the route of a session, and
+    // that it is back on it (the Rerouter).
+    onLeftRoute: (session: Long, fix: RouteFix) -> Unit = { _, _ -> },
+    onBackOnRoute: (session: Long) -> Unit = {},
     // Where the active route's progress is worked out; tests pin it to their
     // scheduler.
     routeDispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -176,23 +187,56 @@ internal class HomeViewModel(
 
     // The active route while routing is offered here, else none: a switch to
     // the Google backend hides it, and a switch back shows it again. Its
-    // progress follows each fix along the line (Route.progressFlow), a pass
+    // progress follows each fix along the line (Route.followFlow), a pass
     // over the route's points, so it runs here on the route and the fixes
     // alone, off the main thread, rather than in the combine below, which
     // every card's update re-runs. With no route it reads no fix and does no
     // work. Seeded with none, like the update badge, so the dashboard never
     // waits on the settings store.
+    //
+    // Each fix as the route follow reads it. Cheap GPS receivers leave the
+    // speed unset while moving, so a GPS fix without one takes the trip's
+    // position-derived speed, read as the fix arrives; a trip update alone
+    // is no new fix. A network fix stays without a speed, so the off-route
+    // watch leaves it out.
+    private val routeFixes: Flow<RouteFix?> =
+        combine(
+            locationFlow.catchAsDefault(TAG, "route location", null),
+            tripStateFlow.catchAsDefault(TAG, "route trip speed", HomeUiState.Initial.tripState),
+        ) { location, trip -> location to trip.currentSpeedMs }
+            .distinctUntilChanged { old, new -> old.first === new.first }
+            .map { (location, tripSpeedMs) -> location?.toRouteFix(tripSpeedMs) }
+
+    // The follow also watches for the vehicle leaving the route and reports it
+    // with the route's session. It restarts on a new session or a new route (a
+    // reroute's), never on a reroute status alone: a restart would put the
+    // progress back to the start of the line and the off-route watch back to
+    // unarmed. The status joins in beside it.
     private val activeRoute: Flow<ActiveRouteState?> =
-        combine(routeFlow, routingAvailable) { route, available -> route?.takeIf { available } }
-            .distinctUntilChanged()
-            .flatMapLatest { route ->
-                route?.let { shown ->
-                    shown
-                        .progressFlow(
-                            locationFlow
-                                .catchAsDefault(TAG, "route location", null)
-                                .map { it?.toRoutePoint() },
-                        ).map { progress -> ActiveRouteState(line = shown.points, progress = progress) }
+        combine(activeRouteFlow, routingAvailable) { active, available -> active?.takeIf { available } }
+            .distinctUntilChangedBy { it?.session to it?.route }
+            .flatMapLatest { active ->
+                active?.let { shown ->
+                    combine(
+                        shown.route
+                            .followFlow(routeFixes)
+                            .onEach { follow ->
+                                when (val event = follow.event) {
+                                    is FollowEvent.LeftRoute -> onLeftRoute(shown.session, event.fix)
+                                    FollowEvent.BackOnRoute -> onBackOnRoute(shown.session)
+                                    null -> Unit
+                                }
+                            },
+                        activeRouteFlow
+                            .map { current -> current?.takeIf { it.session == shown.session }?.reroute }
+                            .distinctUntilChanged(),
+                    ) { follow, reroute ->
+                        ActiveRouteState(
+                            line = shown.route.points,
+                            progress = follow.progress,
+                            reroute = reroute ?: RerouteStatus.NONE,
+                        )
+                    }
                 } ?: flowOf(null)
             }.flowOn(routeDispatcher)
             .onStart { emit(null) }
@@ -453,7 +497,18 @@ internal class HomeViewModel(
     }
 }
 
-private fun Location.toRoutePoint(): RoutePoint = RoutePoint(latitude = latitude, longitude = longitude)
+// Each reading only when the fix carries it: a missing speed must read as unknown, not as standing still. A GPS fix
+// without one takes [tripSpeedMs], the trip's speed from the positions; a network fix's position is too coarse for it.
+private fun Location.toRouteFix(tripSpeedMs: Double): RouteFix =
+    RouteFix(
+        point = RoutePoint(latitude = latitude, longitude = longitude),
+        accuracyMeters = accuracy.takeIf { hasAccuracy() },
+        speedMetersPerSecond = speed.takeIf { hasSpeed() } ?: tripSpeedMs.toFloat().takeIf { isGpsFix() },
+        bearingDegrees = bearing.takeIf { hasBearing() },
+        elapsedMs = elapsedRealtimeNanos / NANOS_PER_MILLI,
+    )
+
+private const val NANOS_PER_MILLI = 1_000_000L
 
 // File-private holder that groups the first five slots (four sources and the
 // update badge) so the two-stage combine stays within Kotlin's typed
@@ -581,13 +636,18 @@ internal class HomeViewModelFactory(
                     .map { it.musicSpectrum }
                     .distinctUntilChanged(),
             spectrumBandsFor = audioSpectrum::bandsFlow,
-            routeFlow = ActiveRouteStore.shared.route,
+            activeRouteFlow = ActiveRouteStore.shared.active,
             routingAvailable =
                 routingAvailableFlow(
                     enabled = application.resources.getBoolean(R.bool.routing_enabled),
                     settings = displayPreferences.settings,
                 ),
             clearRoute = ActiveRouteStore.shared::clear,
+            // Resolved at the first report, which only an active route can make,
+            // so a build without routing never creates the rerouter or the
+            // routing stack behind it.
+            onLeftRoute = { session, fix -> Rerouter.get(application).onLeftRoute(session, fix) },
+            onBackOnRoute = { session -> Rerouter.get(application).onBackOnRoute(session) },
         ) as T
     }
 }
