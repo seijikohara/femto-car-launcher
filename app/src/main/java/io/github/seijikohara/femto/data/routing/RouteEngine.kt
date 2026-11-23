@@ -26,6 +26,8 @@ internal data class EngineRequest(
     val referenceIn: File? = null,
     /** Where the engine writes a found route as the reference for a later search to the same destination. */
     val referenceOut: File? = null,
+    /** The profile's parameters by name, overriding the profile's own values ([engineParameters]). */
+    val parameters: Map<String, String> = emptyMap(),
 )
 
 /** A position as the engine stores it: micro-degrees offset by +180° (longitude) and +90° (latitude). */

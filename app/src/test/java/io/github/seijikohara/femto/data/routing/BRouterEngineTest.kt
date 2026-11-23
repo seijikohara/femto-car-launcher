@@ -5,6 +5,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 
 /**
  * BRouter itself, with the shipped lookup table and profile, on an empty segment directory. The search ends at the
@@ -26,12 +27,35 @@ class BRouterEngineTest {
         assertEquals(RouteResult.MissingTiles(listOf("W60_S35")), search(BUENOS_AIRES, MENDOZA))
     }
 
+    // The search gets as far as the tiles only once the profile has parsed with the parameters in place.
+    @Test
+    fun `a request with every condition still parses the profile`() {
+        val parameters = RouteConditions(avoidMotorways = true, avoidTolls = true).engineParameters()
+
+        assertEquals(RouteResult.MissingTiles(listOf("E130_N30")), search(MATSUYAMA, OSAKA, parameters))
+    }
+
+    // Why the parameters say "1": a profile given "true" for a boolean does not parse.
+    @Test
+    fun `a boolean parameter given as true does not parse`() {
+        assertFails { search(MATSUYAMA, OSAKA, mapOf("avoid_toll" to "true")) }
+    }
+
     private fun search(
         origin: RoutePoint,
         destination: RoutePoint,
+        parameters: Map<String, String> = emptyMap(),
     ): RouteResult {
         val profile = RoutingProfileFiles(tempFolder.newFolder()) { shippedAssetFile(it).inputStream() }.prepare()
-        val request = EngineRequest(profile, tempFolder.newFolder(), origin, destination, ENGINE_MEMORY_CLASS_MB)
+        val request =
+            EngineRequest(
+                profile = profile,
+                segmentDir = tempFolder.newFolder(),
+                origin = origin,
+                destination = destination,
+                memoryClassMb = ENGINE_MEMORY_CLASS_MB,
+                parameters = parameters,
+            )
         return BRouterEngine.prepare(request).run(ROUTE_TIME_LIMIT_MS).toRouteResult()
     }
 

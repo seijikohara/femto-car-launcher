@@ -47,19 +47,33 @@ class RerouterTest {
     fun `leaving the route routes again from the fix to the same destination with the reference and heading`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
 
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
-            assertEquals(listOf(RerouteCall(LEFT_AT.point, DESTINATION, 92, REFERENCE)), planner.calls)
+            assertEquals(listOf(RerouteCall(LEFT_AT.point, DESTINATION, 92, REFERENCE, NO_CONDITIONS)), planner.calls)
+        }
+
+    // The driver may have picked other conditions for the next route since this one was found.
+    @Test
+    fun `a reroute uses the session's conditions`() =
+        runTest {
+            val rerouter = rerouter()
+            val conditions = RouteConditions(avoidMotorways = true, avoidTolls = true)
+            val session = store.start(ROUTE, DESTINATION, conditions, REFERENCE)
+
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertEquals(listOf(conditions), planner.calls.map { it.conditions })
         }
 
     @Test
     fun `a found reroute replaces the route in the same session and clears the status`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.answer.complete(RouteResult.Found(REROUTED, NEW_REFERENCE))
 
             rerouter.onLeftRoute(session, LEFT_AT)
@@ -74,7 +88,7 @@ class RerouterTest {
     fun `a found reroute without a reference of its own keeps the session's reference for the next one`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.answer.complete(RouteResult.Found(REROUTED, reference = null))
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
@@ -94,7 +108,7 @@ class RerouterTest {
     fun `the status says rerouting while a reroute runs`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
 
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
@@ -139,7 +153,7 @@ class RerouterTest {
     fun `a reroute that gets no answer within its deadline says failed`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
@@ -158,7 +172,7 @@ class RerouterTest {
     fun `a second LeftRoute while one runs is ignored`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
@@ -173,7 +187,7 @@ class RerouterTest {
     fun `a LeftRoute within the minimum interval is ignored`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.answer.complete(RouteResult.Failed("no track found"))
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
@@ -189,7 +203,7 @@ class RerouterTest {
     fun `after the interval it routes again`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.answer.complete(RouteResult.Failed("no track found"))
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
@@ -205,7 +219,7 @@ class RerouterTest {
     fun `a reroute that ran thirty seconds holds the next for thirty seconds after it ended`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.computingMs = REROUTE_MIN_INTERVAL_MS
             planner.answer.complete(RouteResult.Failed("no track found"))
             rerouter.onLeftRoute(session, LEFT_AT)
@@ -227,7 +241,7 @@ class RerouterTest {
     fun `after a reroute that back on the route cancelled, the next LeftRoute reroutes at once`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
             rerouter.onBackOnRoute(session)
@@ -244,13 +258,13 @@ class RerouterTest {
     fun `a new session may reroute at once`() =
         runTest {
             val rerouter = rerouter()
-            val first = store.start(ROUTE, DESTINATION, REFERENCE)
+            val first = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.answer.complete(RouteResult.Failed("no track found"))
             rerouter.onLeftRoute(first, LEFT_AT)
             runCurrent()
 
             nowMs += 1_000L
-            val second = store.start(REROUTED, DESTINATION, NEW_REFERENCE)
+            val second = store.start(REROUTED, DESTINATION, NO_CONDITIONS, NEW_REFERENCE)
             rerouter.onLeftRoute(second, LEFT_AT)
             runCurrent()
 
@@ -261,8 +275,8 @@ class RerouterTest {
     fun `a reroute for an old session does nothing`() =
         runTest {
             val rerouter = rerouter()
-            val old = store.start(ROUTE, DESTINATION, REFERENCE)
-            val current = store.start(ROUTE, DESTINATION, REFERENCE)
+            val old = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+            val current = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
 
             rerouter.onLeftRoute(old, LEFT_AT)
             runCurrent()
@@ -275,7 +289,7 @@ class RerouterTest {
     fun `clearing the route cancels a running reroute and drops its result`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
@@ -292,11 +306,11 @@ class RerouterTest {
     fun `a new route cancels a running reroute`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
-            val next = store.start(REROUTED, DESTINATION, NEW_REFERENCE)
+            val next = store.start(REROUTED, DESTINATION, NO_CONDITIONS, NEW_REFERENCE)
             runCurrent()
 
             assertTrue(planner.cancelled)
@@ -307,7 +321,7 @@ class RerouterTest {
     fun `cancel stops a running reroute`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
@@ -323,7 +337,7 @@ class RerouterTest {
     fun `a found route cancelled before it is put in place deletes its reference`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             val written = tempFolder.newFile("route-3.bin")
             planner.beforeAnswering = {
                 onClockRead = {
@@ -345,7 +359,7 @@ class RerouterTest {
     fun `a found route that arrives after the reroute was cancelled deletes its reference`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             val written = tempFolder.newFile("route-3.bin")
             planner.beforeAnswering = { rerouter.cancel() }
             planner.answer.complete(RouteResult.Found(REROUTED, written))
@@ -361,7 +375,7 @@ class RerouterTest {
     fun `a cancelled reroute leaves the old line without a status`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
@@ -386,7 +400,7 @@ class RerouterTest {
     fun `back on the route cancels a running reroute and clears its status`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
@@ -418,7 +432,7 @@ class RerouterTest {
     fun `no heading is passed for a fix without bearing or below the moving floor`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
             planner.answer.complete(RouteResult.Failed("no track found"))
             val withoutBearing = LEFT_AT.copy(bearingDegrees = null)
             val standing = LEFT_AT.copy(speedMetersPerSecond = 0.2f)
@@ -436,7 +450,7 @@ class RerouterTest {
     fun `stats count reroutes and record whether a reference was used`() =
         runTest {
             val rerouter = rerouter()
-            val session = store.start(ROUTE, DESTINATION, reference = null)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, reference = null)
             planner.computingMs = 70L
             planner.answer.complete(RouteResult.Found(REROUTED, NEW_REFERENCE))
             rerouter.onLeftRoute(session, LEFT_AT)
@@ -460,7 +474,7 @@ class RerouterTest {
         result: RouteResult,
         rerouter: Rerouter = rerouter(),
     ): Long {
-        val session = store.start(ROUTE, DESTINATION, REFERENCE)
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
         planner.answer.complete(result)
         rerouter.onLeftRoute(session, LEFT_AT)
         runCurrent()
@@ -470,7 +484,7 @@ class RerouterTest {
     // A session whose one reroute answers [result] only after the vehicle is back on the route; returns the session.
     private fun TestScope.rerouteAnsweredAfterBackOnRoute(result: RouteResult): Long {
         val rerouter = rerouter()
-        val session = store.start(ROUTE, DESTINATION, REFERENCE)
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
         planner.beforeAnswering = { rerouter.onBackOnRoute(session) }
         planner.answer.complete(result)
         rerouter.onLeftRoute(session, LEFT_AT)
@@ -483,6 +497,7 @@ class RerouterTest {
         val destination: RoutePoint,
         val headingDegrees: Int?,
         val reference: File?,
+        val conditions: RouteConditions,
     )
 
     // The planner as the rerouter sees it: every call is recorded, takes [computingMs] on the test's clock, waits for
@@ -499,8 +514,9 @@ class RerouterTest {
             destination: RoutePoint,
             headingDegrees: Int?,
             reference: File?,
+            conditions: RouteConditions,
         ): RouteResult {
-            calls += RerouteCall(origin, destination, headingDegrees, reference)
+            calls += RerouteCall(origin, destination, headingDegrees, reference, conditions)
             nowMs += computingMs
             return try {
                 answer.await().also { beforeAnswering() }
@@ -518,6 +534,7 @@ class RerouterTest {
         val DESTINATION = RoutePoint(latitude = 34.07, longitude = 133.0)
         val REFERENCE = File("route-1.bin")
         val NEW_REFERENCE = File("route-2.bin")
+        val NO_CONDITIONS = RouteConditions()
 
         // Moving east-north-east, 92.4° rounding to 92.
         val LEFT_AT = fakeRouteFix(RoutePoint(33.9, 132.8), elapsedMs = 60_000L, bearingDegrees = 92.4f)

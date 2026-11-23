@@ -94,13 +94,15 @@ internal class RoutePlanner(
     /**
      * Compute a route from [origin] to [destination]; the tiles around both must be installed first. A [reference]
      * from an earlier [RouteResult.Found] to the same destination lets the search stop where it rejoins that route,
-     * and [startHeadingDegrees] keeps the route from opening with a U-turn. The search stops after [timeLimitMs].
+     * and [startHeadingDegrees] keeps the route from opening with a U-turn. The route avoids what [conditions] ask
+     * it to, and every search runs at [ROUTE_TARGET_SPEED_KMH]. The search stops after [timeLimitMs].
      */
     suspend fun route(
         origin: RoutePoint,
         destination: RoutePoint,
         startHeadingDegrees: Int? = null,
         reference: File? = null,
+        conditions: RouteConditions = RouteConditions(),
         timeLimitMs: Long = this.timeLimitMs,
     ): RouteResult =
         lock.withLock {
@@ -110,7 +112,8 @@ internal class RoutePlanner(
                     .missingTiles(routingTilesAround(origin, destination))
                     .takeIf { it.isNotEmpty() }
                     ?.let(RouteResult::MissingTiles)
-                    ?: search(origin, destination, startHeadingDegrees, reference, timeLimitMs).withoutNoDataTiles()
+                    ?: search(origin, destination, startHeadingDegrees, reference, conditions, timeLimitMs)
+                        .withoutNoDataTiles()
             ).also { result ->
                 lastRun = RouteRun(result.runOutcome(), computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI)
             }
@@ -160,6 +163,7 @@ internal class RoutePlanner(
         destination: RoutePoint,
         startHeadingDegrees: Int?,
         reference: File?,
+        conditions: RouteConditions,
         timeLimitMs: Long,
     ): RouteResult {
         val referenceOut = File(referenceDir, "route-${System.nanoTime()}-${++referenceCount}.bin")
@@ -183,6 +187,7 @@ internal class RoutePlanner(
                                     startHeadingDegrees = startHeadingDegrees,
                                     referenceIn = reference,
                                     referenceOut = referenceOut,
+                                    parameters = conditions.engineParameters(),
                                 ),
                             ).runTerminable(timeLimitMs)
                             .toRouteResult()

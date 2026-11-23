@@ -24,6 +24,7 @@ import io.github.seijikohara.femto.data.places.SavedPlacesStore
 import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.Rerouter
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteResult
@@ -375,7 +376,7 @@ internal class DestinationViewModel(
         cancelReroute()
         when (val result = planner.route(ends.origin, ends.destination)) {
             is RouteResult.Found -> {
-                activeRoute.start(result.route, ends.destination, result.reference)
+                activeRoute.start(result.route, ends.destination, RouteConditions(), result.reference)
                 routeStep.value = RouteStep.Done
                 // The new session replaced every earlier route, whose references no reroute reads again.
                 withContext(ioDispatcher) { planner.pruneReferences(setOfNotNull(result.reference)) }
