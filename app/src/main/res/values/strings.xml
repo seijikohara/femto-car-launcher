@@ -197,6 +197,8 @@
     <string name="destination_no_saved_places">No saved places yet. Save a search or your current location while stopped.</string>
     <!-- %1$s = the saved place's label -->
     <string name="destination_delete_place">Delete %1$s</string>
+    <!-- What a tap on a saved place does, for screen readers; %1$s = the saved place's label -->
+    <string name="destination_open_place">Open %1$s in maps app</string>
     <!-- Route preview (issue #389 phase 3, nightly builds only): a route on the launcher's own map. -->
     <string name="destination_route">Show route</string>
     <!-- %1$s = the saved place's label -->

@@ -604,8 +604,12 @@ private fun SavedPlaceRow(
                 .weight(1f)
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .clip(MaterialTheme.shapes.medium)
-                .clickable(enabled = navigable, onClick = onNavigate)
-                .alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
+                // The row reads as the place's name; the label says the tap leaves the launcher.
+                .clickable(
+                    enabled = navigable,
+                    onClickLabel = stringResource(R.string.destination_open_place, place.label),
+                    onClick = onNavigate,
+                ).alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
                 .padding(horizontal = FemtoDimens.CardSectionGap),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),

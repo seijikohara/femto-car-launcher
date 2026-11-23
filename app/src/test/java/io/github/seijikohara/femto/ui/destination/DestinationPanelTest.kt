@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -88,6 +89,16 @@ class DestinationPanelTest {
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+
+    // Screen readers announce the place's name; the click label says the tap leaves the launcher.
+    @Test
+    fun a_saved_place_row_says_its_tap_opens_the_maps_app() {
+        setPanel(stationary = true)
+
+        val onClick = rule.onNodeWithText("Office").fetchSemanticsNode().config[SemanticsActions.OnClick]
+
+        assertEquals("Open Office in maps app", onClick.label)
     }
 
     // A tap on a chip types nothing, so it works while moving, as a saved place does.
