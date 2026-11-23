@@ -160,7 +160,7 @@ class PanelScreenshotTest {
         capture("apps-panel-head-unit-853x512-dark", darkTheme = true) { AppsPanelSample() }
 
     // Destination panel with route preview (issue #389 phase 3, nightly builds
-    // only): Route beside Navigate and on each saved place, the route condition
+    // only): Show route beside Open in maps app and on each saved place, the route condition
     // chips under it (one on), then the download confirmation that takes the
     // panel's body over. The tests run the stable build, where routing is off,
     // so the state turns it on explicitly.
@@ -179,7 +179,7 @@ class PanelScreenshotTest {
         }
 
     // The panel a long press on the map opens: the picked point in place of
-    // the search, with Navigate and Route.
+    // the search, with Open in maps app and Show route.
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun destination_panel_map_point_head_unit() =

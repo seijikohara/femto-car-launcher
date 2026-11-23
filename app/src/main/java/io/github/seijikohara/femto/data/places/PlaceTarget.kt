@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 
 /**
  * Where a destination points: a free-text [Query] the navigation app searches
- * for, or a fixed [Point]. Navigate hands the target to whichever app handles
+ * for, or a fixed [Point]. Open in maps app hands the target to whichever app handles
  * `geo:` (see [geoHandoffUri]) unresolved. Only a route on the launcher's own
  * map resolves a [Query] itself, through the device's geocoder
  * (`PlaceLocator`).

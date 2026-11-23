@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
  * keyboard that stays up as the vehicle pulls away cannot type, save or
  * delete: every edit that involves typing is dropped while moving. A voice
  * result fills the query in any motion state but never hands off by itself;
- * the user still taps Navigate. The hand-off is not an action here: the
+ * the user still taps Open in maps app. The hand-off is not an action here: the
  * panel raises it to the dashboard, whose ViewModel owns the launch events.
  * Whether any app can take the hand-off does live here: each
  * [DestinationAction.CheckHandOff] asks [hasHandOffTarget] again.
