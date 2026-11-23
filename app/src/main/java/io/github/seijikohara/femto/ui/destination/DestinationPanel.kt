@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -53,10 +54,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Mic
-import com.composables.icons.lucide.Navigation
 import com.composables.icons.lucide.Route
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Trash2
@@ -67,6 +69,7 @@ import io.github.seijikohara.femto.data.common.hasRecordAudioPermission
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
@@ -95,14 +98,18 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * so a driver can still set a destination without typing.
  *
  * With no app to take a destination ([DestinationUiState.handOffAvailable]),
- * Navigate, the keyboard's Go key and the saved places hand off nothing, and
- * the same line says why; typing and saving still work for later.
+ * Open in maps app, the keyboard's Go key and the saved places hand off
+ * nothing, and the same line says why; typing and saving still work for later.
+ * Open in maps app carries the external-link icon of the header's link, since
+ * it too leaves the launcher.
  *
- * Where routing is available ([DestinationUiState.routeAvailable]), a Route
- * action sits beside Navigate and on each saved place that can be routed to
- * ([DestinationUiState.canRoute]); it works in every motion state, like a tap
- * on a saved place. A route starts from [lastFix], which the ViewModel checks
- * for age; Save current location keeps its point as it is. While a route is
+ * Where routing is available ([DestinationUiState.routeAvailable]), a Show
+ * route action sits under Open in maps app and on each saved place that can
+ * be routed to ([DestinationUiState.canRoute]); it works in every motion
+ * state, like a tap on a saved place. Two chips under it pick the roads the
+ * next route avoids ([RouteConditionChips]). A route starts from [lastFix],
+ * which the ViewModel checks for age; Save current location keeps its point
+ * as it is. While a route is
  * under way or has failed, [RouteStatus] takes the panel's body over. Closing
  * the panel stops the route under way; a configuration change, after which
  * the panel comes straight back, does not. [visible] says whether the host
@@ -239,8 +246,9 @@ internal fun DestinationPanel(
     }
 }
 
-// The query field with its mic, the motion or voice line, Navigate (with Route
-// beside it where text can be routed to), and the two save buttons.
+// The query field with its mic, the motion or voice line, Open in maps app
+// (with Show route under it where text can be routed to), and the two save
+// buttons.
 @Composable
 private fun DestinationEntry(
     uiState: DestinationUiState,
@@ -298,28 +306,28 @@ private fun DestinationEntry(
         handOffAvailable = uiState.handOffAvailable,
     )
     val queryTarget = PlaceTarget.Query(query)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    // One action to a row: side by side, half a row cuts "Open in maps app" at
+    // the body text floor on a head unit and on a phone.
+    Button(
+        onClick = navigate,
+        enabled = canNavigate,
+        modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
     ) {
-        Button(
-            onClick = navigate,
-            enabled = canNavigate,
-            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ButtonLabel(icon = Lucide.ExternalLink, text = stringResource(R.string.destination_navigate))
+    }
+    // Needs no app to hand off to: the route is drawn on the launcher's own map.
+    if (uiState.canRoute(queryTarget)) {
+        FilledTonalButton(
+            onClick = { onRoute(queryTarget) },
+            enabled = query.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
-            ButtonLabel(icon = Lucide.Navigation, text = stringResource(R.string.destination_navigate))
-        }
-        // Needs no app to hand off to: the route is drawn on the launcher's own map.
-        if (uiState.canRoute(queryTarget)) {
-            FilledTonalButton(
-                onClick = { onRoute(queryTarget) },
-                enabled = query.isNotEmpty(),
-                modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
-            ) {
-                ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
-            }
+            ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
         }
     }
+    // Shown wherever routing is, not only under Show route: without a geocoder the
+    // saved points still route, under these conditions.
+    if (uiState.routeAvailable) RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -344,7 +352,7 @@ private fun DestinationEntry(
 }
 
 // A point picked with a long press on the map, in place of the text entry: its
-// coordinates, Navigate (the point's `geo:` hand-off) with Route beside it, and
+// coordinates, Open in maps app (the point's `geo:` hand-off) with Show route under it, and
 // the way to keep it or to go back to the search. Nothing here types, so only
 // saving waits for a stop, as every save does.
 @Composable
@@ -384,25 +392,22 @@ private fun PickedPointEntry(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+    // One action to a row, as in the search entry.
+    Button(
+        onClick = { onNavigate(point, "") },
+        enabled = uiState.handOffAvailable,
+        modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
     ) {
-        Button(
-            onClick = { onNavigate(point, "") },
-            enabled = uiState.handOffAvailable,
-            modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
+        ButtonLabel(icon = Lucide.ExternalLink, text = stringResource(R.string.destination_navigate))
+    }
+    if (uiState.canRoute(point)) {
+        FilledTonalButton(
+            onClick = { onRoute(point) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
         ) {
-            ButtonLabel(icon = Lucide.Navigation, text = stringResource(R.string.destination_navigate))
+            ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
         }
-        if (uiState.canRoute(point)) {
-            FilledTonalButton(
-                onClick = { onRoute(point) },
-                modifier = Modifier.weight(1f).heightIn(min = FemtoDimens.MinTouchTarget),
-            ) {
-                ButtonLabel(icon = Lucide.Route, text = stringResource(R.string.destination_route))
-            }
-        }
+        RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
     }
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -423,6 +428,52 @@ private fun PickedPointEntry(
         }
     }
 }
+
+// The roads the next route avoids, as two chips under the route action. A tap
+// types nothing, so the chips work in every motion state, as a saved place
+// does; the choice is kept for later routes and their reroutes.
+@Composable
+private fun RouteConditionChips(
+    conditions: RouteConditions,
+    onAction: (DestinationAction) -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+) {
+    ConditionChip(
+        label = stringResource(R.string.destination_avoid_motorways),
+        selected = conditions.avoidMotorways,
+        onClick = { onAction(DestinationAction.SetAvoidMotorways(!conditions.avoidMotorways)) },
+        modifier = Modifier.weight(1f),
+    )
+    ConditionChip(
+        label = stringResource(R.string.destination_avoid_tolls),
+        selected = conditions.avoidTolls,
+        onClick = { onAction(DestinationAction.SetAvoidTolls(!conditions.avoidTolls)) },
+        modifier = Modifier.weight(1f),
+    )
+}
+
+@Composable
+private fun ConditionChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = FilterChip(
+    selected = selected,
+    onClick = onClick,
+    label = { Text(text = label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    // The chip's own height is below the automotive tap floor (AGENTS.md#automotive-overrides).
+    modifier = modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+    leadingIcon =
+        if (selected) {
+            { FemtoIcon(imageVector = Lucide.Check, contentDescription = null) }
+        } else {
+            null
+        },
+)
 
 // One line under the field: the voice step (live transcript or failure), else
 // the missing hand-off app, else the motion gate's explanation while moving;
@@ -488,7 +539,7 @@ private fun MicButton(
 )
 
 // The saved places in insertion order (newest last). A row tap hands the
-// place off in any motion state while an app can take it; a trailing Route
+// place off in any motion state while an app can take it; a trailing Show route
 // shows on each place that can be routed to, in any motion state; the
 // trailing delete shows only while stopped.
 @Composable
@@ -553,8 +604,12 @@ private fun SavedPlaceRow(
                 .weight(1f)
                 .heightIn(min = FemtoDimens.MinTouchTarget)
                 .clip(MaterialTheme.shapes.medium)
-                .clickable(enabled = navigable, onClick = onNavigate)
-                .alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
+                // The row reads as the place's name; the label says the tap leaves the launcher.
+                .clickable(
+                    enabled = navigable,
+                    onClickLabel = stringResource(R.string.destination_open_place, place.label),
+                    onClick = onNavigate,
+                ).alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
                 .padding(horizontal = FemtoDimens.CardSectionGap),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -770,9 +825,11 @@ private fun RouteFailure.messageRes(): Int =
         RouteFailure.NO_ROAD_DATA -> R.string.destination_route_failed_no_road_data
         RouteFailure.NO_SPACE -> R.string.destination_route_failed_no_space
         RouteFailure.TIMED_OUT -> R.string.destination_route_failed_timed_out
+        RouteFailure.TIMED_OUT_UNDER_CONDITIONS -> R.string.destination_route_timed_out_conditions
         RouteFailure.DATA_VERSION_MISMATCH -> R.string.destination_route_failed_data_version
         RouteFailure.DOWNLOAD_FAILED -> R.string.destination_route_failed_download
         RouteFailure.NO_ROUTE -> R.string.destination_route_failed
+        RouteFailure.NO_ROUTE_UNDER_CONDITIONS -> R.string.destination_route_failed_conditions
     }
 
 /**
@@ -987,6 +1044,16 @@ private fun DestinationPanelRouteDownloadPreview() {
             onClose = {},
             modifier = Modifier.fillMaxSize(),
         )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Composable
+private fun RouteConditionChipsPreview() {
+    FemtoTheme {
+        // One chip on, one off: both states side by side.
+        RouteConditionChips(conditions = RouteConditions(avoidTolls = true), onAction = {})
     }
 }
 

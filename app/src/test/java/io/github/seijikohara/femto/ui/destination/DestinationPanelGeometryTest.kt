@@ -91,7 +91,7 @@ internal class DestinationPanelGeometryTest(
             .assertIsDisplayed()
             .assertHeightIsAtLeast(FemtoDimens.MinTouchTarget)
         rule
-            .onNodeWithText("Navigate")
+            .onNodeWithText("Open in maps app")
             .scrolledIntoView()
             .assertIsDisplayed()
             .assertHeightIsAtLeast(FemtoDimens.MinTouchTarget)

@@ -25,7 +25,8 @@ internal enum class RerouteStatus {
 /**
  * The route the dashboard follows, in one session: from the destination panel's route to the next one or a clear.
  * A reroute replaces the [route] and its [reference] within the session; [destination] is the point the driver chose,
- * kept so that a reroute never asks the geocoder again.
+ * kept so that a reroute never asks the geocoder again, and [conditions] are those the route was found under, kept so
+ * that a reroute avoids the same roads whatever the driver has picked for the next route since.
  */
 internal data class ActiveRoute(
     val session: Long,
@@ -34,6 +35,7 @@ internal data class ActiveRoute(
     /** The engine's record of [route], which a reroute hands back to stop where it rejoins the route; or none. */
     val reference: File?,
     val reroute: RerouteStatus = RerouteStatus.NONE,
+    val conditions: RouteConditions = RouteConditions(),
 )
 
 /**
@@ -55,14 +57,18 @@ internal class ActiveRouteStore {
     /** The active route, or null when there is none. */
     val active: StateFlow<ActiveRoute?> = mutableActive.asStateFlow()
 
-    /** Make [route] to [destination] the active route in a new session, and return the session. */
+    /**
+     * Make [route] to [destination], found under [conditions], the active route in a new session, and return the
+     * session.
+     */
     fun start(
         route: Route,
         destination: RoutePoint,
+        conditions: RouteConditions,
         reference: File?,
     ): Long =
         sessions.incrementAndGet().also { session ->
-            mutableActive.value = ActiveRoute(session, route, destination, reference)
+            mutableActive.value = ActiveRoute(session, route, destination, reference, conditions = conditions)
         }
 
     /** Replace the route of [session] and clear its reroute status; false, changing nothing, once it has ended. */

@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -88,6 +89,33 @@ class DestinationPanelTest {
                 modifier = Modifier.fillMaxSize(),
             )
         }
+    }
+
+    // Screen readers announce the place's name; the click label says the tap leaves the launcher.
+    @Test
+    fun a_saved_place_row_says_its_tap_opens_the_maps_app() {
+        setPanel(stationary = true)
+
+        val onClick = rule.onNodeWithText("Office").fetchSemanticsNode().config[SemanticsActions.OnClick]
+
+        assertEquals("Open Office in maps app", onClick.label)
+    }
+
+    // A tap on a chip types nothing, so it works while moving, as a saved place does.
+    @Test
+    fun moving_a_tap_on_a_condition_chip_turns_it_on() {
+        setPanel(stationary = false, routeAvailable = true)
+
+        rule.onNodeWithText("Avoid tolls").performScrollTo().performClick()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.SetAvoidTolls(on = true)), actions)
+    }
+
+    @Test
+    fun without_routing_no_condition_chips_show() {
+        setPanel(stationary = true, routeAvailable = false)
+
+        rule.onNodeWithText("Avoid motorways").assertDoesNotExist()
     }
 
     @Test
@@ -176,14 +204,14 @@ class DestinationPanelTest {
     @Test
     fun navigate_hands_off_the_trimmed_query() {
         setPanel(stationary = false, query = "  Central Station ")
-        rule.onNodeWithText("Navigate").performScrollTo().performClick()
+        rule.onNodeWithText("Open in maps app").performScrollTo().performClick()
         assertEquals(listOf<Pair<PlaceTarget, String>>(PlaceTarget.Query("Central Station") to ""), handoffs)
     }
 
     @Test
     fun navigate_is_disabled_for_a_blank_query() {
         setPanel(stationary = true, query = " ")
-        rule.onNodeWithText("Navigate").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("Open in maps app").performScrollTo().assertIsNotEnabled()
     }
 
     @Test
@@ -266,7 +294,7 @@ class DestinationPanelTest {
     @Test
     fun without_an_app_to_take_it_navigate_is_disabled() {
         setPanel(stationary = true, query = "Central Station", handOffAvailable = false)
-        rule.onNodeWithText("Navigate").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("Open in maps app").performScrollTo().assertIsNotEnabled()
     }
 
     @Test
@@ -301,7 +329,7 @@ class DestinationPanelTest {
     @Test
     fun a_query_hand_off_cancels_recognition_before_the_launch() {
         setPanel(stationary = true, query = "Central Station")
-        rule.onNodeWithText("Navigate").performScrollTo().performClick()
+        rule.onNodeWithText("Open in maps app").performScrollTo().performClick()
         assertEquals(listOf<DestinationAction>(DestinationAction.CancelListening), actions)
         assertEquals(listOf<Pair<PlaceTarget, String>>(PlaceTarget.Query("Central Station") to ""), handoffs)
     }
@@ -311,14 +339,14 @@ class DestinationPanelTest {
     @Test
     fun without_routing_no_route_action_shows() {
         setPanel(stationary = true, query = "Imabari")
-        rule.onNodeWithText("Route").assertDoesNotExist()
-        rule.onNodeWithContentDescription("Route to Home").assertDoesNotExist()
+        rule.onNodeWithText("Show route").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Show route to Home").assertDoesNotExist()
     }
 
     @Test
     fun route_beside_navigate_raises_the_trimmed_query_from_the_fix() {
         setPanel(stationary = true, query = "  Imabari ", routeAvailable = true)
-        rule.onNodeWithText("Route").performScrollTo().performClick()
+        rule.onNodeWithText("Show route").performScrollTo().performClick()
         assertEquals(
             DestinationAction.RouteTo(PlaceTarget.Query("Imabari"), origin = FIX),
             actions.last(),
@@ -328,16 +356,16 @@ class DestinationPanelTest {
     @Test
     fun moving_a_saved_place_still_routes() {
         setPanel(stationary = false, routeAvailable = true)
-        rule.onNodeWithContentDescription("Route to Home").performClick()
+        rule.onNodeWithContentDescription("Show route to Home").performClick()
         assertEquals(DestinationAction.RouteTo(home.target, origin = FIX), actions.last())
     }
 
     @Test
     fun without_a_geocoder_only_a_saved_point_offers_a_route() {
         setPanel(stationary = true, query = "Imabari", routeAvailable = true, geocoderAvailable = false)
-        rule.onNodeWithText("Route").assertDoesNotExist()
-        rule.onNodeWithContentDescription("Route to Office").assertDoesNotExist()
-        rule.onNodeWithContentDescription("Route to Home").assertIsDisplayed()
+        rule.onNodeWithText("Show route").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Show route to Office").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Show route to Home").assertIsDisplayed()
     }
 
     @Test
@@ -475,7 +503,7 @@ class DestinationPanelTest {
     fun navigate_hands_the_picked_point_off_without_a_label() {
         setPanel(stationary = true, pickedPoint = PICKED)
 
-        rule.onNodeWithText("Navigate").performClick()
+        rule.onNodeWithText("Open in maps app").performClick()
 
         assertEquals(listOf<Pair<PlaceTarget, String>>(PICKED to ""), handoffs)
     }
@@ -484,7 +512,7 @@ class DestinationPanelTest {
     fun route_routes_to_the_picked_point_where_routing_is_offered() {
         setPanel(stationary = true, pickedPoint = PICKED, routeAvailable = true)
 
-        rule.onNodeWithText("Route").performClick()
+        rule.onNodeWithText("Show route").performClick()
 
         assertEquals(DestinationAction.RouteTo(PICKED, FIX), actions.last())
     }
@@ -493,7 +521,7 @@ class DestinationPanelTest {
     fun without_routing_the_picked_point_offers_no_route() {
         setPanel(stationary = true, pickedPoint = PICKED, routeAvailable = false)
 
-        rule.onNodeWithText("Route").assertDoesNotExist()
+        rule.onNodeWithText("Show route").assertDoesNotExist()
     }
 
     @Test
@@ -501,7 +529,7 @@ class DestinationPanelTest {
         setPanel(stationary = false, pickedPoint = PICKED)
 
         rule.onNodeWithText("Save point").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("Navigate").assertIsEnabled()
+        rule.onNodeWithText("Open in maps app").assertIsEnabled()
     }
 
     @Test

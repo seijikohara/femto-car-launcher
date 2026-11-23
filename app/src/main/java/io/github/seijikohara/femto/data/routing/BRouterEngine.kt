@@ -34,6 +34,9 @@ private class BRouterSearch(
                 // lookups.dat must sit beside the profile: BRouter reads it from the profile's directory.
                 localFunction = request.profile.path
                 memoryclass = request.memoryClassMb
+                // The profile is parsed with these in place of its own values. They also enter the profile's
+                // checksum, so a reference written under other parameters is refused and the search runs in full.
+                if (request.parameters.isNotEmpty()) keyValues = HashMap(request.parameters)
                 // BRouter's fast partial recalculation: a search to the reference's destination stops where it
                 // rejoins the reference. BRouter checks the destination and the profile's checksum itself.
                 rawTrackPath = request.referenceIn?.path

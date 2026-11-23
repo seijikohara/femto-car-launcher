@@ -16,6 +16,7 @@ import io.github.seijikohara.femto.data.calendar.DayCell
 import io.github.seijikohara.femto.data.calendar.EventItem
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
@@ -159,13 +160,16 @@ class PanelScreenshotTest {
         capture("apps-panel-head-unit-853x512-dark", darkTheme = true) { AppsPanelSample() }
 
     // Destination panel with route preview (issue #389 phase 3, nightly builds
-    // only): Route beside Navigate and on each saved place, then the download
-    // confirmation that takes the panel's body over. The tests run the stable
-    // build, where routing is off, so the state turns it on explicitly.
+    // only): Show route under Open in maps app and on each saved place, the route condition
+    // chips under it (one on), then the download confirmation that takes the
+    // panel's body over. The tests run the stable build, where routing is off,
+    // so the state turns it on explicitly.
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun destination_panel_route_head_unit() =
-        capture("destination-panel-head-unit-853x512-route") { DestinationPanelSample(RouteStep.Idle) }
+        capture("destination-panel-head-unit-853x512-route") {
+            DestinationPanelSample(RouteStep.Idle, conditions = RouteConditions(avoidTolls = true))
+        }
 
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
@@ -175,7 +179,7 @@ class PanelScreenshotTest {
         }
 
     // The panel a long press on the map opens: the picked point in place of
-    // the search, with Navigate and Route.
+    // the search, with Open in maps app and Show route.
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun destination_panel_map_point_head_unit() =
@@ -187,6 +191,7 @@ class PanelScreenshotTest {
     private fun DestinationPanelSample(
         route: RouteStep,
         pickedPoint: PlaceTarget.Point? = null,
+        conditions: RouteConditions = RouteConditions(),
     ) {
         DestinationPanel(
             uiState =
@@ -207,6 +212,7 @@ class PanelScreenshotTest {
                     geocoderAvailable = true,
                     route = route,
                     pickedPoint = pickedPoint,
+                    conditions = conditions,
                 ),
             lastFix = LastFix(PlaceTarget.Point(35.681236, 139.767125), elapsedRealtimeNanos = 0L),
             currentAddress = "1-9-1 Marunouchi",

@@ -44,8 +44,9 @@ internal data class RerouteStats(
 )
 
 /**
- * Routes again when the vehicle leaves the active route: from the fix where it left to the same destination, with the
- * route on screen as the reference and the vehicle's heading. It lives in the routing data layer, in a process
+ * Routes again when the vehicle leaves the active route: from the fix where it left to the same destination, under the
+ * conditions the route was found under, with the route on screen as the reference and the vehicle's heading. It lives
+ * in the routing data layer, in a process
  * [scope], so a reroute runs with the destination panel closed and outlives a route change on the dashboard. Its
  * [route] reads only the routing data on the device and never the network.
  *
@@ -66,6 +67,7 @@ internal class Rerouter(
         destination: RoutePoint,
         headingDegrees: Int?,
         reference: File?,
+        conditions: RouteConditions,
     ) -> RouteResult,
     private val store: ActiveRouteStore,
     private val scope: CoroutineScope,
@@ -152,8 +154,13 @@ internal class Rerouter(
             try {
                 // The planner's own limit starts only once its lock is free; this one counts from the reroute's start.
                 withTimeoutOrNull(REROUTE_TIME_LIMIT_MS) {
-                    route(fix.point, active.destination, fix.headingDegreesOrNull(), active.reference)
-                        .also { answered = it }
+                    route(
+                        fix.point,
+                        active.destination,
+                        fix.headingDegreesOrNull(),
+                        active.reference,
+                        active.conditions,
+                    ).also { answered = it }
                 } ?: RouteResult.TimedOut
             } catch (e: CancellationException) {
                 // A cancel that lands as the planner returns makes the deadline's scope throw, and the answer is lost
@@ -214,12 +221,13 @@ internal class Rerouter(
                     .get(context)
                     .let { planner ->
                         Rerouter(
-                            route = { origin, destination, heading, reference ->
+                            route = { origin, destination, heading, reference, conditions ->
                                 planner.route(
                                     origin = origin,
                                     destination = destination,
                                     startHeadingDegrees = heading,
                                     reference = reference,
+                                    conditions = conditions,
                                     timeLimitMs = REROUTE_TIME_LIMIT_MS,
                                 )
                             },

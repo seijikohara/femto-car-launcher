@@ -21,7 +21,9 @@ import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
 import io.github.seijikohara.femto.data.routing.RerouteStats
 import io.github.seijikohara.femto.data.routing.Rerouter
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RoutePlanner
+import io.github.seijikohara.femto.data.routing.RoutePreferences
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
@@ -115,8 +117,8 @@ internal fun mapFactsFrom(
 
 /**
  * What the route preview (#389 phase 3) needs to be judged on a head unit: whether the build and backend offer it,
- * the routing data on the device, the last route, the reroutes, and the geocoder that text destinations need. [tiles]
- * is null when the build offers no routing, which reads no file.
+ * the routing data on the device, the last route, the conditions the next one runs under, the reroutes, and the
+ * geocoder that text destinations need. [tiles] is null when the build offers no routing, which reads no file.
  */
 internal data class RoutingFacts(
     val buildEnabled: Boolean,
@@ -124,6 +126,7 @@ internal data class RoutingFacts(
     val lastRun: RouteRun?,
     val geocoderPresent: Boolean,
     val reroutes: RerouteStats? = null,
+    val conditions: RouteConditions? = null,
 )
 
 // Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
@@ -159,6 +162,8 @@ private fun routingFacts(
                     FactValue.Text(facts.lastRun?.let { "${it.outcome.label()}, ${it.computingMs} ms" } ?: NO_RUN_YET),
                 ),
             )
+            // A failed route reads differently with a road ruled out: avoiding tolls leaves some places unreachable.
+            add(DiagnosticFact("Route conditions", FactValue.Text((facts.conditions ?: RouteConditions()).summary())))
             add(DiagnosticFact("Last reroute", FactValue.Text(facts.reroutes?.summaryOrNull() ?: NO_RUN_YET)))
         }
         add(DiagnosticFact("Geocoder", FactValue.Text(if (facts.geocoderPresent) "present" else "absent")))
@@ -167,6 +172,11 @@ private fun routingFacts(
 private const val NO_RUN_YET = "none this session"
 
 private fun RouteRunOutcome.label(): String = name.lowercase().replace('_', ' ')
+
+private fun RouteConditions.summary(): String =
+    listOfNotNull("avoid motorways".takeIf { avoidMotorways }, "avoid tolls".takeIf { avoidTolls })
+        .joinToString(", ")
+        .ifEmpty { "none" }
 
 // Whether the reroute had a reference tells a slow reroute from a fast one: with it, BRouter stops where the new
 // route rejoins the old one. "Offered", since BRouter silently refuses a reference built under other profile
@@ -483,6 +493,7 @@ internal class MapFactsCollector(
             lastRun = if (enabled) RoutePlanner.get(context).lastRunOrNull() else null,
             geocoderPresent = Geocoder.isPresent(),
             reroutes = if (enabled) Rerouter.get(context).stats.value else null,
+            conditions = if (enabled) RoutePreferences(context).conditions.first() else null,
         )
     }
 }

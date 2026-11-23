@@ -15,8 +15,8 @@ class ActiveRouteStoreTest {
 
     @Test
     fun `start opens a new session each time`() {
-        val first = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
-        val second = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
+        val first = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        val second = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
 
         assertNotEquals(first, second)
         assertEquals(ActiveRoute(second, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value)
@@ -24,7 +24,7 @@ class ActiveRouteStoreTest {
 
     @Test
     fun `replace keeps the session and resets the status`() {
-        val session = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
         store.setStatus(session, RerouteStatus.REROUTING)
 
         val replaced = store.replace(session, REROUTED, SECOND_REFERENCE)
@@ -34,9 +34,19 @@ class ActiveRouteStoreTest {
     }
 
     @Test
+    fun `a session keeps its conditions across replace`() {
+        val conditions = RouteConditions(avoidTolls = true)
+        val session = store.start(ROUTE, DESTINATION, conditions, FIRST_REFERENCE)
+
+        store.replace(session, REROUTED, SECOND_REFERENCE)
+
+        assertEquals(conditions, store.active.value?.conditions)
+    }
+
+    @Test
     fun `replace for an old session changes nothing`() {
-        val old = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
-        val current = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
+        val old = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        val current = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
 
         val replaced = store.replace(old, REROUTED, SECOND_REFERENCE)
 
@@ -46,8 +56,8 @@ class ActiveRouteStoreTest {
 
     @Test
     fun `setStatus for an old session changes nothing`() {
-        val old = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
-        val current = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
+        val old = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        val current = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
 
         val set = store.setStatus(old, RerouteStatus.FAILED)
 
@@ -57,7 +67,7 @@ class ActiveRouteStoreTest {
 
     @Test
     fun `clear ends the session so a late replace is dropped`() {
-        val session = store.start(ROUTE, DESTINATION, FIRST_REFERENCE)
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
         store.clear()
 
         val replaced = store.replace(session, REROUTED, SECOND_REFERENCE)
@@ -72,5 +82,6 @@ class ActiveRouteStoreTest {
         val DESTINATION = RoutePoint(latitude = 34.07, longitude = 133.0)
         val FIRST_REFERENCE = File("route-1.bin")
         val SECOND_REFERENCE = File("route-2.bin")
+        val NO_CONDITIONS = RouteConditions()
     }
 }

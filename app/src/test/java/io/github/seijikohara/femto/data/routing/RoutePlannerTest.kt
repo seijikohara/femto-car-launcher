@@ -220,6 +220,17 @@ class RoutePlannerTest {
         }
 
     @Test
+    fun `the conditions reach the engine as parameters`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = TRACK)
+
+            planner(engine).route(MATSUYAMA, IMABARI, conditions = RouteConditions(avoidTolls = true))
+
+            assertEquals(mapOf("vmax" to "110", "avoid_toll" to "1"), engine.requests.single().parameters)
+        }
+
+    @Test
     fun `a found route whose engine wrote no reference returns none`() =
         runTest {
             installTile("E130_N30")

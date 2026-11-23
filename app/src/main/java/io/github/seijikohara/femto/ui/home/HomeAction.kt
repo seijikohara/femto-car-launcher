@@ -29,7 +29,7 @@ internal sealed interface HomeAction {
 
     /**
      * Hand [target] to the user's navigation app: the destination panel's
-     * Navigate (a typed or dictated query) or a tap on a saved place. [label]
+     * Open in maps app (a typed or dictated query) or a tap on a saved place. [label]
      * names the pin a saved point drops; a query ignores it.
      */
     data class Navigate(
