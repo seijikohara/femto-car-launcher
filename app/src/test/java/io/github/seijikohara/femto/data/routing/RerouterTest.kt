@@ -9,17 +9,26 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RerouterTest {
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
     private val store = ActiveRouteStore()
     private val planner = FakeReroutePlanner()
     private val pruned = mutableListOf<Collection<File>>()
     private var nowMs = START_MS
+
+    // Runs on every read of the rerouter's clock, so a test can act between two steps of a reroute.
+    private var onClockRead: () -> Unit = {}
 
     // The rerouter runs its reroutes on the test's background scope, so each test steps them with runCurrent.
     private fun TestScope.rerouter(): Rerouter =
@@ -28,7 +37,10 @@ class RerouterTest {
             store = store,
             scope = backgroundScope,
             pruneReferences = { pruned += it },
-            nowMs = { nowMs },
+            nowMs = {
+                onClockRead()
+                nowMs
+            },
         )
 
     @Test
@@ -303,6 +315,46 @@ class RerouterTest {
             runCurrent()
 
             assertTrue(planner.cancelled)
+        }
+
+    // The panel cancels the reroute after the planner has returned, before the result is put in place: the next read
+    // of the clock (for the computing time) is the moment between.
+    @Test
+    fun `a found route cancelled before it is put in place deletes its reference`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val written = tempFolder.newFile("route-3.bin")
+            planner.beforeAnswering = {
+                onClockRead = {
+                    onClockRead = {}
+                    rerouter.cancel()
+                }
+            }
+            planner.answer.complete(RouteResult.Found(REROUTED, written))
+
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertFalse(written.exists())
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+        }
+
+    // The engine returns a found route just as the panel cancels the reroute, too late for the cancel to stop it.
+    @Test
+    fun `a found route that arrives after the reroute was cancelled deletes its reference`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            val written = tempFolder.newFile("route-3.bin")
+            planner.beforeAnswering = { rerouter.cancel() }
+            planner.answer.complete(RouteResult.Found(REROUTED, written))
+
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertFalse(written.exists())
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
         }
 
     @Test

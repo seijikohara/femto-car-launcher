@@ -148,13 +148,18 @@ internal class Rerouter(
         val job = currentCoroutineContext().job
         if (!synchronized(lock) { job.isActive && store.setStatus(session, RerouteStatus.REROUTING) }) return
         val startedMs = nowMs()
+        var answered: RouteResult? = null
         val result =
             try {
                 // The planner's own limit starts only once its lock is free; this one counts from the reroute's start.
                 withTimeoutOrNull(REROUTE_TIME_LIMIT_MS) {
                     route(fix.point, active.destination, fix.headingDegreesOrNull(), active.reference)
+                        .also { answered = it }
                 } ?: RouteResult.TimedOut
             } catch (e: CancellationException) {
+                // A cancel that lands as the planner returns makes the deadline's scope throw, and the answer is lost
+                // with the reference the engine wrote for it, which nothing else would delete.
+                (answered as? RouteResult.Found)?.reference?.delete()
                 throw e
             } catch (e: Exception) {
                 // An uncaught failure here would end the launcher's process, which runs the home screen.
