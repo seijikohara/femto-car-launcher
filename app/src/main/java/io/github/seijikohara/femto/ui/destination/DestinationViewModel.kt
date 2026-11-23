@@ -361,7 +361,7 @@ internal class DestinationViewModel(
         routeStep.value = RouteStep.Computing
         when (val result = planner.route(ends.origin, ends.destination)) {
             is RouteResult.Found -> {
-                activeRoute.set(result.route)
+                activeRoute.start(result.route, ends.destination, result.reference)
                 routeStep.value = RouteStep.Done
             }
 

@@ -581,7 +581,7 @@ internal class HomeViewModelFactory(
                     .map { it.musicSpectrum }
                     .distinctUntilChanged(),
             spectrumBandsFor = audioSpectrum::bandsFlow,
-            routeFlow = ActiveRouteStore.shared.route,
+            routeFlow = ActiveRouteStore.shared.active.map { it?.route },
             routingAvailable =
                 routingAvailableFlow(
                     enabled = application.resources.getBoolean(R.bool.routing_enabled),

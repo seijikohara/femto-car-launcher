@@ -591,7 +591,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
-            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(fakeRoute(), activeRoute.active.value?.route)
         }
 
     @Test
@@ -682,7 +682,7 @@ class DestinationViewModelTest {
             gate.complete(Unit)
             advanceUntilIdle()
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
-            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(fakeRoute(), activeRoute.active.value?.route)
         }
 
     @Test
@@ -806,7 +806,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
-            assertNull(activeRoute.route.value)
+            assertNull(activeRoute.active.value?.route)
             assertEquals(emptyList(), routing.engine.requests)
         }
 
@@ -846,7 +846,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Idle, viewModel.uiState.value.route)
-            assertNull(activeRoute.route.value)
+            assertNull(activeRoute.active.value?.route)
         }
 
     @Test
@@ -1026,7 +1026,7 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
-            assertEquals(fakeRoute(), activeRoute.route.value)
+            assertEquals(fakeRoute(), activeRoute.active.value?.route)
             assertEquals(emptyList(), routing.feed.downloads)
             assertEquals(
                 routing.nowEpochMs,
