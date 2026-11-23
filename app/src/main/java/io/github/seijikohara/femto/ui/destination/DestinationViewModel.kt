@@ -420,7 +420,7 @@ internal class DestinationViewModel(
             }
 
             RouteResult.TimedOut -> {
-                fail(RouteFailure.TIMED_OUT)
+                fail(if (ends.conditions.isDefault) RouteFailure.TIMED_OUT else RouteFailure.TIMED_OUT_UNDER_CONDITIONS)
             }
 
             // With a condition on, the condition may be what stands between the two ends.

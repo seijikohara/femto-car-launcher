@@ -222,6 +222,8 @@
     <string name="destination_route_failed">No route could be found to that destination.</string>
     <!-- Shown in place of destination_route_failed when the route ran with a condition on: avoiding tolls rules out every toll road. -->
     <string name="destination_route_failed_conditions">No route under these conditions. Turn a condition off and try again.</string>
+    <!-- Shown in place of destination_route_failed_timed_out when the route ran with a condition on. -->
+    <string name="destination_route_timed_out_conditions">The route took too long. Turning a condition off may help.</string>
     <!-- Route conditions: toggles beside the Route action, remembered for the next route and used by every reroute. -->
     <string name="destination_avoid_motorways">Avoid motorways</string>
     <string name="destination_avoid_tolls">Avoid tolls</string>

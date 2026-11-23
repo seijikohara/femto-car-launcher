@@ -824,6 +824,7 @@ private fun RouteFailure.messageRes(): Int =
         RouteFailure.NO_ROAD_DATA -> R.string.destination_route_failed_no_road_data
         RouteFailure.NO_SPACE -> R.string.destination_route_failed_no_space
         RouteFailure.TIMED_OUT -> R.string.destination_route_failed_timed_out
+        RouteFailure.TIMED_OUT_UNDER_CONDITIONS -> R.string.destination_route_timed_out_conditions
         RouteFailure.DATA_VERSION_MISMATCH -> R.string.destination_route_failed_data_version
         RouteFailure.DOWNLOAD_FAILED -> R.string.destination_route_failed_download
         RouteFailure.NO_ROUTE -> R.string.destination_route_failed

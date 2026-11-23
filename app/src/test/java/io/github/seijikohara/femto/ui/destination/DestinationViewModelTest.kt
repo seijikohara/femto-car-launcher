@@ -900,6 +900,7 @@ class DestinationViewModelTest {
             assertEquals(RouteStep.Failed(RouteFailure.NO_ROAD_DATA), viewModel.uiState.value.route)
         }
 
+    // Without conditions, today's message.
     @Test
     fun a_search_out_of_time_is_timed_out() =
         runTest {
@@ -911,6 +912,20 @@ class DestinationViewModelTest {
             advanceUntilIdle()
 
             assertEquals(RouteStep.Failed(RouteFailure.TIMED_OUT), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_search_out_of_time_with_a_condition_on_says_so() =
+        runTest {
+            val viewModel =
+                subscribedViewModel(routingAvailable = true, conditions = RouteConditions(avoidMotorways = true))
+            routing.installTile(TILE)
+            routing.engine.outcome = EngineOutcome.Error("operation timeout after 60 seconds")
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.TIMED_OUT_UNDER_CONDITIONS), viewModel.uiState.value.route)
         }
 
     @Test

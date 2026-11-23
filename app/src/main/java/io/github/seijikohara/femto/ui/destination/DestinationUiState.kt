@@ -165,6 +165,12 @@ internal enum class RouteFailure {
     /** The search ran out of time; a closer destination may work. */
     TIMED_OUT,
 
+    /**
+     * [TIMED_OUT] for a route with a condition on: a search that rules roads out can take far longer, as one that
+     * finds no way round a toll road does, so turning the condition off may help.
+     */
+    TIMED_OUT_UNDER_CONDITIONS,
+
     /** The installed routing data was built for another version of the app's lookup table. */
     DATA_VERSION_MISMATCH,
 
