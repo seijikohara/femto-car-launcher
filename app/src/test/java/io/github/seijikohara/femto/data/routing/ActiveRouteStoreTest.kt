@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.data.routing
 
 import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeRoute
+import io.github.seijikohara.femto.testfixtures.withoutChoice
 import org.junit.Test
 import java.io.File
 import kotlin.test.assertEquals
@@ -19,7 +20,7 @@ class ActiveRouteStoreTest {
         val second = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
 
         assertNotEquals(first, second)
-        assertEquals(ActiveRoute(second, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value)
+        assertEquals(ActiveRoute(second, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value?.withoutChoice())
     }
 
     @Test
@@ -30,7 +31,87 @@ class ActiveRouteStoreTest {
         val replaced = store.replace(session, REROUTED, SECOND_REFERENCE)
 
         assertTrue(replaced)
-        assertEquals(ActiveRoute(session, REROUTED, DESTINATION, SECOND_REFERENCE), store.active.value)
+        assertEquals(ActiveRoute(session, REROUTED, DESTINATION, SECOND_REFERENCE), store.active.value?.withoutChoice())
+    }
+
+    // --- The choice between routes --------------------------------------------
+
+    @Test
+    fun `start opens the choice with the first route`() {
+        store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE, computingMs = 500L)
+
+        val active = store.active.value
+        assertEquals(listOf(RouteCandidate(ROUTE, FIRST_REFERENCE, 500L)), active?.candidates)
+        assertEquals(Triple(0, true, false), active?.let { Triple(it.selected, it.choosing, it.finding) })
+    }
+
+    @Test
+    fun `select switches the active route and reference`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.addCandidate(session, RouteCandidate(REROUTED, SECOND_REFERENCE, 900L))
+        store.setStatus(session, RerouteStatus.FAILED)
+
+        val selected = store.select(session, 1)
+
+        assertTrue(selected)
+        assertEquals(
+            ActiveRoute(session, REROUTED, DESTINATION, SECOND_REFERENCE),
+            store.active.value
+                ?.withoutChoice(),
+        )
+        assertEquals(1, store.active.value?.selected)
+    }
+
+    @Test
+    fun `addCandidate for a stale session is dropped`() {
+        val old = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+
+        val added = store.addCandidate(old, RouteCandidate(REROUTED, SECOND_REFERENCE, 900L))
+
+        assertFalse(added)
+        assertEquals(
+            1,
+            store.active.value
+                ?.candidates
+                ?.size,
+        )
+    }
+
+    @Test
+    fun `addCandidate after the choice closed is dropped`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.closeChoice(session)
+
+        val added = store.addCandidate(session, RouteCandidate(REROUTED, SECOND_REFERENCE, 900L))
+
+        assertFalse(added)
+        assertEquals(listOf(RouteCandidate(ROUTE, FIRST_REFERENCE, 0L)), store.active.value?.candidates)
+    }
+
+    @Test
+    fun `closeChoice keeps only the selected candidate`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.addCandidate(session, RouteCandidate(REROUTED, SECOND_REFERENCE, 900L))
+        store.select(session, 1)
+        store.setFinding(session, true)
+
+        store.closeChoice(session)
+
+        val active = store.active.value
+        assertEquals(listOf(RouteCandidate(REROUTED, SECOND_REFERENCE, 900L)), active?.candidates)
+        assertEquals(Triple(0, false, false), active?.let { Triple(it.selected, it.choosing, it.finding) })
+        assertEquals(REROUTED, active?.route)
+    }
+
+    @Test
+    fun `a reroute's replace closes the choice`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.setFinding(session, true)
+
+        store.replace(session, REROUTED, SECOND_REFERENCE)
+
+        assertEquals(false to false, store.active.value?.let { it.choosing to it.finding })
     }
 
     @Test
@@ -51,7 +132,7 @@ class ActiveRouteStoreTest {
         val replaced = store.replace(old, REROUTED, SECOND_REFERENCE)
 
         assertFalse(replaced)
-        assertEquals(ActiveRoute(current, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value)
+        assertEquals(ActiveRoute(current, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value?.withoutChoice())
     }
 
     @Test
@@ -62,7 +143,7 @@ class ActiveRouteStoreTest {
         val set = store.setStatus(old, RerouteStatus.FAILED)
 
         assertFalse(set)
-        assertEquals(ActiveRoute(current, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value)
+        assertEquals(ActiveRoute(current, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value?.withoutChoice())
     }
 
     @Test

@@ -18,6 +18,7 @@ import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
+import io.github.seijikohara.femto.data.routing.CandidateFinder
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
 import io.github.seijikohara.femto.data.routing.RerouteStats
 import io.github.seijikohara.femto.data.routing.Rerouter
@@ -127,6 +128,8 @@ internal data class RoutingFacts(
     val geocoderPresent: Boolean,
     val reroutes: RerouteStats? = null,
     val conditions: RouteConditions? = null,
+    /** The computing time of each candidate of the last route, the first route's first. */
+    val candidateTimesMs: List<Long>? = null,
 )
 
 // Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
@@ -164,6 +167,8 @@ private fun routingFacts(
             )
             // A failed route reads differently with a road ruled out: avoiding tolls leaves some places unreachable.
             add(DiagnosticFact("Route conditions", FactValue.Text((facts.conditions ?: RouteConditions()).summary())))
+            // A later candidate recomputes every one before it, so its time says how much the card costs.
+            add(DiagnosticFact("Route candidates", FactValue.Text(candidateTimesText(facts.candidateTimesMs))))
             add(DiagnosticFact("Last reroute", FactValue.Text(facts.reroutes?.summaryOrNull() ?: NO_RUN_YET)))
         }
         add(DiagnosticFact("Geocoder", FactValue.Text(if (facts.geocoderPresent) "present" else "absent")))
@@ -172,6 +177,15 @@ private fun routingFacts(
 private const val NO_RUN_YET = "none this session"
 
 private fun RouteRunOutcome.label(): String = name.lowercase().replace('_', ' ')
+
+// "3: 0.5 s, 1.1 s, 1.6 s": how many candidates, then each one's time in the order they were found.
+private fun candidateTimesText(timesMs: List<Long>?): String =
+    timesMs
+        ?.takeIf { it.isNotEmpty() }
+        ?.joinToString(prefix = "${timesMs.size}: ") { String.format(Locale.ROOT, "%.1f s", it / MILLIS_PER_SECOND) }
+        ?: NO_RUN_YET
+
+private const val MILLIS_PER_SECOND = 1_000.0
 
 private fun RouteConditions.summary(): String =
     listOfNotNull("avoid motorways".takeIf { avoidMotorways }, "avoid tolls".takeIf { avoidTolls })
@@ -494,6 +508,7 @@ internal class MapFactsCollector(
             geocoderPresent = Geocoder.isPresent(),
             reroutes = if (enabled) Rerouter.get(context).stats.value else null,
             conditions = if (enabled) RoutePreferences(context).conditions.first() else null,
+            candidateTimesMs = if (enabled) CandidateFinder.get(context).candidateTimes.value else null,
         )
     }
 }

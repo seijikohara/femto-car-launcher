@@ -530,11 +530,20 @@ class MapFactsTest {
                 DiagnosticFact("Routing data", FactValue.Text("2 tiles, 144 MB")),
                 DiagnosticFact("Last route", FactValue.Text("timed out, 60012 ms")),
                 DiagnosticFact("Route conditions", FactValue.Text("none")),
+                DiagnosticFact("Route candidates", FactValue.Text("none this session")),
                 DiagnosticFact("Last reroute", FactValue.Text("none this session")),
                 DiagnosticFact("Geocoder", FactValue.Text("absent")),
             ),
             facts,
         )
+    }
+
+    @Test
+    fun `each candidate's computing time is reported in the order found`() {
+        val facts =
+            routingFacts(RoutingFacts(true, emptyList(), null, true, candidateTimesMs = listOf(500L, 1_100L, 1_640L)))
+
+        assertEquals(FactValue.Text("3: 0.5 s, 1.1 s, 1.6 s"), facts.single { it.label == "Route candidates" }.value)
     }
 
     @Test
@@ -599,7 +608,16 @@ class MapFactsTest {
         routing: RoutingFacts,
         backend: MapBackend = MapBackend.OSM,
     ): List<DiagnosticFact> {
-        val label = setOf("Routing", "Routing data", "Last route", "Route conditions", "Last reroute", "Geocoder")
+        val label =
+            setOf(
+                "Routing",
+                "Routing data",
+                "Last route",
+                "Route conditions",
+                "Route candidates",
+                "Last reroute",
+                "Geocoder",
+            )
         return facts(backend = backend, routing = routing).filter { it.label in label }
     }
 
