@@ -28,6 +28,11 @@ internal data class EngineRequest(
     val referenceOut: File? = null,
     /** The profile's parameters by name, overriding the profile's own values ([engineParameters]). */
     val parameters: Map<String, String> = emptyMap(),
+    /**
+     * Which of BRouter's routes to return: 0 is the best one, and each later one steers away from the roads of the
+     * ones before it, which the engine computes again first.
+     */
+    val alternativeIndex: Int = 0,
 )
 
 /** A position as the engine stores it: micro-degrees offset by +180° (longitude) and +90° (latitude). */

@@ -39,6 +39,8 @@ private const val NANOS_PER_MILLI = 1_000_000L
 internal data class RouteRun(
     val outcome: RouteRunOutcome,
     val computingMs: Long,
+    /** Which of BRouter's routes the search asked for; a later one takes longer, as it computes the earlier ones too. */
+    val alternativeIndex: Int = 0,
 )
 
 internal enum class RouteRunOutcome {
@@ -95,7 +97,8 @@ internal class RoutePlanner(
      * Compute a route from [origin] to [destination]; the tiles around both must be installed first. A [reference]
      * from an earlier [RouteResult.Found] to the same destination lets the search stop where it rejoins that route,
      * and [startHeadingDegrees] keeps the route from opening with a U-turn. The route avoids what [conditions] ask
-     * it to, and every search runs at [ROUTE_TARGET_SPEED_KMH]. The search stops after [timeLimitMs].
+     * it to, and every search runs at [ROUTE_TARGET_SPEED_KMH]. [alternativeIndex] asks for one of BRouter's later
+     * routes ([EngineRequest.alternativeIndex]). The search stops after [timeLimitMs].
      */
     suspend fun route(
         origin: RoutePoint,
@@ -103,6 +106,7 @@ internal class RoutePlanner(
         startHeadingDegrees: Int? = null,
         reference: File? = null,
         conditions: RouteConditions = RouteConditions(),
+        alternativeIndex: Int = 0,
         timeLimitMs: Long = this.timeLimitMs,
     ): RouteResult =
         lock.withLock {
@@ -112,10 +116,22 @@ internal class RoutePlanner(
                     .missingTiles(routingTilesAround(origin, destination))
                     .takeIf { it.isNotEmpty() }
                     ?.let(RouteResult::MissingTiles)
-                    ?: search(origin, destination, startHeadingDegrees, reference, conditions, timeLimitMs)
-                        .withoutNoDataTiles()
+                    ?: search(
+                        origin = origin,
+                        destination = destination,
+                        startHeadingDegrees = startHeadingDegrees,
+                        reference = reference,
+                        conditions = conditions,
+                        alternativeIndex = alternativeIndex,
+                        timeLimitMs = timeLimitMs,
+                    ).withoutNoDataTiles()
             ).also { result ->
-                lastRun = RouteRun(result.runOutcome(), computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI)
+                lastRun =
+                    RouteRun(
+                        outcome = result.runOutcome(),
+                        computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI,
+                        alternativeIndex = alternativeIndex,
+                    )
             }
         }
 
@@ -164,6 +180,7 @@ internal class RoutePlanner(
         startHeadingDegrees: Int?,
         reference: File?,
         conditions: RouteConditions,
+        alternativeIndex: Int,
         timeLimitMs: Long,
     ): RouteResult {
         val referenceOut = File(referenceDir, "route-${System.nanoTime()}-${++referenceCount}.bin")
@@ -188,6 +205,7 @@ internal class RoutePlanner(
                                     referenceIn = reference,
                                     referenceOut = referenceOut,
                                     parameters = conditions.engineParameters(),
+                                    alternativeIndex = alternativeIndex,
                                 ),
                             ).runTerminable(timeLimitMs)
                             .toRouteResult()

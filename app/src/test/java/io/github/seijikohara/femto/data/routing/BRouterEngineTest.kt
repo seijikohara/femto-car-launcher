@@ -35,6 +35,12 @@ class BRouterEngineTest {
         assertEquals(RouteResult.MissingTiles(listOf("E130_N30")), search(MATSUYAMA, OSAKA, parameters))
     }
 
+    // The engine takes the alternative's index and starts as for the best route, at the tile under the origin.
+    @Test
+    fun `an alternative request still names the missing tile`() {
+        assertEquals(RouteResult.MissingTiles(listOf("E130_N30")), search(MATSUYAMA, OSAKA, alternativeIndex = 2))
+    }
+
     // Why the parameters say "1": a profile given "true" for a boolean does not parse.
     @Test
     fun `a boolean parameter given as true does not parse`() {
@@ -45,6 +51,7 @@ class BRouterEngineTest {
         origin: RoutePoint,
         destination: RoutePoint,
         parameters: Map<String, String> = emptyMap(),
+        alternativeIndex: Int = 0,
     ): RouteResult {
         val profile = RoutingProfileFiles(tempFolder.newFolder()) { shippedAssetFile(it).inputStream() }.prepare()
         val request =
@@ -55,6 +62,7 @@ class BRouterEngineTest {
                 destination = destination,
                 memoryClassMb = ENGINE_MEMORY_CLASS_MB,
                 parameters = parameters,
+                alternativeIndex = alternativeIndex,
             )
         return BRouterEngine.prepare(request).run(ROUTE_TIME_LIMIT_MS).toRouteResult()
     }

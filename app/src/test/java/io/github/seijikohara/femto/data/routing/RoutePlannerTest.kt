@@ -231,6 +231,19 @@ class RoutePlannerTest {
         }
 
     @Test
+    fun `an alternative's index reaches the engine and the last run`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = TRACK)
+            val planner = planner(engine)
+
+            planner.route(MATSUYAMA, IMABARI, alternativeIndex = 2)
+
+            assertEquals(2, engine.requests.single().alternativeIndex)
+            assertEquals(2, planner.lastRunOrNull()?.alternativeIndex)
+        }
+
+    @Test
     fun `a found route whose engine wrote no reference returns none`() =
         runTest {
             installTile("E130_N30")
