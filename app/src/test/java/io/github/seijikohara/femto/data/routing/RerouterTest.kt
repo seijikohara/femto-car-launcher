@@ -233,7 +233,7 @@ class RerouterTest {
         }
 
     @Test
-    fun `back on the route leaves a running reroute's status`() =
+    fun `back on the route cancels a running reroute and clears its status`() =
         runTest {
             val rerouter = rerouter()
             val session = store.start(ROUTE, DESTINATION, REFERENCE)
@@ -241,8 +241,27 @@ class RerouterTest {
             runCurrent()
 
             rerouter.onBackOnRoute(session)
+            runCurrent()
 
-            assertEquals(RerouteStatus.REROUTING, store.active.value?.reroute)
+            assertTrue(planner.cancelled)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+        }
+
+    // The engine answers in the same moment the vehicle rejoins the route, too late for the cancel to stop it.
+    @Test
+    fun `a failure that lands after back on the route does not show`() =
+        runTest {
+            val session = rerouteAnsweredAfterBackOnRoute(RouteResult.Failed("no track found"))
+
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+        }
+
+    @Test
+    fun `missing data that lands after back on the route does not show`() =
+        runTest {
+            val session = rerouteAnsweredAfterBackOnRoute(RouteResult.MissingTiles(listOf("E130_N30")))
+
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
         }
 
     @Test
@@ -298,6 +317,17 @@ class RerouterTest {
         return session
     }
 
+    // A session whose one reroute answers [result] only after the vehicle is back on the route; returns the session.
+    private fun TestScope.rerouteAnsweredAfterBackOnRoute(result: RouteResult): Long {
+        val rerouter = rerouter()
+        val session = store.start(ROUTE, DESTINATION, REFERENCE)
+        planner.beforeAnswering = { rerouter.onBackOnRoute(session) }
+        planner.answer.complete(result)
+        rerouter.onLeftRoute(session, LEFT_AT)
+        runCurrent()
+        return session
+    }
+
     private data class RerouteCall(
         val origin: RoutePoint,
         val destination: RoutePoint,
@@ -305,13 +335,14 @@ class RerouterTest {
         val reference: File?,
     )
 
-    // The planner as the rerouter sees it: every call is recorded, takes [computingMs] on the test's clock, and waits
-    // for [answer].
+    // The planner as the rerouter sees it: every call is recorded, takes [computingMs] on the test's clock, waits for
+    // [answer], and runs [beforeAnswering] just before it returns the answer, with no suspension in between.
     private inner class FakeReroutePlanner {
         val calls = mutableListOf<RerouteCall>()
         var answer = CompletableDeferred<RouteResult>()
         var computingMs = 0L
         var cancelled = false
+        var beforeAnswering: () -> Unit = {}
 
         suspend fun route(
             origin: RoutePoint,
@@ -322,7 +353,7 @@ class RerouterTest {
             calls += RerouteCall(origin, destination, headingDegrees, reference)
             nowMs += computingMs
             return try {
-                answer.await()
+                answer.await().also { beforeAnswering() }
             } catch (e: CancellationException) {
                 cancelled = true
                 throw e

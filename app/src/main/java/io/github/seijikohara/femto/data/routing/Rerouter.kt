@@ -8,11 +8,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.roundToInt
@@ -48,8 +50,11 @@ internal data class RerouteStats(
  * belongs to its session of [store]: it replaces the route only while that session is current, and a session that
  * ends (a clear, or a new route) cancels it, which frees the planner for the route that ended it. A found route
  * replaces the old one; one that needs data the device does not hold leaves the old line with
- * [RerouteStatus.NO_DATA], and any other failure with [RerouteStatus.FAILED]. The constructor stays injectable for JVM
- * tests; production wiring goes through [get].
+ * [RerouteStatus.NO_DATA], and any other failure with [RerouteStatus.FAILED].
+ *
+ * A reroute writes to [store] only under [lock] and only while it has not been cancelled, and whoever cancels it
+ * ([onBackOnRoute], [cancel]) settles the status under the same lock. So a result that arrives after a cancel never
+ * lands. The constructor stays injectable for JVM tests; production wiring goes through [get].
  */
 internal class Rerouter(
     private val route: suspend (
@@ -66,7 +71,7 @@ internal class Rerouter(
     private val lock = Any()
 
     // Guarded by [lock].
-    private var running: Job? = null
+    private var running: RunningReroute? = null
     private var lastStartMs: Long? = null
 
     private val mutableStats = MutableStateFlow(RerouteStats(count = 0, last = null, usedReference = null))
@@ -82,22 +87,36 @@ internal class Rerouter(
         val active = store.active.value?.takeIf { it.session == session } ?: return
         synchronized(lock) {
             val now = nowMs()
-            if (running?.isActive == true || lastStartMs?.let { now - it < REROUTE_MIN_INTERVAL_MS } == true) return
+            if (running?.job?.isActive == true || lastStartMs?.let { now - it < REROUTE_MIN_INTERVAL_MS } == true) {
+                return
+            }
             lastStartMs = now
-            running = scope.launch { whileSessionCurrent(session) { reroute(active, fix) } }
+            running = RunningReroute(session, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
         }
     }
 
-    /** The vehicle is back on the route of [session]: a reroute that found nothing no longer needs saying. */
+    /**
+     * The vehicle is back on the route of [session]: a reroute for it is moot, so it stops, and whatever the row said
+     * about rerouting goes.
+     */
     fun onBackOnRoute(session: Long) {
-        store.active.value
-            ?.takeIf { it.session == session && it.reroute in SETTLED_FAILURES }
-            ?.let { store.setStatus(session, RerouteStatus.NONE) }
+        synchronized(lock) {
+            running?.takeIf { it.session == session }?.job?.cancel()
+            store.setStatus(session, RerouteStatus.NONE)
+        }
     }
 
-    /** Stop a running reroute at once, so the planner is free for the route the driver asked for. */
+    /**
+     * Stop a running reroute at once, so the planner is free for the route the driver asked for; the old line stays,
+     * with nothing to say about it.
+     */
     fun cancel() {
-        synchronized(lock) { running?.cancel() }
+        synchronized(lock) {
+            running?.takeIf { it.job.isActive }?.let { stopped ->
+                stopped.job.cancel()
+                store.setStatus(stopped.session, RerouteStatus.NONE)
+            }
+        }
     }
 
     // A reroute for a session that has ended has nothing left to replace, and it would hold the planner that the next
@@ -121,14 +140,13 @@ internal class Rerouter(
         fix: RouteFix,
     ) {
         val session = active.session
-        if (!store.setStatus(session, RerouteStatus.REROUTING)) return
+        val job = currentCoroutineContext().job
+        if (!synchronized(lock) { job.isActive && store.setStatus(session, RerouteStatus.REROUTING) }) return
         val startedMs = nowMs()
         val result =
             try {
                 route(fix.point, active.destination, fix.headingDegreesOrNull(), active.reference)
             } catch (e: CancellationException) {
-                // The old line stays, and nothing about it is wrong.
-                store.setStatus(session, RerouteStatus.NONE)
                 throw e
             } catch (e: Exception) {
                 // An uncaught failure here would end the launcher's process, which runs the home screen.
@@ -141,29 +159,27 @@ internal class Rerouter(
                 usedReference = active.reference != null,
             )
         }
-        when (result) {
-            is RouteResult.Found -> {
-                if (store.replace(session, result.route, result.reference)) {
-                    pruneReferences(setOfNotNull(result.reference))
-                } else {
-                    result.reference?.delete()
-                }
+        // The engine can return just as the reroute is cancelled; the check under the lock drops such a result.
+        val replaced =
+            synchronized(lock) {
+                job.isActive &&
+                    when (result) {
+                        is RouteResult.Found -> store.replace(session, result.route, result.reference)
+                        else -> false.also { store.setStatus(session, result.failureStatus()) }
+                    }
             }
-
-            is RouteResult.MissingTiles, RouteResult.NoRoadData -> {
-                store.setStatus(session, RerouteStatus.NO_DATA)
-            }
-
-            RouteResult.DataVersionMismatch, RouteResult.TimedOut, is RouteResult.Failed -> {
-                store.setStatus(session, RerouteStatus.FAILED)
-            }
+        if (result is RouteResult.Found) {
+            if (replaced) pruneReferences(setOfNotNull(result.reference)) else result.reference?.delete()
         }
     }
 
-    companion object {
-        // The statuses a finished reroute leaves; REROUTING belongs to the reroute still running.
-        private val SETTLED_FAILURES = setOf(RerouteStatus.NO_DATA, RerouteStatus.FAILED)
+    // A reroute and the session it belongs to.
+    private class RunningReroute(
+        val session: Long,
+        val job: Job,
+    )
 
+    companion object {
         @Volatile
         private var instance: Rerouter? = null
 
@@ -190,6 +206,14 @@ internal class Rerouter(
             }
     }
 }
+
+// The status a reroute that found no route leaves: only missing data could be helped by a download, which a reroute
+// never starts.
+private fun RouteResult.failureStatus(): RerouteStatus =
+    when (this) {
+        is RouteResult.MissingTiles, RouteResult.NoRoadData -> RerouteStatus.NO_DATA
+        else -> RerouteStatus.FAILED
+    }
 
 // The heading only from a fix that moves: a standing receiver's bearing is noise, and a wrong heading would turn the
 // new route around.
