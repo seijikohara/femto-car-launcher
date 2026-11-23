@@ -161,17 +161,21 @@ internal class Rerouter(
                 usedReference = active.reference != null,
             )
         }
+        // BRouter writes no reference for a route it merged onto the reference it was given. That reference still leads
+        // to the same destination under the same profile, so it stays for the next reroute, which would otherwise need
+        // a full search, one that can fail where the reference lets the search succeed.
+        val keptReference = (result as? RouteResult.Found)?.let { it.reference ?: active.reference }
         // The engine can return just as the reroute is cancelled; the check under the lock drops such a result.
         val replaced =
             synchronized(lock) {
                 job.isActive &&
                     when (result) {
-                        is RouteResult.Found -> store.replace(session, result.route, result.reference)
+                        is RouteResult.Found -> store.replace(session, result.route, keptReference)
                         else -> false.also { store.setStatus(session, result.failureStatus()) }
                     }
             }
         if (result is RouteResult.Found) {
-            if (replaced) pruneReferences(setOfNotNull(result.reference)) else result.reference?.delete()
+            if (replaced) pruneReferences(setOfNotNull(keptReference)) else result.reference?.delete()
         }
     }
 

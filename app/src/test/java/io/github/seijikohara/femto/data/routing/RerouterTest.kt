@@ -56,6 +56,27 @@ class RerouterTest {
             assertEquals(listOf<Collection<File>>(setOf(NEW_REFERENCE)), pruned)
         }
 
+    // BRouter writes no reference for a route it merged onto the one it was given.
+    @Test
+    fun `a found reroute without a reference of its own keeps the session's reference for the next one`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            planner.answer.complete(RouteResult.Found(REROUTED, reference = null))
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+            val kept = store.active.value?.reference
+            val prunedAfterTheFirst = pruned.toList()
+
+            nowMs += REROUTE_MIN_INTERVAL_MS
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertEquals(REFERENCE, kept)
+            assertEquals(listOf<Collection<File>>(setOf(REFERENCE)), prunedAfterTheFirst)
+            assertEquals(listOf(REFERENCE, REFERENCE), planner.calls.map { it.reference })
+        }
+
     @Test
     fun `the status says rerouting while a reroute runs`() =
         runTest {
