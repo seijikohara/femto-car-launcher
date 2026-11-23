@@ -45,6 +45,9 @@ internal class RoutingFixture(
 
     val profilesDir: File get() = File(root, "routing/profiles")
 
+    /** Where the planner keeps the engine's references, as the app's cache directory holds them. */
+    val referenceDir: File get() = File(root, "routing-references")
+
     fun planner(
         engine: FakeRouteEngine = this.engine,
         profiles: RoutingProfileFiles = RoutingProfileFiles(profilesDir) { FakeRoutingProfileBytes.inputStream() },
@@ -55,6 +58,7 @@ internal class RoutingFixture(
         RoutePlanner(
             tiles = tiles,
             profiles = profiles,
+            referenceDir = referenceDir,
             engine = engine,
             timeLimitMs = timeLimitMs,
             ioDispatcher = dispatcher,

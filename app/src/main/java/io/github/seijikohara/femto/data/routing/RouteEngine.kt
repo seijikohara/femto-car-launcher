@@ -17,6 +17,15 @@ internal data class EngineRequest(
     val destination: RoutePoint,
     /** The memory, in MB, the engine sizes its caches for. */
     val memoryClassMb: Int,
+    /** The vehicle's heading at [origin], in degrees clockwise from north, so the route does not open with a U-turn. */
+    val startHeadingDegrees: Int? = null,
+    /**
+     * An earlier route to the same destination, as [referenceOut] wrote it: the search stops where it rejoins that
+     * route. The engine ignores a reference built for another destination or under other profile settings.
+     */
+    val referenceIn: File? = null,
+    /** Where the engine writes a found route as the reference for a later search to the same destination. */
+    val referenceOut: File? = null,
 )
 
 /** A position as the engine stores it: micro-degrees offset by +180° (longitude) and +90° (latitude). */

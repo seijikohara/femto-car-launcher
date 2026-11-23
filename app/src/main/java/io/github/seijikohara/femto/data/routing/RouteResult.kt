@@ -1,5 +1,7 @@
 package io.github.seijikohara.femto.data.routing
 
+import java.io.File
+
 /** One computed route. */
 internal data class Route(
     /** From origin to destination, along the roads. */
@@ -12,6 +14,8 @@ internal data class Route(
 internal sealed interface RouteResult {
     data class Found(
         val route: Route,
+        /** The engine's record of [route] for a later search to the same destination, or null when none was written. */
+        val reference: File? = null,
     ) : RouteResult
 
     /** Tiles the route needs are not installed (and not known to have no data); fetching them may help. */

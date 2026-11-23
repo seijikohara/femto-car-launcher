@@ -20,6 +20,9 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -187,6 +190,86 @@ class RoutePlannerTest {
             assertEquals(RouteRunOutcome.FOUND, planner.lastRunOrNull()?.outcome)
         }
 
+    // --- The reference route and the heading -----------------------------------
+
+    @Test
+    fun `a route asks the engine to write a reference in the reference directory and returns it`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = TRACK, writesReference = true)
+
+            val result = planner(engine).route(MATSUYAMA, IMABARI)
+
+            val reference = assertNotNull(assertIs<RouteResult.Found>(result).reference)
+            assertTrue(reference.isFile)
+            assertEquals(referenceDir(), reference.parentFile)
+            assertEquals(reference, engine.requests.single().referenceOut)
+        }
+
+    @Test
+    fun `a reroute hands the engine the reference and the heading`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = TRACK)
+            val reference = File(referenceDir(), "earlier.bin")
+
+            planner(engine).route(MATSUYAMA, IMABARI, startHeadingDegrees = 90, reference = reference)
+
+            val request = engine.requests.single()
+            assertEquals(reference to 90, request.referenceIn to request.startHeadingDegrees)
+        }
+
+    @Test
+    fun `a found route whose engine wrote no reference returns none`() =
+        runTest {
+            installTile("E130_N30")
+
+            val result = planner(FakeRouteEngine(outcome = TRACK)).route(MATSUYAMA, IMABARI)
+
+            assertEquals(RouteResult.Found(ROUTE, reference = null), result)
+            assertEquals(emptyList(), referenceFiles())
+        }
+
+    @Test
+    fun `a failed search leaves no reference file`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = EngineOutcome.Error("no track found"), writesReference = true)
+
+            planner(engine).route(MATSUYAMA, IMABARI)
+
+            assertEquals(emptyList(), referenceFiles())
+        }
+
+    @Test
+    fun `prune keeps only the given references`() =
+        runTest {
+            installTile("E130_N30")
+            val planner = planner(FakeRouteEngine(outcome = TRACK, writesReference = true))
+            val first = assertNotNull(assertIs<RouteResult.Found>(planner.route(MATSUYAMA, IMABARI)).reference)
+            val second = assertNotNull(assertIs<RouteResult.Found>(planner.route(MATSUYAMA, IMABARI)).reference)
+
+            planner.pruneReferences(listOf(second))
+
+            assertEquals(listOf(second), referenceFiles())
+            assertFalse(first.exists())
+        }
+
+    // As the time-limit test above: the engine blocks a real thread, so the limit runs in real time.
+    @Test
+    fun `the time limit given to route bounds that search`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(holdsUntilTerminated = true)
+
+            val result =
+                planner(engine, engineDispatcher = Dispatchers.Default)
+                    .route(MATSUYAMA, IMABARI, timeLimitMs = SHORT_LIMIT_MS)
+
+            assertEquals(RouteResult.TimedOut, result)
+            assertEquals(listOf(SHORT_LIMIT_MS), engine.timeLimits)
+        }
+
     // The fixture's feed is never asked: the planner only reads which tiles are on disk.
     private fun TestScope.planner(
         engine: FakeRouteEngine,
@@ -198,6 +281,10 @@ class RoutePlannerTest {
             .planner(engine, profiles, engineDispatcher, timeLimitMs)
 
     private fun profilesDir(): File = File(tempFolder.root, "routing/profiles")
+
+    private fun referenceDir(): File = File(tempFolder.root, "routing-references")
+
+    private fun referenceFiles(): List<File> = referenceDir().listFiles().orEmpty().toList()
 
     private fun installTile(name: String) = installRoutingTile(tempFolder.root, name)
 
