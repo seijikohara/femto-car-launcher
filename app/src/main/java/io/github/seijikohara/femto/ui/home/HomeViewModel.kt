@@ -33,6 +33,7 @@ import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.location.isGpsFix
 import io.github.seijikohara.femto.data.location.vehicleMotionFlow
 import io.github.seijikohara.femto.data.location.withParkedDwell
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
@@ -193,6 +194,19 @@ internal class HomeViewModel(
     // work. Seeded with none, like the update badge, so the dashboard never
     // waits on the settings store.
     //
+    // Each fix as the route follow reads it. Cheap GPS receivers leave the
+    // speed unset while moving, so a GPS fix without one takes the trip's
+    // position-derived speed, read as the fix arrives; a trip update alone
+    // is no new fix. A network fix stays without a speed, so the off-route
+    // watch leaves it out.
+    private val routeFixes: Flow<RouteFix?> =
+        combine(
+            locationFlow.catchAsDefault(TAG, "route location", null),
+            tripStateFlow.catchAsDefault(TAG, "route trip speed", HomeUiState.Initial.tripState),
+        ) { location, trip -> location to trip.currentSpeedMs }
+            .distinctUntilChanged { old, new -> old.first === new.first }
+            .map { (location, tripSpeedMs) -> location?.toRouteFix(tripSpeedMs) }
+
     // The follow also watches for the vehicle leaving the route and reports it
     // with the route's session. It restarts on a new session or a new route (a
     // reroute's), never on a reroute status alone: a restart would put the
@@ -205,11 +219,8 @@ internal class HomeViewModel(
                 active?.let { shown ->
                     combine(
                         shown.route
-                            .followFlow(
-                                locationFlow
-                                    .catchAsDefault(TAG, "route location", null)
-                                    .map { it?.toRouteFix() },
-                            ).onEach { follow ->
+                            .followFlow(routeFixes)
+                            .onEach { follow ->
                                 when (val event = follow.event) {
                                     is FollowEvent.LeftRoute -> onLeftRoute(shown.session, event.fix)
                                     FollowEvent.BackOnRoute -> onBackOnRoute(shown.session)
@@ -486,12 +497,13 @@ internal class HomeViewModel(
     }
 }
 
-// Each reading only when the fix carries it: a missing speed must read as unknown, not as standing still.
-private fun Location.toRouteFix(): RouteFix =
+// Each reading only when the fix carries it: a missing speed must read as unknown, not as standing still. A GPS fix
+// without one takes [tripSpeedMs], the trip's speed from the positions; a network fix's position is too coarse for it.
+private fun Location.toRouteFix(tripSpeedMs: Double): RouteFix =
     RouteFix(
         point = RoutePoint(latitude = latitude, longitude = longitude),
         accuracyMeters = accuracy.takeIf { hasAccuracy() },
-        speedMetersPerSecond = speed.takeIf { hasSpeed() },
+        speedMetersPerSecond = speed.takeIf { hasSpeed() } ?: tripSpeedMs.toFloat().takeIf { isGpsFix() },
         bearingDegrees = bearing.takeIf { hasBearing() },
         elapsedMs = elapsedRealtimeNanos / NANOS_PER_MILLI,
     )

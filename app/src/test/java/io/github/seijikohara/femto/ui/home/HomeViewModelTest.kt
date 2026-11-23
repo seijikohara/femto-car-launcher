@@ -1200,24 +1200,79 @@ class HomeViewModelTest {
             assertEquals(11_000.0, route.progress.remainingMeters, 1.0)
         }
 
+    // Cheap GPS receivers leave the speed unset while moving.
+    @Test
+    fun `a GPS fix without speed moves at the trip's speed, so leaving the route is noticed`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val left = mutableListOf<Pair<Long, RouteFix>>()
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    tripState = fakeTripState(currentSpeedMs = TRIP_SPEED_MS),
+                    onLeftRoute = { session, fix -> left += session to fix },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            leaveTheRoute(location, hasSpeed = false)
+
+            assertEquals(
+                listOf(SESSION to TRIP_SPEED_MS.toFloat()),
+                left.map { (session, fix) ->
+                    session to
+                        fix.speedMetersPerSecond
+                },
+            )
+        }
+
+    @Test
+    fun `a network fix without speed is still left out of the watch`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val left = mutableListOf<Pair<Long, RouteFix>>()
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    tripState = fakeTripState(currentSpeedMs = TRIP_SPEED_MS),
+                    onLeftRoute = { session, fix -> left += session to fix },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            leaveTheRoute(location, hasSpeed = false, provider = LocationManager.NETWORK_PROVIDER)
+
+            assertEquals(emptyList(), left)
+        }
+
     // On the equator route at 0 s, then about 110 m north of it, moving east, a fix a second until the watch decides
     // at 6 s that the vehicle has left the route.
-    private fun leaveTheRoute(location: MutableStateFlow<Location?>) {
-        location.value = movingFix(latitude = 0.0, second = 0)
-        (1..6).forEach { second -> location.value = movingFix(latitude = OFF_ROUTE_LATITUDE, second = second) }
+    private fun leaveTheRoute(
+        location: MutableStateFlow<Location?>,
+        hasSpeed: Boolean = true,
+        provider: String = TEST_PROVIDER,
+    ) {
+        location.value = movingFix(latitude = 0.0, second = 0, hasSpeed = hasSpeed, provider = provider)
+        (1..6).forEach { second ->
+            location.value = movingFix(OFF_ROUTE_LATITUDE, second, hasSpeed = hasSpeed, provider = provider)
+        }
     }
 
     private fun movingFix(
         latitude: Double,
         second: Int,
+        hasSpeed: Boolean = true,
+        provider: String = TEST_PROVIDER,
     ): Location =
         fakeLocation(
             latitude = latitude,
             longitude = ROUTE_LONGITUDE,
             speedMps = 10f,
             elapsedRealtimeNanos = second * 1_000_000_000L,
+            hasSpeed = hasSpeed,
             bearingDeg = EAST,
             accuracyM = FIX_ACCURACY_M,
+            provider = provider,
         )
 
     private fun activeRouteOf(route: Route): ActiveRoute =
@@ -1234,6 +1289,7 @@ class HomeViewModelTest {
         activeRouteFlow: Flow<ActiveRoute?> = flowOf(activeRouteOf(route)),
         onLeftRoute: (Long, RouteFix) -> Unit = { _, _ -> },
         onBackOnRoute: (Long) -> Unit = {},
+        tripState: TripState = fakeTripState(),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1242,7 +1298,7 @@ class HomeViewModelTest {
             musicStateFlow = flowOf(MusicCardState.NeedsPermission),
             calendarFlow = flowOf(null),
             systemStatusFlow = flowOf(fakeSystemStatus()),
-            tripStateFlow = flowOf(fakeTripState()),
+            tripStateFlow = flowOf(tripState),
             activeRouteFlow = activeRouteFlow,
             routingAvailable = flowOf(available),
             clearRoute = clearRoute,
@@ -1286,6 +1342,10 @@ class HomeViewModelTest {
         const val OFF_ROUTE_LATITUDE = 0.001
         const val EAST = 90f
         const val FIX_ACCURACY_M = 5f
+
+        // A provider that counts as GPS (anything but the network provider), and the trip's speed from the positions.
+        const val TEST_PROVIDER = "test"
+        const val TRIP_SPEED_MS = 12.0
 
         // An hour into the boot clock, so a fix can be dated before "now".
         const val BADGE_NOW = 3_600_000_000_000L
