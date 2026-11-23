@@ -14,6 +14,12 @@ internal const val OFF_ROUTE_FLOOR_METERS = 50.0
 internal const val OFF_ROUTE_HOLD_MS = 5_000L
 
 /**
+ * How long a vehicle that left the route stays within [OFF_ROUTE_FLOOR_METERS] of the line before it counts as back on
+ * it. Being back cancels a running reroute, so a single fix that strays onto the line must not.
+ */
+internal const val OFF_ROUTE_BACK_HOLD_MS = 2_000L
+
+/**
  * How long a vehicle moves without a stop before the watch arms without ever having been on the line. The line starts
  * at the road BRouter matched the start to, which can lie a car park's width from where the route was set.
  */
@@ -62,7 +68,9 @@ internal sealed interface FollowEvent {
  * accurate, or after [OFF_ROUTE_ARM_MOVING_MS] of moving, and stays quiet within [OFF_ROUTE_QUIET_NEAR_END_METERS] of
  * the end. A stop restarts the hold, and so does a
  * gap of more than [LOCATION_STALE_THRESHOLD_MS] between fixes, as after a tunnel or a replayed old fix. Still off the
- * route after [FollowEvent.LeftRoute], it raises the event again after another hold.
+ * route after [FollowEvent.LeftRoute], it raises the event again after another hold. After it, the vehicle is back on
+ * the route once consecutive fixes have stayed within [OFF_ROUTE_FLOOR_METERS] of the line for
+ * [OFF_ROUTE_BACK_HOLD_MS]; the widened threshold does not count here either.
  */
 internal data class OffRouteWatch(
     val armed: Boolean = false,
@@ -72,8 +80,10 @@ internal data class OffRouteWatch(
     val movingSinceMs: Long? = null,
     /** When the vehicle went off the line while moving, or null while it is on the line, stands, or nears the end. */
     val offSinceMs: Long? = null,
-    /** Whether [FollowEvent.LeftRoute] has been raised and the vehicle has not been back on the line since. */
+    /** Whether [FollowEvent.LeftRoute] has been raised and [FollowEvent.BackOnRoute] has not been since. */
     val left: Boolean = false,
+    /** When the vehicle, having left, came back within [OFF_ROUTE_FLOOR_METERS] of the line, or null. */
+    val backSinceMs: Long? = null,
     /** The event the fix that made this watch raised, or null. */
     val event: FollowEvent? = null,
 )
@@ -94,8 +104,8 @@ internal fun OffRouteWatch.advance(
     val gapMs = lastFixMs?.let { fix.elapsedMs - it }
     if (fix.speedMetersPerSecond == null || (gapMs != null && gapMs < 0)) return copy(event = null)
     val continuous = gapMs != null && gapMs <= LOCATION_STALE_THRESHOLD_MS
-    // The widened threshold keeps a poor fix from counting as having left; it must not let one count as having been
-    // on the line, which is what arms the watch.
+    // The widened threshold keeps a poor fix from counting as having left; it must not let one count as being on the
+    // line, which arms the watch and, after leaving, brings the vehicle back.
     val onFloor = offLineMeters <= OFF_ROUTE_FLOOR_METERS
     val onLine = offLineMeters <= offRouteThresholdMeters(fix.accuracyMeters)
     val movingSince = movingSinceMs?.takeIf { continuous } ?: fix.elapsedMs
@@ -104,21 +114,23 @@ internal fun OffRouteWatch.advance(
     val offSince =
         (offSinceMs?.takeIf { continuous } ?: fix.elapsedMs)
             .takeIf { !onLine && nowMoving && remainingMeters > OFF_ROUTE_QUIET_NEAR_END_METERS }
+    val backSince = (backSinceMs?.takeIf { continuous } ?: fix.elapsedMs).takeIf { left && onFloor }
     val next =
         OffRouteWatch(
             armed = nowArmed,
             lastFixMs = fix.elapsedMs,
             movingSinceMs = movingSince.takeIf { nowMoving },
             offSinceMs = offSince,
-            left = left && !onLine,
+            left = left,
+            backSinceMs = backSince,
         )
     return when {
         nowArmed && offSince != null && fix.elapsedMs - offSince >= OFF_ROUTE_HOLD_MS -> {
-            next.copy(offSinceMs = fix.elapsedMs, left = true, event = FollowEvent.LeftRoute(fix))
+            next.copy(offSinceMs = fix.elapsedMs, left = true, backSinceMs = null, event = FollowEvent.LeftRoute(fix))
         }
 
-        left && onLine -> {
-            next.copy(event = FollowEvent.BackOnRoute)
+        backSince != null && fix.elapsedMs - backSince >= OFF_ROUTE_BACK_HOLD_MS -> {
+            next.copy(left = false, backSinceMs = null, event = FollowEvent.BackOnRoute)
         }
 
         else -> {

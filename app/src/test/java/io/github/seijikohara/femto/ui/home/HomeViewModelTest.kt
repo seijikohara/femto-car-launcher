@@ -1178,7 +1178,8 @@ class HomeViewModelTest {
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             leaveTheRoute(location)
 
-            location.value = movingFix(latitude = 0.0, second = 7)
+            // On the line again for two seconds.
+            (7..9).forEach { second -> location.value = movingFix(latitude = 0.0, second = second) }
 
             assertEquals(listOf(SESSION), back)
         }

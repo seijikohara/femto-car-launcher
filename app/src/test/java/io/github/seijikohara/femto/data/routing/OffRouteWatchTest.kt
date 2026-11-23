@@ -86,10 +86,27 @@ class OffRouteWatchTest {
     }
 
     @Test
-    fun `back within the threshold after LeftRoute raises BackOnRoute once`() {
-        val events = events(listOf(ON_LINE) + List(6) { OFF_LINE } + List(2) { ON_LINE })
+    fun `two seconds back on the line after LeftRoute raise BackOnRoute once`() {
+        // Left at 6 s; on the line again from 7 s.
+        val events = events(listOf(ON_LINE) + List(6) { OFF_LINE } + List(4) { ON_LINE })
 
-        assertEquals(listOf(FollowEvent.BackOnRoute, null), events.drop(7))
+        assertEquals(listOf(null, null, FollowEvent.BackOnRoute, null), events.drop(7))
+    }
+
+    @Test
+    fun `a single fix back on the line raises no BackOnRoute`() {
+        val events = events(listOf(ON_LINE) + List(6) { OFF_LINE } + ON_LINE + OFF_LINE)
+
+        assertEquals(listOf(null, null), events.drop(7))
+    }
+
+    // 40 m of accuracy widens the threshold to 80 m; 70 m is inside it but outside the 50 m floor.
+    @Test
+    fun `poor fixes inside the widened threshold raise no BackOnRoute`() {
+        val poor = Reading(offLineMeters = 70.0, accuracy = 40f)
+        val events = events(listOf(ON_LINE) + List(6) { OFF_LINE } + List(3) { poor })
+
+        assertEquals(listOf(null, null, null), events.drop(7))
     }
 
     // A tunnel, or the old fix a new subscription replays first: the hold counts from the first fix after the gap.
