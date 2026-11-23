@@ -39,8 +39,11 @@ import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
+import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
-import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.FollowEvent
+import io.github.seijikohara.femto.data.routing.RerouteStatus
+import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.followFlow
@@ -69,10 +72,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -121,9 +126,13 @@ internal class HomeViewModel(
     // The active route (ActiveRouteStore) and whether this build and map backend
     // offer routing (routingAvailableFlow). Default to none and off, so previews
     // and tests that do not exercise routing show none of it.
-    routeFlow: Flow<Route?> = flowOf(null),
+    activeRouteFlow: Flow<ActiveRoute?> = flowOf(null),
     routingAvailable: Flow<Boolean> = flowOf(false),
     private val clearRoute: () -> Unit = {},
+    // Where the follow reports that the vehicle left the route of a session, and
+    // that it is back on it (the Rerouter).
+    onLeftRoute: (session: Long, fix: RouteFix) -> Unit = { _, _ -> },
+    onBackOnRoute: (session: Long) -> Unit = {},
     // Where the active route's progress is worked out; tests pin it to their
     // scheduler.
     routeDispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -183,17 +192,40 @@ internal class HomeViewModel(
     // every card's update re-runs. With no route it reads no fix and does no
     // work. Seeded with none, like the update badge, so the dashboard never
     // waits on the settings store.
+    //
+    // The follow also watches for the vehicle leaving the route and reports it
+    // with the route's session. It restarts on a new session or a new route (a
+    // reroute's), never on a reroute status alone: a restart would put the
+    // progress back to the start of the line and the off-route watch back to
+    // unarmed. The status joins in beside it.
     private val activeRoute: Flow<ActiveRouteState?> =
-        combine(routeFlow, routingAvailable) { route, available -> route?.takeIf { available } }
-            .distinctUntilChanged()
-            .flatMapLatest { route ->
-                route?.let { shown ->
-                    shown
-                        .followFlow(
-                            locationFlow
-                                .catchAsDefault(TAG, "route location", null)
-                                .map { it?.toRouteFix() },
-                        ).map { follow -> ActiveRouteState(line = shown.points, progress = follow.progress) }
+        combine(activeRouteFlow, routingAvailable) { active, available -> active?.takeIf { available } }
+            .distinctUntilChangedBy { it?.session to it?.route }
+            .flatMapLatest { active ->
+                active?.let { shown ->
+                    combine(
+                        shown.route
+                            .followFlow(
+                                locationFlow
+                                    .catchAsDefault(TAG, "route location", null)
+                                    .map { it?.toRouteFix() },
+                            ).onEach { follow ->
+                                when (val event = follow.event) {
+                                    is FollowEvent.LeftRoute -> onLeftRoute(shown.session, event.fix)
+                                    FollowEvent.BackOnRoute -> onBackOnRoute(shown.session)
+                                    null -> Unit
+                                }
+                            },
+                        activeRouteFlow
+                            .map { current -> current?.takeIf { it.session == shown.session }?.reroute }
+                            .distinctUntilChanged(),
+                    ) { follow, reroute ->
+                        ActiveRouteState(
+                            line = shown.route.points,
+                            progress = follow.progress,
+                            reroute = reroute ?: RerouteStatus.NONE,
+                        )
+                    }
                 } ?: flowOf(null)
             }.flowOn(routeDispatcher)
             .onStart { emit(null) }
@@ -592,13 +624,18 @@ internal class HomeViewModelFactory(
                     .map { it.musicSpectrum }
                     .distinctUntilChanged(),
             spectrumBandsFor = audioSpectrum::bandsFlow,
-            routeFlow = ActiveRouteStore.shared.active.map { it?.route },
+            activeRouteFlow = ActiveRouteStore.shared.active,
             routingAvailable =
                 routingAvailableFlow(
                     enabled = application.resources.getBoolean(R.bool.routing_enabled),
                     settings = displayPreferences.settings,
                 ),
             clearRoute = ActiveRouteStore.shared::clear,
+            // Resolved at the first report, which only an active route can make,
+            // so a build without routing never creates the rerouter or the
+            // routing stack behind it.
+            onLeftRoute = { session, fix -> Rerouter.get(application).onLeftRoute(session, fix) },
+            onBackOnRoute = { session -> Rerouter.get(application).onBackOnRoute(session) },
         ) as T
     }
 }

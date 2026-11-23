@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.location.TripState
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
@@ -89,7 +90,7 @@ import kotlin.math.roundToLong
  *    average speed | separator | reset-trip button (top-right).
  *  - Below: a 1 dp top border, then a MapPin · short-address row.
  *  - With an active route: another border, then a Flag · remaining distance ·
- *    arrival time row with a clear button ([RouteRow]).
+ *    arrival time (or a reroute's status) row with a clear button ([RouteRow]).
  *  - MaterialTheme.shapes.large corner and a 1 dp outline border. The Column wraps its
  *    content rather than claiming a fixed width, so the metric cells sit
  *    tight with a consistent 16 dp gap and the overlay never stretches to
@@ -133,9 +134,11 @@ internal fun SpeedOverlay(
     // whole-card idiom the calendar and weather cards use to expand.
     onExpand: (() -> Unit)? = null,
     // What is left of the active route (issue #389 phase 3); null hides the
-    // route row. [onClearRoute] is its clear button, and [clock] the "now" its
-    // arrival time counts from (the dashboard's injected clock).
+    // route row. [reroute] is where an automatic reroute of it stands,
+    // [onClearRoute] its clear button, and [clock] the "now" its arrival time
+    // counts from (the dashboard's injected clock).
     route: RouteProgress? = null,
+    reroute: RerouteStatus = RerouteStatus.NONE,
     onClearRoute: () -> Unit = {},
     clock: Clock = Clock.systemDefaultZone(),
 ) {
@@ -264,6 +267,7 @@ internal fun SpeedOverlay(
             ZeroIntrinsicWidth {
                 RouteRow(
                     progress = route,
+                    reroute = reroute,
                     speedUnit = speedUnit,
                     is24Hour = is24Hour,
                     clock = clock,
@@ -630,10 +634,13 @@ private fun RowEndButton(
  *
  * The arrival time is read from [clock] whenever the progress changes (each
  * fix), and once a minute besides, so it keeps moving while no fix arrives.
+ * While a reroute runs, or after one that found nothing, its status takes the
+ * arrival time's place: the old line's arrival time no longer holds.
  */
 @Composable
 private fun RouteRow(
     progress: RouteProgress,
+    reroute: RerouteStatus,
     speedUnit: SpeedUnit,
     is24Hour: Boolean,
     clock: Clock,
@@ -672,7 +679,13 @@ private fun RouteRow(
         UnitSuffix(speedUnit.distanceLabel(), modifier = Modifier.alignByBaseline())
     }
     Text(
-        text = stringResource(R.string.speed_route_arrival, arrival),
+        text =
+            when (reroute) {
+                RerouteStatus.NONE -> stringResource(R.string.speed_route_arrival, arrival)
+                RerouteStatus.REROUTING -> stringResource(R.string.speed_route_rerouting)
+                RerouteStatus.NO_DATA -> stringResource(R.string.speed_route_reroute_no_data)
+                RerouteStatus.FAILED -> stringResource(R.string.speed_route_reroute_failed)
+            },
         style = style,
         color = color,
         maxLines = 1,

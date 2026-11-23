@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.ui.destination.DestinationPanelHost
 import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
@@ -853,6 +854,7 @@ private fun DashboardOverlays(
                 motionTier = motionTier,
                 onExpand = onExpandTrip,
                 route = uiState.activeRoute?.progress,
+                reroute = uiState.activeRoute?.reroute ?: RerouteStatus.NONE,
                 onClearRoute = { onAction(HomeAction.ClearRoute) },
                 clock = clock,
                 modifier =

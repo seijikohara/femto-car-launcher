@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_CHECK_INTERVAL_MS
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.FakeCurrentFixSource
@@ -40,7 +41,10 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -66,6 +70,9 @@ class DestinationViewModelTest {
     private var nowNanos = NOW_NANOS
     private var locationGranted = true
     private val currentFix = FakeCurrentFixSource()
+
+    // How often a route run has stopped the rerouter.
+    private var rerouteCancels = 0
 
     @Before
     fun setUp() {
@@ -102,6 +109,7 @@ class DestinationViewModelTest {
             hasLocationPermission = { locationGranted },
             currentFix = currentFix,
             nowEpochMs = { routing.nowEpochMs },
+            cancelReroute = { rerouteCancels++ },
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -592,6 +600,52 @@ class DestinationViewModelTest {
 
             assertEquals(RouteStep.Done, viewModel.uiState.value.route)
             assertEquals(fakeRoute(), activeRoute.active.value?.route)
+        }
+
+    @Test
+    fun a_found_route_starts_a_session_with_the_destination_and_reference() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            routing.engine.writesReference = true
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            val active = assertNotNull(activeRoute.active.value)
+            val written = assertNotNull(
+                routing.engine.requests
+                    .single()
+                    .referenceOut,
+            )
+            assertEquals(RoutePoint(DESTINATION.latitude, DESTINATION.longitude), active.destination)
+            assertEquals(written, active.reference)
+            assertEquals(RerouteStatus.NONE, active.reroute)
+        }
+
+    @Test
+    fun a_found_route_deletes_the_references_of_earlier_routes() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            val earlier = File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply { writeText("x") }
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertFalse(earlier.exists())
+        }
+
+    @Test
+    fun a_route_run_cancels_a_running_reroute() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+
+            assertEquals(1, rerouteCancels)
         }
 
     @Test

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.ui.home.ActiveRouteState
 import io.github.seijikohara.femto.ui.home.HomeUiState
@@ -51,6 +52,10 @@ internal object DashboardFixtures {
                     progress = RouteProgress(remainingMeters = 12_400.0, remainingSeconds = 1_080.0),
                 ),
         )
+
+    /** [routeState] while the launcher reroutes after the vehicle left the route: the row says so in place of the ETA. */
+    val reroutingState: HomeUiState =
+        routeState.copy(activeRoute = routeState.activeRoute?.copy(reroute = RerouteStatus.REROUTING))
 
     // Decoded once per JVM. The captures are smaller than the widest geometry
     // (2000x1200), so Crop upscales there — acceptable because the backdrop is

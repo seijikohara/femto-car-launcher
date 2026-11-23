@@ -143,6 +143,17 @@ class DashboardScreenshotTest {
     fun dashboard_head_unit_route_dark() =
         capture("head-unit-853x512-route-dark", darkTheme = true, uiState = DashboardFixtures.routeState)
 
+    // The vehicle left the route: "Rerouting…" takes the arrival time's place.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_rerouting() =
+        capture("head-unit-853x512-rerouting", uiState = DashboardFixtures.reroutingState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_rerouting_dark() =
+        capture("head-unit-853x512-rerouting-dark", darkTheme = true, uiState = DashboardFixtures.reroutingState)
+
     private fun capture(
         name: String,
         uiScale: UiScale = UiScale.MEDIUM,

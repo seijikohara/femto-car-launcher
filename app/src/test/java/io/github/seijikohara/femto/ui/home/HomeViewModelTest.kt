@@ -14,7 +14,11 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.routing.ActiveRoute
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RouteFix
+import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateManifest
@@ -28,6 +32,7 @@ import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
+import io.github.seijikohara.femto.testfixtures.fakeRouteFix
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
@@ -39,6 +44,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
@@ -1134,6 +1140,89 @@ class HomeViewModelTest {
             assertEquals(1, clears)
         }
 
+    @Test
+    fun `leaving the route reports the session and the fix`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val left = mutableListOf<Pair<Long, RouteFix>>()
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    onLeftRoute = { session, fix -> left += session to fix },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            leaveTheRoute(location)
+
+            assertEquals(
+                listOf(
+                    SESSION to
+                        fakeRouteFix(
+                            RoutePoint(OFF_ROUTE_LATITUDE, ROUTE_LONGITUDE),
+                            elapsedMs = 6_000L,
+                            accuracyMeters = FIX_ACCURACY_M,
+                            bearingDegrees = EAST,
+                        ),
+                ),
+                left,
+            )
+        }
+
+    @Test
+    fun `back on the route is reported`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val back = mutableListOf<Long>()
+            val viewModel = routeViewModel(locationFlow = location, available = true, onBackOnRoute = { back += it })
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            leaveTheRoute(location)
+
+            location.value = movingFix(latitude = 0.0, second = 7)
+
+            assertEquals(listOf(SESSION), back)
+        }
+
+    @Test
+    fun `a status change keeps the progress and shows the status`() =
+        runTest {
+            // Fixes that are not replayed: a follow that started over would see none and count from the start again.
+            val location = MutableSharedFlow<Location?>()
+            val active = MutableStateFlow<ActiveRoute?>(activeRouteOf(EQUATOR_ROUTE))
+            val viewModel = routeViewModel(locationFlow = location, available = true, activeRouteFlow = active)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            location.emit(fakeLocation(latitude = 0.0, longitude = 0.1))
+
+            active.value = active.value?.copy(reroute = RerouteStatus.REROUTING)
+
+            val route = assertNotNull(viewModel.uiState.value.activeRoute)
+            assertEquals(RerouteStatus.REROUTING, route.reroute)
+            assertEquals(11_000.0, route.progress.remainingMeters, 1.0)
+        }
+
+    // On the equator route at 0 s, then about 110 m north of it, moving east, a fix a second until the watch decides
+    // at 6 s that the vehicle has left the route.
+    private fun leaveTheRoute(location: MutableStateFlow<Location?>) {
+        location.value = movingFix(latitude = 0.0, second = 0)
+        (1..6).forEach { second -> location.value = movingFix(latitude = OFF_ROUTE_LATITUDE, second = second) }
+    }
+
+    private fun movingFix(
+        latitude: Double,
+        second: Int,
+    ): Location =
+        fakeLocation(
+            latitude = latitude,
+            longitude = ROUTE_LONGITUDE,
+            speedMps = 10f,
+            elapsedRealtimeNanos = second * 1_000_000_000L,
+            bearingDeg = EAST,
+            accuracyM = FIX_ACCURACY_M,
+        )
+
+    private fun activeRouteOf(route: Route): ActiveRoute =
+        ActiveRoute(SESSION, route, ROUTE_DESTINATION, reference = null)
+
     // The route's progress runs on the test scheduler, so a test reads it as
     // soon as its subscriber has.
     private fun TestScope.routeViewModel(
@@ -1142,6 +1231,9 @@ class HomeViewModelTest {
         clearRoute: () -> Unit = {},
         locationFlow: Flow<Location?> = flowOf(location),
         route: Route = EQUATOR_ROUTE,
+        activeRouteFlow: Flow<ActiveRoute?> = flowOf(activeRouteOf(route)),
+        onLeftRoute: (Long, RouteFix) -> Unit = { _, _ -> },
+        onBackOnRoute: (Long) -> Unit = {},
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1151,9 +1243,11 @@ class HomeViewModelTest {
             calendarFlow = flowOf(null),
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(fakeTripState()),
-            routeFlow = flowOf(route),
+            activeRouteFlow = activeRouteFlow,
             routingAvailable = flowOf(available),
             clearRoute = clearRoute,
+            onLeftRoute = onLeftRoute,
+            onBackOnRoute = onBackOnRoute,
             routeDispatcher = UnconfinedTestDispatcher(testScheduler),
         )
 
@@ -1182,6 +1276,16 @@ class HomeViewModelTest {
 
         // The fix at 0.1° east is halfway along it.
         val EQUATOR_ROUTE = fakeEquatorRoute()
+
+        // The session the destination panel opened for the route under test, and where the route goes.
+        const val SESSION = 7L
+        val ROUTE_DESTINATION = RoutePoint(latitude = 0.0, longitude = 0.2)
+
+        // A quarter of the way along the equator route, and about 110 m north of it.
+        const val ROUTE_LONGITUDE = 0.05
+        const val OFF_ROUTE_LATITUDE = 0.001
+        const val EAST = 90f
+        const val FIX_ACCURACY_M = 5f
 
         // An hour into the boot clock, so a fix can be dated before "now".
         const val BADGE_NOW = 3_600_000_000_000L
