@@ -20,8 +20,8 @@ import java.io.File
 import kotlin.math.roundToInt
 
 /**
- * The least time between the starts of two reroutes. A vehicle that drives off the road network, or where no routing
- * data lies, keeps leaving every new line; this keeps it from rerouting without end.
+ * The least time between the starts of two reroutes of one session. A vehicle that drives off the road network, or
+ * where no routing data lies, keeps leaving every new line; this keeps it from rerouting without end.
  */
 internal const val REROUTE_MIN_INTERVAL_MS = 30_000L
 
@@ -46,7 +46,8 @@ internal data class RerouteStats(
  * [scope], so a reroute runs with the destination panel closed and outlives a route change on the dashboard. Its
  * [route] reads only the routing data on the device and never the network.
  *
- * One reroute runs at a time, and the next starts no sooner than [REROUTE_MIN_INTERVAL_MS] after the last. A reroute
+ * One reroute runs at a time, and the next in the same session starts no sooner than [REROUTE_MIN_INTERVAL_MS] after
+ * the last; a new session, a route the driver just set, may reroute at once. A reroute
  * belongs to its session of [store]: it replaces the route only while that session is current, and a session that
  * ends (a clear, or a new route) cancels it, which frees the planner for the route that ended it. A found route
  * replaces the old one; one that needs data the device does not hold leaves the old line with
@@ -70,9 +71,8 @@ internal class Rerouter(
 ) {
     private val lock = Any()
 
-    // Guarded by [lock].
+    // The last reroute started, running or not; guarded by [lock].
     private var running: RunningReroute? = null
-    private var lastStartMs: Long? = null
 
     private val mutableStats = MutableStateFlow(RerouteStats(count = 0, last = null, usedReference = null))
 
@@ -87,11 +87,13 @@ internal class Rerouter(
         val active = store.active.value?.takeIf { it.session == session } ?: return
         synchronized(lock) {
             val now = nowMs()
-            if (running?.job?.isActive == true || lastStartMs?.let { now - it < REROUTE_MIN_INTERVAL_MS } == true) {
-                return
-            }
-            lastStartMs = now
-            running = RunningReroute(session, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
+            val held =
+                running?.let { last ->
+                    last.job.isActive || (last.session == session && now - last.startedMs < REROUTE_MIN_INTERVAL_MS)
+                } == true
+            if (held) return
+            running =
+                RunningReroute(session, now, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
         }
     }
 
@@ -173,9 +175,10 @@ internal class Rerouter(
         }
     }
 
-    // A reroute and the session it belongs to.
+    // A reroute, the session it belongs to, and when it started on [nowMs]'s clock.
     private class RunningReroute(
         val session: Long,
+        val startedMs: Long,
         val job: Job,
     )
 

@@ -148,6 +148,23 @@ class RerouterTest {
         }
 
     @Test
+    fun `a new session may reroute at once`() =
+        runTest {
+            val rerouter = rerouter()
+            val first = store.start(ROUTE, DESTINATION, REFERENCE)
+            planner.answer.complete(RouteResult.Failed("no track found"))
+            rerouter.onLeftRoute(first, LEFT_AT)
+            runCurrent()
+
+            nowMs += 1_000L
+            val second = store.start(REROUTED, DESTINATION, NEW_REFERENCE)
+            rerouter.onLeftRoute(second, LEFT_AT)
+            runCurrent()
+
+            assertEquals(listOf(REFERENCE, NEW_REFERENCE), planner.calls.map { it.reference })
+        }
+
+    @Test
     fun `a reroute for an old session does nothing`() =
         runTest {
             val rerouter = rerouter()
