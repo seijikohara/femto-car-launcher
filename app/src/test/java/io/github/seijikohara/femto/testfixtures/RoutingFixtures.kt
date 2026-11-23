@@ -29,7 +29,7 @@ internal class RoutingFixture(
     private val dispatcher: CoroutineDispatcher,
     /** The bytes the store's volume can still allocate. */
     var freeBytes: Long = PLENTY_OF_ROOM_BYTES,
-    /** The store's wall clock, which dates each check of a tile. */
+    /** The wall clock of the store, which dates each check of a tile, and of the planner, which ages each reference. */
     var nowEpochMs: Long = FIXTURE_EPOCH_MS,
 ) {
     val feed = FakeRemoteFileFeed()
@@ -65,6 +65,7 @@ internal class RoutingFixture(
             ioDispatcher = dispatcher,
             engineDispatcher = engineDispatcher,
             nanoTime = nanoTime,
+            nowEpochMs = { nowEpochMs },
         )
 
     fun installTile(name: String) = installRoutingTile(root, name)

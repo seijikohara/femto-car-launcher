@@ -9,6 +9,7 @@ import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.EngineOutcome
+import io.github.seijikohara.femto.data.routing.REFERENCE_PRUNE_GRACE_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_CHECK_INTERVAL_MS
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RoutePoint
@@ -630,7 +631,11 @@ class DestinationViewModelTest {
             val viewModel = subscribedViewModel(routingAvailable = true)
             routing.installTile(TILE)
             routing.engine.outcome = fakeEngineTrack()
-            val earlier = File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply { writeText("x") }
+            val earlier =
+                File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply {
+                    writeText("x")
+                    setLastModified(routing.nowEpochMs - 2 * REFERENCE_PRUNE_GRACE_MS)
+                }
 
             viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
             advanceUntilIdle()

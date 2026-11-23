@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
+import kotlin.math.abs
 
 /** BRouter's own default: its Android app and its server both stop a search after 60 s. */
 internal const val ROUTE_TIME_LIMIT_MS = 60_000L
@@ -22,6 +23,12 @@ private const val PROFILES_DIR = "profiles"
 
 // In the cache directory: the platform may clear it, and a lost reference only costs the next reroute a full search.
 private const val REFERENCES_DIR = "routing-references"
+
+/**
+ * How long a reference stays safe from [RoutePlanner.pruneReferences] after it was written: a search running beside a
+ * prune may just have written the reference its route is about to keep.
+ */
+internal const val REFERENCE_PRUNE_GRACE_MS = 60_000L
 
 private const val NANOS_PER_MILLI = 1_000_000L
 
@@ -73,6 +80,8 @@ internal class RoutePlanner(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val engineDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val nanoTime: () -> Long = System::nanoTime,
+    // The wall clock a reference's file time is compared with when pruning.
+    private val nowEpochMs: () -> Long = System::currentTimeMillis,
 ) {
     private val lock = Mutex()
 
@@ -112,14 +121,19 @@ internal class RoutePlanner(
 
     /**
      * Delete every reference in the reference directory but those in [keep], the references of the routes still in
-     * use. Blocking; a file that cannot be deleted waits for the next prune.
+     * use, and those written within [REFERENCE_PRUNE_GRACE_MS]. Blocking; a file that cannot be deleted waits for the
+     * next prune.
      */
     fun pruneReferences(keep: Collection<File>) =
         referenceDir
             .listFiles()
             .orEmpty()
-            .filterNot { it in keep }
+            .filterNot { it in keep || it.writtenWithinGrace() }
             .forEach { it.delete() }
+
+    // Either side of now: an AI box can boot with a wrong clock that NTP sets later, and a reference dated far ahead of
+    // the corrected clock must not stay for good.
+    private fun File.writtenWithinGrace(): Boolean = abs(nowEpochMs() - lastModified()) < REFERENCE_PRUNE_GRACE_MS
 
     // BRouter names the tile under the origin or the destination when it cannot open it, whether the tile is not
     // installed or does not exist, and the check above lets a tile known to have no data through. No download brings

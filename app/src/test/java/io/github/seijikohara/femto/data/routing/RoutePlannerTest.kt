@@ -248,11 +248,26 @@ class RoutePlannerTest {
             val planner = planner(FakeRouteEngine(outcome = TRACK, writesReference = true))
             val first = assertNotNull(assertIs<RouteResult.Found>(planner.route(MATSUYAMA, IMABARI)).reference)
             val second = assertNotNull(assertIs<RouteResult.Found>(planner.route(MATSUYAMA, IMABARI)).reference)
+            listOf(first, second).forEach { it.setLastModified(NOW_EPOCH_MS - 2 * REFERENCE_PRUNE_GRACE_MS) }
 
             planner.pruneReferences(listOf(second))
 
             assertEquals(listOf(second), referenceFiles())
             assertFalse(first.exists())
+        }
+
+    // A search beside the prune may just have written the reference its route is about to keep.
+    @Test
+    fun `prune keeps a reference written within the last minute`() =
+        runTest {
+            val planner = planner(FakeRouteEngine())
+            val old = referenceFile("old.bin", writtenAtEpochMs = NOW_EPOCH_MS - REFERENCE_PRUNE_GRACE_MS - 1_000L)
+            val fresh = referenceFile("fresh.bin", writtenAtEpochMs = NOW_EPOCH_MS - REFERENCE_PRUNE_GRACE_MS + 1_000L)
+
+            planner.pruneReferences(keep = emptyList())
+
+            assertEquals(listOf(fresh), referenceFiles())
+            assertFalse(old.exists())
         }
 
     // As the time-limit test above: the engine blocks a real thread, so the limit runs in real time.
@@ -286,6 +301,15 @@ class RoutePlannerTest {
 
     private fun referenceFiles(): List<File> = referenceDir().listFiles().orEmpty().toList()
 
+    private fun referenceFile(
+        name: String,
+        writtenAtEpochMs: Long,
+    ): File =
+        File(referenceDir().apply { mkdirs() }, name).apply {
+            writeBytes(byteArrayOf(1))
+            setLastModified(writtenAtEpochMs)
+        }
+
     private fun installTile(name: String) = installRoutingTile(tempFolder.root, name)
 
     private fun noDataRecord(name: String) = writeNoDataRecord(tempFolder.root, name)
@@ -300,5 +324,8 @@ class RoutePlannerTest {
 
         val PROFILE_BYTES = FakeRoutingProfileBytes
         const val SHORT_LIMIT_MS = 200L
+
+        // The planner's wall clock in these tests, the routing fixture's.
+        const val NOW_EPOCH_MS = RoutingFixture.FIXTURE_EPOCH_MS
     }
 }
