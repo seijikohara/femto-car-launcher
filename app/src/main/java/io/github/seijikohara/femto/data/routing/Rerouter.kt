@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -27,8 +28,9 @@ import kotlin.math.roundToInt
 internal const val REROUTE_MIN_INTERVAL_MS = 30_000L
 
 /**
- * A reroute's own time limit, half the planner's: the vehicle moves on while it runs, so a late answer starts from
- * where the vehicle no longer is. With a reference, a reroute takes a fraction of a full search.
+ * A reroute's own time limit, half the planner's, over the wait for the planner and the search together: the vehicle
+ * moves on while it runs, so a late answer starts from where the vehicle no longer is. With a reference, a reroute
+ * takes a fraction of a full search.
  */
 internal const val REROUTE_TIME_LIMIT_MS = 30_000L
 
@@ -148,7 +150,10 @@ internal class Rerouter(
         val startedMs = nowMs()
         val result =
             try {
-                route(fix.point, active.destination, fix.headingDegreesOrNull(), active.reference)
+                // The planner's own limit starts only once its lock is free; this one counts from the reroute's start.
+                withTimeoutOrNull(REROUTE_TIME_LIMIT_MS) {
+                    route(fix.point, active.destination, fix.headingDegreesOrNull(), active.reference)
+                } ?: RouteResult.TimedOut
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

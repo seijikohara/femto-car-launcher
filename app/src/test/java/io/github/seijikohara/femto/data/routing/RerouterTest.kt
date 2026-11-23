@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.testfixtures.fakeRouteFix
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -119,6 +120,26 @@ class RerouterTest {
             rerouteAnswered(RouteResult.TimedOut)
 
             assertEquals(RerouteStatus.FAILED, store.active.value?.reroute)
+        }
+
+    // The fake planner never answers, as a planner whose lock another search holds: the deadline counts the wait.
+    @Test
+    fun `a reroute that gets no answer within its deadline says failed`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, REFERENCE)
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            advanceTimeBy(REROUTE_TIME_LIMIT_MS)
+            runCurrent()
+
+            assertEquals(RerouteStatus.FAILED, store.active.value?.reroute)
+            assertEquals(
+                RouteRunOutcome.TIMED_OUT,
+                rerouter.stats.value.last
+                    ?.outcome,
+            )
         }
 
     @Test
