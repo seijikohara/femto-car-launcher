@@ -169,10 +169,11 @@ private const val NO_RUN_YET = "none this session"
 private fun RouteRunOutcome.label(): String = name.lowercase().replace('_', ' ')
 
 // Whether the reroute had a reference tells a slow reroute from a fast one: with it, BRouter stops where the new
-// route rejoins the old one.
+// route rejoins the old one. "Offered", since BRouter silently refuses a reference built under other profile
+// settings and then searches in full.
 private fun RerouteStats.summaryOrNull(): String? =
     last?.let { run ->
-        val reference = if (usedReference == true) "with reference" else "without reference"
+        val reference = if (usedReference == true) "reference offered" else "no reference offered"
         "${run.outcome.label()}, ${run.computingMs} ms, $count this session, $reference"
     }
 

@@ -535,26 +535,27 @@ class MapFactsTest {
         )
     }
 
+    // "Offered": BRouter may still refuse the reference and search in full.
     @Test
-    fun `the last reroute reports its outcome, time, count and whether it had a reference`() {
+    fun `the last reroute reports its outcome, time, count and whether a reference was offered`() {
         val reroutes = RerouteStats(3, RouteRun(RouteRunOutcome.FOUND, computingMs = 63L), usedReference = true)
 
         val facts = routingFacts(RoutingFacts(true, emptyList(), null, true, reroutes = reroutes))
 
         assertEquals(
-            FactValue.Text("found, 63 ms, 3 this session, with reference"),
+            FactValue.Text("found, 63 ms, 3 this session, reference offered"),
             facts.single { it.label == "Last reroute" }.value,
         )
     }
 
     @Test
-    fun `a reroute without a reference says so`() {
+    fun `a reroute without a reference says none was offered`() {
         val reroutes = RerouteStats(1, RouteRun(RouteRunOutcome.MISSING_TILES, computingMs = 5L), usedReference = false)
 
         val facts = routingFacts(RoutingFacts(true, emptyList(), null, true, reroutes = reroutes))
 
         assertEquals(
-            FactValue.Text("missing tiles, 5 ms, 1 this session, without reference"),
+            FactValue.Text("missing tiles, 5 ms, 1 this session, no reference offered"),
             facts.single { it.label == "Last reroute" }.value,
         )
     }
