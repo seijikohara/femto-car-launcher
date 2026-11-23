@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +54,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Mic
@@ -67,6 +69,7 @@ import io.github.seijikohara.femto.data.common.hasRecordAudioPermission
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
@@ -101,7 +104,8 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * Where routing is available ([DestinationUiState.routeAvailable]), a Route
  * action sits beside Navigate and on each saved place that can be routed to
  * ([DestinationUiState.canRoute]); it works in every motion state, like a tap
- * on a saved place. A route starts from [lastFix], which the ViewModel checks
+ * on a saved place. Two chips under it pick the roads the next route avoids
+ * ([RouteConditionChips]). A route starts from [lastFix], which the ViewModel checks
  * for age; Save current location keeps its point as it is. While a route is
  * under way or has failed, [RouteStatus] takes the panel's body over. Closing
  * the panel stops the route under way; a configuration change, after which
@@ -320,6 +324,9 @@ private fun DestinationEntry(
             }
         }
     }
+    // Shown wherever routing is, not only beside Route: without a geocoder the
+    // saved points still route, under these conditions.
+    if (uiState.routeAvailable) RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -404,6 +411,7 @@ private fun PickedPointEntry(
             }
         }
     }
+    if (uiState.canRoute(point)) RouteConditionChips(conditions = uiState.conditions, onAction = onAction)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
@@ -423,6 +431,52 @@ private fun PickedPointEntry(
         }
     }
 }
+
+// The roads the next route avoids, as two chips under the route action. A tap
+// types nothing, so the chips work in every motion state, as a saved place
+// does; the choice is kept for later routes and their reroutes.
+@Composable
+private fun RouteConditionChips(
+    conditions: RouteConditions,
+    onAction: (DestinationAction) -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier = modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+) {
+    ConditionChip(
+        label = stringResource(R.string.destination_avoid_motorways),
+        selected = conditions.avoidMotorways,
+        onClick = { onAction(DestinationAction.SetAvoidMotorways(!conditions.avoidMotorways)) },
+        modifier = Modifier.weight(1f),
+    )
+    ConditionChip(
+        label = stringResource(R.string.destination_avoid_tolls),
+        selected = conditions.avoidTolls,
+        onClick = { onAction(DestinationAction.SetAvoidTolls(!conditions.avoidTolls)) },
+        modifier = Modifier.weight(1f),
+    )
+}
+
+@Composable
+private fun ConditionChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = FilterChip(
+    selected = selected,
+    onClick = onClick,
+    label = { Text(text = label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+    // The chip's own height is below the automotive tap floor (AGENTS.md#automotive-overrides).
+    modifier = modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+    leadingIcon =
+        if (selected) {
+            { FemtoIcon(imageVector = Lucide.Check, contentDescription = null) }
+        } else {
+            null
+        },
+)
 
 // One line under the field: the voice step (live transcript or failure), else
 // the missing hand-off app, else the motion gate's explanation while moving;
@@ -773,6 +827,7 @@ private fun RouteFailure.messageRes(): Int =
         RouteFailure.DATA_VERSION_MISMATCH -> R.string.destination_route_failed_data_version
         RouteFailure.DOWNLOAD_FAILED -> R.string.destination_route_failed_download
         RouteFailure.NO_ROUTE -> R.string.destination_route_failed
+        RouteFailure.NO_ROUTE_UNDER_CONDITIONS -> R.string.destination_route_failed_conditions
     }
 
 /**
@@ -987,6 +1042,16 @@ private fun DestinationPanelRouteDownloadPreview() {
             onClose = {},
             modifier = Modifier.fillMaxSize(),
         )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Composable
+private fun RouteConditionChipsPreview() {
+    FemtoTheme {
+        // One chip on, one off: both states side by side.
+        RouteConditionChips(conditions = RouteConditions(avoidTolls = true), onAction = {})
     }
 }
 

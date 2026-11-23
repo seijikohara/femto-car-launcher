@@ -90,6 +90,23 @@ class DestinationPanelTest {
         }
     }
 
+    // A tap on a chip types nothing, so it works while moving, as a saved place does.
+    @Test
+    fun moving_a_tap_on_a_condition_chip_turns_it_on() {
+        setPanel(stationary = false, routeAvailable = true)
+
+        rule.onNodeWithText("Avoid tolls").performScrollTo().performClick()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.SetAvoidTolls(on = true)), actions)
+    }
+
+    @Test
+    fun without_routing_no_condition_chips_show() {
+        setPanel(stationary = true, routeAvailable = false)
+
+        rule.onNodeWithText("Avoid motorways").assertDoesNotExist()
+    }
+
     @Test
     fun stopped_the_text_field_is_enabled() {
         setPanel(stationary = true)

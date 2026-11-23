@@ -25,8 +25,10 @@ import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteConditions
+import io.github.seijikohara.femto.data.routing.RouteConditionsStore
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
+import io.github.seijikohara.femto.data.routing.RoutePreferences
 import io.github.seijikohara.femto.data.routing.RouteResult
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
 import io.github.seijikohara.femto.data.routing.TileCheckResult
@@ -47,6 +49,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -77,7 +80,9 @@ import kotlinx.coroutines.withContext
  * a new one or [DestinationAction.DismissRoute] cancels the one under way, and
  * every route run stops a running reroute ([cancelReroute]) when it starts and
  * again right before each search, so it never waits for the planner behind
- * one. A route starts
+ * one. A route avoids the roads [conditionsStore] holds as the run starts; a
+ * chip changed while it runs applies to the next route, and the session keeps
+ * the run's conditions for its reroutes. A route starts
  * from a fix still fresh at [nowElapsedRealtimeNanos], else from the position
  * [currentFix] finds on request; with neither it says whether the position or
  * [hasLocationPermission] is missing.
@@ -102,6 +107,7 @@ internal class DestinationViewModel(
     private val planner: RoutePlanner,
     private val tiles: RoutingTileStore,
     private val activeRoute: ActiveRouteStore,
+    private val conditionsStore: RouteConditionsStore,
     private val nowElapsedRealtimeNanos: () -> Long,
     private val hasLocationPermission: () -> Boolean,
     private val currentFix: CurrentFixSource,
@@ -158,12 +164,15 @@ internal class DestinationViewModel(
             routingAvailable.onStart { emit(false) }.distinctUntilChanged(),
             routeStep,
             pickedPoint,
-        ) { entry, available, step, picked ->
+            // Seeded with none for the same reason; the chips show only once routing is on.
+            conditionsStore.conditions.onStart { emit(RouteConditions()) }.distinctUntilChanged(),
+        ) { entry, available, step, picked, conditions ->
             entry.copy(
                 routeAvailable = available,
                 geocoderAvailable = placeLocator.available,
                 route = step,
                 pickedPoint = picked,
+                conditions = conditions,
             )
         }.stateIn(viewModelScope, WhileUiSubscribed, DestinationUiState.Initial)
 
@@ -285,6 +294,14 @@ internal class DestinationViewModel(
                 pendingDownload = TileDownload()
                 routeStep.value = RouteStep.Idle
             }
+
+            is DestinationAction.SetAvoidMotorways -> {
+                storeConditions(state.conditions.copy(avoidMotorways = action.on))
+            }
+
+            is DestinationAction.SetAvoidTolls -> {
+                storeConditions(state.conditions.copy(avoidTolls = action.on))
+            }
         }
     }
 
@@ -297,13 +314,21 @@ internal class DestinationViewModel(
         viewModelScope.launch { placesStore.add(label, target) }
     }
 
+    private fun storeConditions(conditions: RouteConditions) {
+        viewModelScope.launch { conditionsStore.setConditions(conditions) }
+    }
+
+    // The conditions are read once, as the run starts, and travel with its two
+    // ends through a download and a retry: a chip changed meanwhile is for the
+    // next route.
     private fun startRoute(
         target: PlaceTarget,
         origin: LastFix?,
     ) = runRoute {
+        val conditions = conditionsStore.conditions.first()
         startOrNull(origin)?.let { start ->
             destinationOrNull(target)?.let { destination ->
-                RouteEnds(origin = start, destination = destination)
+                RouteEnds(origin = start, destination = destination, conditions = conditions)
                     .also { routeEnds = it }
                     .let { route(it) }
             }
@@ -374,9 +399,9 @@ internal class DestinationViewModel(
         routeStep.value = RouteStep.Computing
         // Checking or downloading data takes time, during which a reroute of the old route may have started.
         cancelReroute()
-        when (val result = planner.route(ends.origin, ends.destination)) {
+        when (val result = planner.route(ends.origin, ends.destination, conditions = ends.conditions)) {
             is RouteResult.Found -> {
-                activeRoute.start(result.route, ends.destination, RouteConditions(), result.reference)
+                activeRoute.start(result.route, ends.destination, ends.conditions, result.reference)
                 routeStep.value = RouteStep.Done
                 // The new session replaced every earlier route, whose references no reroute reads again.
                 withContext(ioDispatcher) { planner.pruneReferences(setOfNotNull(result.reference)) }
@@ -398,8 +423,9 @@ internal class DestinationViewModel(
                 fail(RouteFailure.TIMED_OUT)
             }
 
+            // With a condition on, the condition may be what stands between the two ends.
             is RouteResult.Failed -> {
-                fail(RouteFailure.NO_ROUTE)
+                fail(if (ends.conditions.isDefault) RouteFailure.NO_ROUTE else RouteFailure.NO_ROUTE_UNDER_CONDITIONS)
             }
         }
     }
@@ -490,6 +516,7 @@ internal class DestinationViewModel(
 private data class RouteEnds(
     val origin: RoutePoint,
     val destination: RoutePoint,
+    val conditions: RouteConditions,
 )
 
 // What a confirmed download fetches: missing tiles, and installed tiles the
@@ -542,8 +569,8 @@ private fun PlaceTarget.Point.toRoutePoint(): RoutePoint = RoutePoint(latitude =
  * the routing stack: the build's `routing_enabled` flag with the map backend,
  * the platform geocoder, the shared planner and tile store, the one active
  * route the dashboard reads, the boot clock and location grant a route's start
- * is judged by, the platform's answer to where the device is now, and the
- * shared rerouter a route run stops.
+ * is judged by, the platform's answer to where the device is now, the shared
+ * rerouter a route run stops, and the route conditions kept on the device.
  */
 internal val DestinationViewModelFactory =
     viewModelFactory {
@@ -564,6 +591,7 @@ internal val DestinationViewModelFactory =
                 planner = RoutePlanner.get(application),
                 tiles = RoutingTileStore.get(application),
                 activeRoute = ActiveRouteStore.shared,
+                conditionsStore = RoutePreferences(application),
                 nowElapsedRealtimeNanos = SystemClock::elapsedRealtimeNanos,
                 hasLocationPermission = application::hasLocationPermission,
                 currentFix = PlatformCurrentFixSource(application),

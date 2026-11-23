@@ -12,11 +12,13 @@ import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.REFERENCE_PRUNE_GRACE_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_CHECK_INTERVAL_MS
 import io.github.seijikohara.femto.data.routing.RerouteStatus
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.FakeCurrentFixSource
 import io.github.seijikohara.femto.testfixtures.FakeDownloadStop
 import io.github.seijikohara.femto.testfixtures.FakePlaceLocator
+import io.github.seijikohara.femto.testfixtures.FakeRouteConditionsStore
 import io.github.seijikohara.femto.testfixtures.FakeSavedPlacesStore
 import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
 import io.github.seijikohara.femto.testfixtures.HeldDispatcher
@@ -77,6 +79,9 @@ class DestinationViewModelTest {
     // How often a route run has stopped the rerouter.
     private var rerouteCancels = 0
 
+    // The route conditions kept on the device, as the last subscribedViewModel holds them.
+    private var routeConditions = FakeRouteConditionsStore()
+
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -97,6 +102,7 @@ class DestinationViewModelTest {
         routingAvailable: Boolean = false,
         placeLocator: FakePlaceLocator = FakePlaceLocator(),
         ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
+        conditions: RouteConditions = RouteConditions(),
     ): DestinationViewModel {
         routing = RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler))
         return DestinationViewModel(
@@ -109,6 +115,7 @@ class DestinationViewModelTest {
             planner = routing.planner(),
             tiles = routing.tiles,
             activeRoute = activeRoute,
+            conditionsStore = FakeRouteConditionsStore(conditions).also { routeConditions = it },
             nowElapsedRealtimeNanos = { nowNanos },
             hasLocationPermission = { locationGranted },
             currentFix = currentFix,
@@ -675,6 +682,69 @@ class DestinationViewModelTest {
             viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
 
             assertEquals(1, rerouteCancels)
+        }
+
+    // --- Route conditions ----------------------------------------------------
+
+    @Test
+    fun toggling_a_chip_stores_the_conditions() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+
+            viewModel.onAction(DestinationAction.SetAvoidTolls(on = true))
+            viewModel.onAction(DestinationAction.SetAvoidMotorways(on = true))
+
+            assertEquals(RouteConditions(avoidMotorways = true, avoidTolls = true), routeConditions.conditions.value)
+            assertEquals(routeConditions.conditions.value, viewModel.uiState.value.conditions)
+        }
+
+    // The chip is changed while the run waits on the routing data on the device.
+    @Test
+    fun a_route_run_passes_the_conditions_read_at_its_start() =
+        runTest {
+            val viewModel =
+                subscribedViewModel(routingAvailable = true, conditions = RouteConditions(avoidTolls = true))
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+
+            viewModel.onAction(DestinationAction.SetAvoidTolls(on = false))
+            advanceUntilIdle()
+
+            assertEquals(
+                "1",
+                routing.engine.requests
+                    .single()
+                    .parameters["avoid_toll"],
+            )
+            assertEquals(RouteConditions(avoidTolls = true), activeRoute.active.value?.conditions)
+        }
+
+    @Test
+    fun a_failed_route_with_a_condition_on_says_so() =
+        runTest {
+            val viewModel =
+                subscribedViewModel(routingAvailable = true, conditions = RouteConditions(avoidTolls = true))
+            routing.installTile(TILE)
+            routing.engine.outcome = EngineOutcome.Error("no track found at pass=0")
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_ROUTE_UNDER_CONDITIONS), viewModel.uiState.value.route)
+        }
+
+    @Test
+    fun a_failed_route_without_conditions_keeps_the_old_message() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = EngineOutcome.Error("no track found at pass=0")
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(RouteStep.Failed(RouteFailure.NO_ROUTE), viewModel.uiState.value.route)
         }
 
     // A reroute of the old route may start while the data downloads; the search after it must not wait for one.

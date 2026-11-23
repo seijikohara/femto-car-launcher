@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.destination
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.voice.VoiceState
 import java.util.Locale
 
@@ -21,7 +22,8 @@ import java.util.Locale
  * the launcher's own map (`routingAvailableFlow`); off, the panel shows
  * nothing about routes. [geocoderAvailable] says whether text can become a
  * position on this device at all; without a geocoder only a saved point can be
- * routed to. [route] is where a route the panel asked for stands.
+ * routed to. [route] is where a route the panel asked for stands. [conditions] are the roads the next route
+ * avoids, as the driver last picked them.
  *
  * [pickedPoint] is a point picked with a long press on the map, which the
  * panel offers in place of the text entry until the driver goes back to the
@@ -37,6 +39,7 @@ internal data class DestinationUiState(
     val geocoderAvailable: Boolean = false,
     val route: RouteStep = RouteStep.Idle,
     val pickedPoint: PlaceTarget.Point? = null,
+    val conditions: RouteConditions = RouteConditions(),
 ) {
     /**
      * Whether [target] can be routed to: a point always, text only through a
@@ -170,6 +173,12 @@ internal enum class RouteFailure {
 
     /** Anything else the engine reports, such as no road connecting the two ends. */
     NO_ROUTE,
+
+    /**
+     * [NO_ROUTE] for a route with a condition on: avoiding tolls rules out every toll road, so a destination only a
+     * toll road reaches gets no route, and turning the condition off may find one.
+     */
+    NO_ROUTE_UNDER_CONDITIONS,
 }
 
 /** Intents the destination panel reports up to its ViewModel. */
@@ -259,6 +268,19 @@ internal sealed interface DestinationAction {
 
     /** After [RouteFailure.DATA_VERSION_MISMATCH]: delete the route's routing data and fetch it again. */
     data object DownloadAgain : DestinationAction
+
+    /**
+     * Have the next route avoid motorways, or stop avoiding them; remembered for the routes after it. A tap, like a
+     * saved place, so allowed in every motion state. A route under way keeps the conditions it started with.
+     */
+    data class SetAvoidMotorways(
+        val on: Boolean,
+    ) : DestinationAction
+
+    /** As [SetAvoidMotorways], for toll roads. */
+    data class SetAvoidTolls(
+        val on: Boolean,
+    ) : DestinationAction
 
     /**
      * Stop the route under way, or put its message away, and give the panel

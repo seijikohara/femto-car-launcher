@@ -220,6 +220,11 @@
     <string name="destination_route_download_again">Download again</string>
     <string name="destination_route_failed_download">The routing data could not be downloaded. Check the connection and try again.</string>
     <string name="destination_route_failed">No route could be found to that destination.</string>
+    <!-- Shown in place of destination_route_failed when the route ran with a condition on: avoiding tolls rules out every toll road. -->
+    <string name="destination_route_failed_conditions">No route under these conditions. Turn a condition off and try again.</string>
+    <!-- Route conditions: toggles beside the Route action, remembered for the next route and used by every reroute. -->
+    <string name="destination_avoid_motorways">Avoid motorways</string>
+    <string name="destination_avoid_tolls">Avoid tolls</string>
     <string name="destination_route_dismiss">OK</string>
     <!-- Shown while the routing data a route reads is checked against brouter.de, at most once a week per area. -->
     <string name="destination_route_checking">Checking the routing data for updates…</string>

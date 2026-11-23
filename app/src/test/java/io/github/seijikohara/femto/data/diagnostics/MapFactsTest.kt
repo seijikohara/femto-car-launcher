@@ -12,6 +12,7 @@ import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
 import io.github.seijikohara.femto.data.routing.RerouteStats
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import org.junit.Test
@@ -528,10 +529,23 @@ class MapFactsTest {
                 DiagnosticFact("Routing", FactValue.Text("available")),
                 DiagnosticFact("Routing data", FactValue.Text("2 tiles, 144 MB")),
                 DiagnosticFact("Last route", FactValue.Text("timed out, 60012 ms")),
+                DiagnosticFact("Route conditions", FactValue.Text("none")),
                 DiagnosticFact("Last reroute", FactValue.Text("none this session")),
                 DiagnosticFact("Geocoder", FactValue.Text("absent")),
             ),
             facts,
+        )
+    }
+
+    @Test
+    fun `the route conditions the next route runs under are reported`() {
+        val conditions = RouteConditions(avoidMotorways = true, avoidTolls = true)
+
+        val facts = routingFacts(RoutingFacts(true, emptyList(), null, true, conditions = conditions))
+
+        assertEquals(
+            FactValue.Text("avoid motorways, avoid tolls"),
+            facts.single { it.label == "Route conditions" }.value,
         )
     }
 
@@ -585,7 +599,7 @@ class MapFactsTest {
         routing: RoutingFacts,
         backend: MapBackend = MapBackend.OSM,
     ): List<DiagnosticFact> {
-        val label = setOf("Routing", "Routing data", "Last route", "Last reroute", "Geocoder")
+        val label = setOf("Routing", "Routing data", "Last route", "Route conditions", "Last reroute", "Geocoder")
         return facts(backend = backend, routing = routing).filter { it.label in label }
     }
 
