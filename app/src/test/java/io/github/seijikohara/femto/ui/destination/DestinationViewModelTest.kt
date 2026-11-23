@@ -19,10 +19,12 @@ import io.github.seijikohara.femto.testfixtures.FakeDownloadStop
 import io.github.seijikohara.femto.testfixtures.FakePlaceLocator
 import io.github.seijikohara.femto.testfixtures.FakeSavedPlacesStore
 import io.github.seijikohara.femto.testfixtures.FakeSpeechInput
+import io.github.seijikohara.femto.testfixtures.HeldDispatcher
 import io.github.seijikohara.femto.testfixtures.RoutingFixture
 import io.github.seijikohara.femto.testfixtures.fakeEngineTrack
 import io.github.seijikohara.femto.testfixtures.fakeRoute
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -94,6 +96,7 @@ class DestinationViewModelTest {
         motionFlow: Flow<VehicleMotion> = motion,
         routingAvailable: Boolean = false,
         placeLocator: FakePlaceLocator = FakePlaceLocator(),
+        ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
     ): DestinationViewModel {
         routing = RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler))
         return DestinationViewModel(
@@ -111,6 +114,7 @@ class DestinationViewModelTest {
             currentFix = currentFix,
             nowEpochMs = { routing.nowEpochMs },
             cancelReroute = { rerouteCancels++ },
+            ioDispatcher = ioDispatcher,
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -631,16 +635,36 @@ class DestinationViewModelTest {
             val viewModel = subscribedViewModel(routingAvailable = true)
             routing.installTile(TILE)
             routing.engine.outcome = fakeEngineTrack()
-            val earlier =
-                File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply {
-                    writeText("x")
-                    setLastModified(routing.nowEpochMs - 2 * REFERENCE_PRUNE_GRACE_MS)
-                }
+            val earlier = earlierReference()
 
             viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
             advanceUntilIdle()
 
             assertFalse(earlier.exists())
+        }
+
+    @Test
+    fun the_references_are_pruned_off_the_main_thread() =
+        runTest {
+            val io = HeldDispatcher().apply { hold = true }
+            val viewModel = subscribedViewModel(routingAvailable = true, ioDispatcher = io)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            val earlier = earlierReference()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val keptUntilTheIoRuns = earlier.exists()
+
+            io.releaseNewestFirst()
+
+            assertEquals(true to false, keptUntilTheIoRuns to earlier.exists())
+        }
+
+    // A reference an earlier route left, written long enough ago that a prune may delete it.
+    private fun earlierReference(): File =
+        File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply {
+            writeText("x")
+            setLastModified(routing.nowEpochMs - 2 * REFERENCE_PRUNE_GRACE_MS)
         }
 
     @Test

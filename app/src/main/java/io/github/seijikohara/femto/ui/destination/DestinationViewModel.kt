@@ -37,6 +37,8 @@ import io.github.seijikohara.femto.data.routing.tilesDueForCheck
 import io.github.seijikohara.femto.data.voice.SpeechInput
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import io.github.seijikohara.femto.data.voice.VoiceState
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +51,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Drives the destination panel: the query (typed, or dictated through
@@ -103,6 +106,8 @@ internal class DestinationViewModel(
     private val currentFix: CurrentFixSource,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
     private val cancelReroute: () -> Unit = {},
+    // Where the panel's own file work runs, off the main thread; tests pin it to their scheduler.
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -371,9 +376,9 @@ internal class DestinationViewModel(
         when (val result = planner.route(ends.origin, ends.destination)) {
             is RouteResult.Found -> {
                 activeRoute.start(result.route, ends.destination, result.reference)
-                // The new session replaced every earlier route, whose references no reroute reads again.
-                planner.pruneReferences(setOfNotNull(result.reference))
                 routeStep.value = RouteStep.Done
+                // The new session replaced every earlier route, whose references no reroute reads again.
+                withContext(ioDispatcher) { planner.pruneReferences(setOfNotNull(result.reference)) }
             }
 
             is RouteResult.MissingTiles -> {
