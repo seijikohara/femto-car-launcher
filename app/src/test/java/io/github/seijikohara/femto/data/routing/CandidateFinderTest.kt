@@ -225,7 +225,7 @@ class CandidateFinderTest {
         }
 
     @Test
-    fun `the candidates' computing times are kept for the diagnostics`() =
+    fun `the candidates' computing times and the search's ending are kept for the diagnostics`() =
         runTest {
             val finder = finder()
             val session = startSession()
@@ -236,7 +236,82 @@ class CandidateFinderTest {
             finder.start(session, ORIGIN)
             runCurrent()
 
-            assertEquals(listOf(500L, 1_100L), finder.candidateTimes.value)
+            assertEquals(
+                CandidateSearch(listOf(500L, 1_100L), CandidateSearchEnding.NO_MORE_ROUTES),
+                finder.lastSearch.value,
+            )
+        }
+
+    @Test
+    fun `a search that finds every route ends all found`() =
+        runTest {
+            val finder = finder()
+            val session = startSession()
+            planner.answer(1, RouteResult.Found(SECOND, null))
+            planner.answer(2, RouteResult.Found(THIRD, null))
+
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            assertEquals(CandidateSearchEnding.ALL_FOUND, finder.lastSearch.value?.ending)
+        }
+
+    @Test
+    fun `a search that runs to its end completes it in the session`() =
+        runTest {
+            val finder = finder()
+            val session = startSession()
+            planner.answer(1, RouteResult.Failed("no track found"))
+
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            assertEquals(
+                true to false,
+                store.active.value?.let { it.searchCompleted to it.finding },
+            )
+        }
+
+    // The panel's next route stops the search; when that route then fails, the first route's card stays open with
+    // nothing found, and must not say there is no other route.
+    @Test
+    fun `a cancelled search never completes it, so the card never says no other route`() =
+        runTest {
+            val finder = finder()
+            val session = startSession()
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            finder.cancel()
+            runCurrent()
+
+            assertEquals(
+                Triple(false, false, CandidateSearchEnding.STOPPED),
+                Triple(
+                    store.active.value?.searchCompleted,
+                    store.active.value?.finding,
+                    finder.lastSearch.value?.ending,
+                ),
+            )
+        }
+
+    @Test
+    fun `a cancelled search still deletes the references not chosen once the choice closes`() =
+        runTest {
+            val finder = finder()
+            val session = startSession()
+            val secondReference = tempFolder.newFile("route-1.bin")
+            planner.answer(1, RouteResult.Found(SECOND, secondReference))
+            finder.start(session, ORIGIN)
+            runCurrent()
+            finder.cancel()
+            runCurrent()
+
+            store.closeChoice(session)
+            runCurrent()
+
+            assertEquals(listOf(true, false), listOf(firstReference, secondReference).map { it.exists() })
+            assertEquals(listOf<Collection<File>>(setOf(firstReference)), pruned)
         }
 
     private data class AlternativeCall(

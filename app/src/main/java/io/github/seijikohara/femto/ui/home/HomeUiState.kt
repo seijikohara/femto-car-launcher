@@ -68,15 +68,21 @@ internal data class ActiveRouteState(
 )
 
 /**
- * The choice card of route [session]: the routes found so far, the first one first, the [selected] one, and whether
- * a search for another one runs.
+ * The choice card of route [session]: the routes found so far, the first one first, the [selected] one, whether a
+ * search for another one runs, and whether the search ran to its end, so the routes found are all there are; a search
+ * that was stopped never says there is no other route.
  */
 internal data class RouteChoiceState(
     val session: Long,
     val candidates: List<CandidateSummary>,
     val selected: Int,
     val finding: Boolean,
-)
+    val searchCompleted: Boolean,
+) {
+    /** Whether the card says no other route was found: the search ended, and only the first route came of it. */
+    val noOtherRoute: Boolean
+        get() = searchCompleted && !finding && candidates.size == 1
+}
 
 /** One route on the choice card, as the card names it: its length and the profile's travel time. */
 internal data class CandidateSummary(

@@ -109,7 +109,7 @@ internal fun RouteChoiceCard(
         }
         when {
             choice.finding -> NoteRow(text = stringResource(R.string.route_choice_finding))
-            choice.candidates.size == 1 -> NoteRow(text = stringResource(R.string.route_choice_none))
+            choice.noOtherRoute -> NoteRow(text = stringResource(R.string.route_choice_none))
         }
     }
 }
@@ -239,6 +239,7 @@ private fun RouteChoiceCardPreview() {
                         ),
                     selected = 0,
                     finding = true,
+                    searchCompleted = false,
                 ),
             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
             onSelect = {},

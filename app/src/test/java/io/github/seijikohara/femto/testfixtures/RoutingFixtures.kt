@@ -224,7 +224,7 @@ internal fun fakeRouteFix(
 
 /** This route session without its choice between routes, for tests about the route being followed. */
 internal fun ActiveRoute.withoutChoice(): ActiveRoute =
-    copy(candidates = emptyList(), selected = 0, choosing = false, finding = false)
+    copy(candidates = emptyList(), selected = 0, choosing = false, finding = false, searchCompleted = false)
 
 /** A short route in the routing tile E130_N30, as the planner returns one. */
 internal fun fakeRoute(

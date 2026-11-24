@@ -70,13 +70,20 @@ internal object DashboardFixtures {
                 candidates = FixtureRouteCandidates.take(2),
                 selected = 0,
                 finding = true,
+                searchCompleted = false,
             ),
         )
 
     /** [routeState] once three routes were found and the driver chose the second: the card at its tallest. */
     val routeChoiceState: HomeUiState =
         routeState.withChoice(
-            RouteChoiceState(session = 1L, candidates = FixtureRouteCandidates, selected = 1, finding = false),
+            RouteChoiceState(
+                session = 1L,
+                candidates = FixtureRouteCandidates,
+                selected = 1,
+                finding = false,
+                searchCompleted = true,
+            ),
         )
 
     private fun HomeUiState.withChoice(choice: RouteChoiceState): HomeUiState =

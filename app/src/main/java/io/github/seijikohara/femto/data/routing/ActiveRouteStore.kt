@@ -37,7 +37,8 @@ internal data class RouteCandidate(
  *
  * While the driver may still choose between routes ([choosing], the choice card), [candidates] holds the routes found
  * so far, the first one first, and [selected] the one [route] and [reference] are. [finding] says whether a search for
- * another one runs.
+ * another one runs, and [searchCompleted] whether the search ran to its end rather than being stopped: only then do
+ * the candidates found so far stand for all there are.
  */
 internal data class ActiveRoute(
     val session: Long,
@@ -51,6 +52,7 @@ internal data class ActiveRoute(
     val selected: Int = 0,
     val choosing: Boolean = false,
     val finding: Boolean = false,
+    val searchCompleted: Boolean = false,
 )
 
 /**
@@ -115,6 +117,7 @@ internal class ActiveRouteStore {
                 selected = 0,
                 choosing = false,
                 finding = false,
+                searchCompleted = false,
             )
         }
 
@@ -154,6 +157,14 @@ internal class ActiveRouteStore {
     ): Boolean = updateSession(session, applies = { it.choosing || !finding }) { it.copy(finding = finding) }
 
     /**
+     * Say that the search for more candidates of [session] ran to its end, so the candidates found are all there are;
+     * false, changing nothing, once the session or its choice has ended. A search that was stopped says nothing of
+     * the kind and only lowers [ActiveRoute.finding] ([setFinding]).
+     */
+    fun completeSearch(session: Long): Boolean =
+        updateSession(session, applies = { it.choosing }) { it.copy(finding = false, searchCompleted = true) }
+
+    /**
      * Close the choice of [session], keeping the selected route: the other candidates go from the session. Their
      * reference files are the candidate finder's to delete; the store deletes nothing.
      */
@@ -164,6 +175,7 @@ internal class ActiveRouteStore {
                 selected = 0,
                 choosing = false,
                 finding = false,
+                searchCompleted = false,
             )
         }
 

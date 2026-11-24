@@ -26,16 +26,39 @@ internal const val NEAR_DUPLICATE_SHARE = 0.8
 // The first route and two alternatives: a later alternative recomputes every one before it, so a third costs most.
 private const val CANDIDATE_COUNT = 3
 
+/** How the last search for more routes ended, for the diagnostics report. */
+internal enum class CandidateSearchEnding {
+    /** It found every route it looks for. */
+    ALL_FOUND,
+
+    /** It ran to its end with fewer: an alternative failed, or repeated an earlier route's roads. */
+    NO_MORE_ROUTES,
+
+    /** It was stopped: the choice closed, the session ended, or the planner was needed for something else. */
+    STOPPED,
+}
+
+/**
+ * The last search for more routes: each candidate's computing time, the first route's first, and how the search ended,
+ * null while it runs.
+ */
+internal data class CandidateSearch(
+    val timesMs: List<Long>,
+    val ending: CandidateSearchEnding?,
+)
+
 /**
  * Finds up to two more routes for a session once the destination panel has set its first one, under the session's
  * conditions, and adds each to the session's choice as it comes (#389 phase 3 additions). It lives in the routing data
  * layer, in a process [scope] like the rerouter, so the search goes on with the panel closed.
  *
  * Alternatives 1 and 2 are computed one after the other. One that runs mostly along an earlier candidate's roads
- * ([NEAR_DUPLICATE_SHARE]) is dropped; any result other than a route ends the search. The search stops when the choice
- * closes, when the session ends, or on [cancel] (a reroute, or the panel's next route, needs the planner). Once the
- * choice closes, the reference files of the candidates not chosen are deleted. The constructor stays injectable for
- * JVM tests; production wiring goes through [get].
+ * ([NEAR_DUPLICATE_SHARE]) is dropped; any result other than a route ends the search. A search that runs to its end
+ * says so in the session ([ActiveRouteStore.completeSearch]), so the card can tell "no other route" from a search cut
+ * short. The search stops when the choice closes, when the session ends, or on [cancel] (a reroute, or the panel's
+ * next route, needs the planner). Once the choice closes, the reference files of the candidates not chosen are
+ * deleted, whether the search was stopped or not. The constructor stays injectable for JVM tests; production wiring
+ * goes through [get].
  */
 internal class CandidateFinder(
     private val route: suspend (
@@ -54,10 +77,10 @@ internal class CandidateFinder(
     // The last search started, running or not, and its session; guarded by [lock].
     private var running: RunningSearch? = null
 
-    private val mutableTimes = MutableStateFlow<List<Long>>(emptyList())
+    private val mutableLastSearch = MutableStateFlow<CandidateSearch?>(null)
 
-    /** The computing time of each candidate of the last search, the first route's first, for the diagnostics report. */
-    val candidateTimes: StateFlow<List<Long>> = mutableTimes.asStateFlow()
+    /** The last search of this process, for the diagnostics report; null before the first one. */
+    val lastSearch: StateFlow<CandidateSearch?> = mutableLastSearch.asStateFlow()
 
     /** Look for more routes for [session], from [origin], the start its first route was found from. */
     fun start(
@@ -66,35 +89,58 @@ internal class CandidateFinder(
     ) {
         val active = store.active.value?.takeIf { it.session == session && it.choosing } ?: return
         synchronized(lock) {
-            running?.job?.cancel()
-            mutableTimes.value = active.candidates.map { it.computingMs }
-            running = RunningSearch(session, scope.launch { find(active, origin) })
+            running?.whole?.cancel()
+            mutableLastSearch.value = CandidateSearch(active.candidates.map { it.computingMs }, ending = null)
+            // Every reference this search knows of, so the ones not chosen can go when the choice closes. Written by
+            // the search, read by the clean-up only once the search has ended.
+            val references = active.candidates.mapNotNull { it.reference }.toMutableList()
+            // The search and the clean-up after it are two children of one job: [cancel] stops the search alone, and
+            // the clean-up still deletes the references not chosen when the choice closes. A new session's search
+            // cancels both, and the old session's files wait for the next prune.
+            val whole = Job(scope.coroutineContext[Job])
+            val search = scope.launch(whole) { search(active, origin, references) }
+            scope.launch(whole) {
+                search.join()
+                deleteUnchosen(session, references)
+            }
+            whole.complete()
+            running = RunningSearch(session, whole, search)
         }
     }
 
     /** Stop the search at once, so the planner is free for a reroute or a new route; the choice stays open. */
     fun cancel() {
         synchronized(lock) {
-            running?.takeIf { it.job.isActive }?.let { stopped ->
-                stopped.job.cancel()
+            running?.takeIf { it.search.isActive }?.let { stopped ->
+                stopped.search.cancel()
                 store.setFinding(stopped.session, false)
+                mutableLastSearch.update { it?.copy(ending = CandidateSearchEnding.STOPPED) }
             }
         }
     }
 
-    private suspend fun find(
+    private suspend fun search(
         active: ActiveRoute,
         origin: RoutePoint,
+        references: MutableList<File>,
     ) {
         val session = active.session
-        // Every reference this search knows of, so the ones not chosen can go when the choice closes.
-        val references = active.candidates.mapNotNull { it.reference }.toMutableList()
-        if (store.setFinding(session, true)) {
-            whileChoosing(session) { search(active, origin, references) }
-            store.setFinding(session, false)
-        }
-        // The other candidates stay on the card until it closes. Their files are deleted here rather than left to the
-        // next prune, whose grace for new files would keep them.
+        val ending =
+            if (store.setFinding(session, true)) {
+                whileChoosing(session) { findAlternatives(active, origin, references) } ?: CandidateSearchEnding.STOPPED
+            } else {
+                CandidateSearchEnding.STOPPED
+            }
+        if (ending == CandidateSearchEnding.STOPPED) store.setFinding(session, false) else store.completeSearch(session)
+        mutableLastSearch.update { it?.copy(ending = ending) }
+    }
+
+    // The other candidates stay on the card until it closes. Their files are deleted here rather than left to the next
+    // prune, whose grace for new files would keep them.
+    private suspend fun deleteUnchosen(
+        session: Long,
+        references: List<File>,
+    ) {
         store.active
             .first { it?.session != session || !it.choosing }
             ?.takeIf { it.session == session }
@@ -104,14 +150,17 @@ internal class CandidateFinder(
             }
     }
 
-    private suspend fun search(
+    private suspend fun findAlternatives(
         active: ActiveRoute,
         origin: RoutePoint,
         references: MutableList<File>,
-    ) {
+    ): CandidateSearchEnding {
+        var added = 0
         for (index in 1 until CANDIDATE_COUNT) {
             val startedMs = nowMs()
-            val found = findAlternative(active, origin, index) as? RouteResult.Found ?: return
+            val found =
+                findAlternative(active, origin, index) as? RouteResult.Found
+                    ?: return CandidateSearchEnding.NO_MORE_ROUTES
             val earlier = store.active.value
                 ?.takeIf { it.session == active.session }
                 ?.candidates
@@ -123,10 +172,18 @@ internal class CandidateFinder(
             val candidate = RouteCandidate(found.route, found.reference, computingMs = nowMs() - startedMs)
             if (!store.addCandidate(active.session, candidate)) {
                 found.reference?.delete()
-                return
+                return CandidateSearchEnding.STOPPED
             }
             found.reference?.let { references += it }
-            mutableTimes.update { it + candidate.computingMs }
+            mutableLastSearch.update { it?.copy(timesMs = it.timesMs + candidate.computingMs) }
+            added++
+        }
+        return if (added ==
+            CANDIDATE_COUNT - 1
+        ) {
+            CandidateSearchEnding.ALL_FOUND
+        } else {
+            CandidateSearchEnding.NO_MORE_ROUTES
         }
     }
 
@@ -145,24 +202,28 @@ internal class CandidateFinder(
         }
 
     // A search for a choice that has closed, or a session that has ended, finds nothing anyone will see, and it holds
-    // the planner, so it stops at once.
-    private suspend fun whileChoosing(
+    // the planner, so it stops at once; null then, else what [block] returned.
+    private suspend fun <T : Any> whileChoosing(
         session: Long,
-        block: suspend () -> Unit,
-    ) = coroutineScope {
-        val work = launch { block() }
-        val watch =
-            launch {
-                store.active.first { it?.session != session || !it.choosing }
-                work.cancel()
-            }
-        work.join()
-        watch.cancel()
-    }
+        block: suspend () -> T,
+    ): T? =
+        coroutineScope {
+            var result: T? = null
+            val work = launch { result = block() }
+            val watch =
+                launch {
+                    store.active.first { it?.session != session || !it.choosing }
+                    work.cancel()
+                }
+            work.join()
+            watch.cancel()
+            result
+        }
 
     private class RunningSearch(
         val session: Long,
-        val job: Job,
+        val whole: Job,
+        val search: Job,
     )
 
     companion object {

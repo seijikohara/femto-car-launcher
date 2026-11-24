@@ -105,6 +105,30 @@ class ActiveRouteStoreTest {
     }
 
     @Test
+    fun `completeSearch says the search ended and lowers the finding flag, which a stop never does`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.setFinding(session, true)
+        store.setFinding(session, false)
+        val afterAStop = store.active.value?.searchCompleted
+        store.setFinding(session, true)
+
+        store.completeSearch(session)
+
+        assertEquals(
+            Triple(false, true, false),
+            Triple(afterAStop, store.active.value?.searchCompleted, store.active.value?.finding),
+        )
+    }
+
+    @Test
+    fun `completeSearch after the choice closed is dropped`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.closeChoice(session)
+
+        assertFalse(store.completeSearch(session))
+    }
+
+    @Test
     fun `a reroute's replace closes the choice`() {
         val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
         store.setFinding(session, true)

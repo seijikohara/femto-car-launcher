@@ -1267,11 +1267,34 @@ class HomeViewModelTest {
                         ),
                     selected = 1,
                     finding = true,
+                    searchCompleted = false,
                 ),
                 route.choice,
             )
             assertEquals(PARALLEL_ROUTE.points, route.line, "the selected candidate is the route followed")
             assertEquals(listOf(EQUATOR_ROUTE.points), route.alternativeLines, "the other candidate is drawn thin")
+        }
+
+    @Test
+    fun `the card says no other route only after a search that ran to its end`() =
+        runTest {
+            val alone = choosingRoute().copy(route = EQUATOR_ROUTE, candidates = choosingRoute().candidates.take(1))
+            val active = MutableStateFlow<ActiveRoute?>(alone.copy(selected = 0, finding = false))
+            val viewModel = routeViewModel(available = true, activeRouteFlow = active)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val afterAStop = viewModel.uiState.value.activeRoute
+                ?.choice
+                ?.noOtherRoute
+
+            active.value = active.value?.copy(searchCompleted = true)
+
+            assertEquals(
+                false to true,
+                afterAStop to
+                    viewModel.uiState.value.activeRoute
+                        ?.choice
+                        ?.noOtherRoute,
+            )
         }
 
     @Test

@@ -593,6 +593,7 @@ private fun ActiveRoute?.sessionView(session: Long): SessionView =
                                 },
                             selected = it.selected,
                             finding = it.finding,
+                            searchCompleted = it.searchCompleted,
                         )
                     },
                 alternativeLines =
