@@ -134,6 +134,11 @@ internal class ReadSharedTextTest(
                     ReceivedPlace.Unreadable,
                 ),
                 row("a version number is no place", "v1.2,3.4", query("v1.2,3.4")),
+                // On Android the regex shorthands for a word character and a word boundary cover every script, so
+                // these two read differently there unless the patterns spell their classes in ASCII; on the JVM they
+                // pass either way (ReceivedDigitClassTest guards the spelling).
+                row("a name glued to a link", "ここで会おうhttps://maps.app.goo.gl/AbC", query("ここで会おう")),
+                row("a pair glued to a word of another script", "35.6586,139.7454付近", at(TOWER)),
                 row("control characters are stripped", "Tokyo\u0000 Tower\u001B\u0007", query("Tokyo Tower")),
                 row(
                     "control characters in the subject",

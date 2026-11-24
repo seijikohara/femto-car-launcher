@@ -45,7 +45,9 @@ internal fun readGeoUri(uri: String): ReceivedPlace =
  * (`EXTRA_SUBJECT`), else [title] (`EXTRA_TITLE`), as the place's name.
  *
  * The text is searched, in order, for a `geo:` URI, a decimal "lat, lon" pair
- * in the prose, and a pair inside a link (`?q=lat,lon`, `?ll=lat,lon`,
+ * in the prose, a pair in degrees, minutes and seconds (`33°50'44.2"N
+ * 132°45'56.2"E`, in the prose or as the subject or title, the way a dropped
+ * pin is shared), and a pair inside a link (`?q=lat,lon`, `?ll=lat,lon`,
  * `@lat,lon`). Without a position the name becomes a search text: the subject
  * if there is one, else the text's lines with the links taken out. A text of
  * links only, with no subject, is [ReceivedPlace.Unreadable]: links are never
@@ -61,14 +63,16 @@ internal fun readSharedText(
     title: String?,
 ): ReceivedPlace {
     val body = text?.let(::cleanReceived).orEmpty()
-    val name = listOfNotNull(subject, title).firstNotNullOfOrNull { field ->
-        oneLine(cleanReceived(field).replace(LinkToken, " ")).takeIf { it.isNotEmpty() }
-    }
+    // The subject and the title without their links. A position in degrees, minutes and seconds there is coordinates,
+    // not a name, so a field names the place only with what is left beside it.
+    val fields = listOfNotNull(subject, title).map { oneLine(cleanReceived(it).replace(LinkToken, " ")) }
+    val name = fields.firstNotNullOfOrNull { field -> oneLine(withoutDms(field)).takeIf { it.isNotEmpty() } }
     val links = LinkToken.findAll(body).map { it.value }.toList()
     val prose = body.replace(LinkToken, " ")
     val nameOrProse = name ?: linesAsName(prose)
     return geoLinkPlaceOrNull(links, nameOrProse)
         ?: prosePairPlaceOrNull(prose, name)
+        ?: dmsPlaceOrNull(fields + prose, label = name ?: linesAsName(withoutDms(prose)))
         ?: linkPairPlaceOrNull(links, nameOrProse)
         ?: nameOrProse.takeIf { it.isNotEmpty() }?.let { ReceivedPlace.Found(PlaceTarget.Query(it)) }
         ?: ReceivedPlace.Unreadable
@@ -99,6 +103,53 @@ private fun prosePairPlaceOrNull(
             ReceivedPlace.Found(point, label = name ?: linesAsName(otherLines))
         }
     }
+
+// The first pair in degrees, minutes and seconds among [texts] that reads as a position.
+private fun dmsPlaceOrNull(
+    texts: List<String>,
+    label: String,
+): ReceivedPlace.Found? =
+    texts
+        .firstNotNullOfOrNull { text -> DmsPair.findAll(text).firstNotNullOfOrNull(::dmsPointOrNull) }
+        ?.let { point -> ReceivedPlace.Found(point, label) }
+
+// [text] with every pair in degrees, minutes and seconds that reads as a position taken out; a pair that does not
+// (minutes past 59, say) stays, as text.
+private fun withoutDms(text: String): String =
+    DmsPair.replace(text) {
+        if (dmsPointOrNull(it) !=
+            null
+        ) {
+            " "
+        } else {
+            it.value
+        }
+    }
+
+// A pair in degrees, minutes and seconds: one hemisphere letter on each side, before or after the number, S and W
+// south and west of zero.
+private fun dmsPointOrNull(match: MatchResult): PlaceTarget.Point? {
+    val groups = match.groupValues
+    val lat = signedDegreesOrNull(groups[1], groups[5], groups[2], groups[3], groups[4], negative = "S") ?: return null
+    val lon = signedDegreesOrNull(groups[6], groups[10], groups[7], groups[8], groups[9], negative = "W") ?: return null
+    return PlaceTarget.Point(lat, lon).takeIf { lat in -90.0..90.0 && lon in -180.0..180.0 }
+}
+
+private fun signedDegreesOrNull(
+    letterBefore: String,
+    letterAfter: String,
+    degrees: String,
+    minutes: String,
+    seconds: String,
+    negative: String,
+): Double? {
+    val hemisphere = listOf(letterBefore.trim(), letterAfter).filter { it.isNotEmpty() }.singleOrNull() ?: return null
+    val whole = degrees.toIntOrNull() ?: return null
+    val minute = minutes.toIntOrNull()?.takeIf { it < 60 } ?: return null
+    val second = seconds.toDoubleOrNull()?.takeIf { it < 60.0 } ?: return null
+    val value = whole + minute / 60.0 + second / 3_600.0
+    return if (hemisphere == negative) -value else value
+}
 
 // A pair inside a link: a search or centre parameter, or the `@lat,lon` path step many map links carry.
 private fun linkPairPlaceOrNull(
@@ -168,12 +219,12 @@ private sealed interface QPlace {
 // The `q` parameter: "lat,lon" with an optional "(label)", else search text. The label runs to the last closing
 // parenthesis, so parentheses inside it (which geoHandoffUri escapes) stay part of it once decoded.
 private fun qPlaceOrNull(raw: String): QPlace? {
-    val decoded = percentDecode(raw, plusAsSpace = true)
+    val decoded = oneLine(percentDecode(raw, plusAsSpace = true))
     return CoordinateQuery.matchEntire(decoded)?.let { match ->
         pointOrNull(match.groupValues[1], match.groupValues[2], decimalsRequired = false)
             ?.let { point -> QPlace.At(point, oneLine(match.groupValues[3])) }
             ?: QPlace.Invalid
-    } ?: oneLine(decoded).takeIf { it.isNotEmpty() }?.let(QPlace::Text)
+    } ?: decoded.takeIf { it.isNotEmpty() }?.let(QPlace::Text)
 }
 
 // A position from two numbers in the plain decimal syntax (no exponent, NaN or Infinity), in range. Free text asks
@@ -216,7 +267,7 @@ private fun oneLine(text: String): String =
     text
         .map { char -> if (char.isISOControl() || char.isWhitespace()) ' ' else char }
         .joinToString("")
-        .replace(Whitespace, " ")
+        .replace(RepeatedSpaces, " ")
         .trim()
 
 /**
@@ -263,29 +314,44 @@ private fun Char.hexValueOrNull(): Int? =
 
 private const val GEO_SCHEME = "geo:"
 
-private val Whitespace = Regex("""\s+""")
+// Every pattern below spells its character classes in ASCII ([0-9], [A-Za-z0-9_], a plain space), never the
+// backslash shorthands for digits, word characters, word boundaries or whitespace. Android's regex engine (ICU)
+// gives those shorthands their Unicode meaning: a digit of any script, which toDouble does not read, and every
+// letter of every script (kana, kanji) as a word character, so a name glued to a link or a pair would read
+// differently on the device. The JVM's shorthands are ASCII-only, so unit tests on the JVM would never see the
+// difference; ReceivedDigitClassTest checks this file for the shorthands. The text these patterns read has been
+// through cleanReceived or oneLine, so its only whitespace is a space or a line break.
+private val RepeatedSpaces = Regex(" {2,}")
 
-// A link in shared text: any `scheme://…` or a `geo:` URI, up to the next whitespace.
-private val LinkToken = Regex("""(?i)\b(?:[a-z][a-z0-9+.\-]*://|geo:)\S+""")
+// A link in shared text: any `scheme://…` or a `geo:` URI, up to the next space or line break. It may follow a
+// letter of another script directly ("ここで会おうhttps://…"), which is not part of its scheme.
+private val LinkToken = Regex("""(?<![A-Za-z0-9+.\-])(?:[A-Za-z][A-Za-z0-9+.\-]*://|[Gg][Ee][Oo]:)[^ \n]+""")
 
-// Every digit class below is spelled [0-9], never the backslash-d shorthand: Android's regex engine (ICU) matches any
-// script's digits with the shorthand (Arabic-Indic, full-width, Devanagari), which toDouble does not read, while the
-// JVM's shorthand is ASCII-only, so unit tests on the JVM would never see the difference. ReceivedDigitClassTest
-// checks this file for the shorthand.
 private val PlainNumber = Regex("""[-+]?[0-9]+(?:\.[0-9]+)?""")
 
 private val DecimalNumber = Regex("""[-+]?[0-9]+\.[0-9]+""")
 
-// "lat, lon" in prose: decimals on both, not glued to a longer number or word; a sentence's full stop may follow.
-private val DecimalPair = Regex("""(?<![\w.])([-+]?[0-9]{1,2}\.[0-9]+)\s*,\s*([-+]?[0-9]{1,3}\.[0-9]+)(?!\w|\.[0-9])""")
+// "lat, lon" in prose: decimals on both, not glued to a longer ASCII number or word; a sentence's full stop, or a word
+// of another script ("35.6586,139.7454付近"), may follow.
+private val DecimalPair =
+    Regex("""(?<![A-Za-z0-9_.])([-+]?[0-9]{1,2}\.[0-9]+) *, *([-+]?[0-9]{1,3}\.[0-9]+)(?![A-Za-z0-9_]|\.[0-9])""")
+
+// Degrees, minutes and seconds: `°`, `'` or `′`, `"` or `″`, seconds with an optional decimal part, a hemisphere letter
+// before or after each number, the two halves apart by spaces or a comma. Groups: the latitude's letter before, its
+// degrees, minutes, seconds, its letter after; then the same for the longitude.
+private val DmsPair =
+    Regex(
+        """(?<![0-9.])([NS] *)?([0-9]{1,2})° *([0-9]{1,2})['′] *([0-9]{1,2}(?:\.[0-9]+)?)["″] *([NS]?) *,? *""" +
+            """([EW] *)?([0-9]{1,3})° *([0-9]{1,2})['′] *([0-9]{1,2}(?:\.[0-9]+)?)["″] *([EW]?)""",
+    )
 
 // A pair inside a decoded link: `?q=` / `&q=`, `?ll=` / `&ll=`, or `@`.
 private val LinkPair =
-    Regex("""(?:[?&](?:q|ll)=|@)\s*([-+]?[0-9]{1,2}\.[0-9]+)\s*,\s*([-+]?[0-9]{1,3}\.[0-9]+)(?![0-9])""")
+    Regex("""(?:[?&](?:q|ll)=|@) *([-+]?[0-9]{1,2}\.[0-9]+) *, *([-+]?[0-9]{1,3}\.[0-9]+)(?![0-9])""")
 
-// The whole of a geo: `q`: "lat,lon" and an optional "(label)".
+// The whole of a geo: `q`, as one line: "lat,lon" and an optional "(label)".
 private val CoordinateQuery =
     Regex(
-        """\s*([-+]?[0-9]+(?:\.[0-9]+)?)\s*,\s*([-+]?[0-9]+(?:\.[0-9]+)?)\s*(?:\((.*)\))?\s*""",
+        """ *([-+]?[0-9]+(?:\.[0-9]+)?) *, *([-+]?[0-9]+(?:\.[0-9]+)?) *(?:\((.*)\))? *""",
         RegexOption.DOT_MATCHES_ALL,
     )

@@ -4,7 +4,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
 
 /**
  * Numbers in received text that are no coordinates: other scripts' digits,
@@ -78,16 +77,25 @@ internal class ReadReceivedNumbersTest(
 }
 
 /**
- * The receive parser's patterns spell digits as `[0-9]`: on Android the
- * shorthand would match other scripts' digits that the number parse rejects,
- * and the JVM's ASCII-only shorthand hides that from every other test here.
- * Gradle runs unit tests in the module directory, so the source is at hand.
+ * The receive parser's patterns spell their character classes in ASCII. On
+ * Android the regex shorthands for digits, word characters, word boundaries
+ * and whitespace, and their negations, take their Unicode meaning: other
+ * scripts' digits would reach the number parse, and a name glued to a link or a
+ * pair would read differently. The JVM's shorthands are ASCII-only, which hides
+ * that from every other test here. Gradle runs unit tests in the module
+ * directory, so the source is at hand.
  */
 class ReceivedDigitClassTest {
     @Test
-    fun `the receive parser spells digit classes in ASCII`() {
+    fun `the receive parser spells its character classes in ASCII`() {
         val source = java.io.File("src/main/java/io/github/seijikohara/femto/data/places/ReceivedPlace.kt").readText()
 
-        assertFalse("\\d" in source, "ReceivedPlace.kt uses the digit shorthand; spell it [0-9]")
+        val found = UNICODE_SHORTHANDS.map { letter -> "\\" + letter }.filter { it in source }
+
+        assertEquals(emptyList(), found, "ReceivedPlace.kt uses regex shorthands whose meaning differs on Android")
+    }
+
+    private companion object {
+        val UNICODE_SHORTHANDS = listOf('d', 'D', 'w', 'W', 'b', 's', 'S')
     }
 }
