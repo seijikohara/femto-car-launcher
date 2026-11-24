@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -22,6 +23,13 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
  * (the video window's glass chip behind its play button).
  */
 internal val PanelIconButtonShape = RoundedCornerShape(14.dp)
+
+/**
+ * A text button's tap target at [FemtoDimens.MinTouchTarget] both ways: a short label such as "Later" or "Done" alone
+ * makes a button narrower than the floor.
+ */
+internal val TextButtonTouchTarget: Modifier =
+    Modifier.sizeIn(minWidth = FemtoDimens.MinTouchTarget, minHeight = FemtoDimens.MinTouchTarget)
 
 private val PanelIconSize = 28.dp
 

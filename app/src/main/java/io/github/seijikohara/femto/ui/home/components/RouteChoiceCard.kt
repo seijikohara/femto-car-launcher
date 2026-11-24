@@ -86,7 +86,7 @@ internal fun RouteChoiceCard(
         )
         TextButton(
             onClick = onClose,
-            modifier = Modifier.heightIn(min = FemtoDimens.MinTouchTarget),
+            modifier = TextButtonTouchTarget,
         ) {
             Text(text = stringResource(R.string.route_choice_close), style = MaterialTheme.typography.labelLarge)
         }

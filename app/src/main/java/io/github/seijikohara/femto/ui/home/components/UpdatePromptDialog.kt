@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -15,7 +14,6 @@ import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.ui.common.ImmersiveSheetEffect
 import io.github.seijikohara.femto.ui.common.fileSize
 import io.github.seijikohara.femto.ui.home.HomeAction
-import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
@@ -57,25 +55,18 @@ internal fun UpdatePromptDialog(
         confirmButton = {
             TextButton(
                 onClick = { onAction(HomeAction.UpdateNow(update.versionCode)) },
-                modifier = AnswerTarget,
+                modifier = TextButtonTouchTarget,
             ) { Text(text = stringResource(R.string.update_prompt_update)) }
         },
         dismissButton = {
             TextButton(
                 onClick = later,
-                modifier = AnswerTarget,
+                modifier = TextButtonTouchTarget,
             ) { Text(text = stringResource(R.string.update_prompt_later)) }
         },
         properties = DialogProperties(dismissOnClickOutside = false),
     )
 }
-
-// Each answer is a full tap target both ways: a short label such as "Later"
-// alone makes a button narrower than the floor.
-private val AnswerTarget = Modifier.sizeIn(
-    minWidth = FemtoDimens.MinTouchTarget,
-    minHeight = FemtoDimens.MinTouchTarget,
-)
 
 @PreviewLightDark
 @PreviewTextStress
