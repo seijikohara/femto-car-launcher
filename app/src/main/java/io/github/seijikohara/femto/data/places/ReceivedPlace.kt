@@ -68,7 +68,7 @@ internal fun readSharedText(
     val fields = listOfNotNull(subject, title).map { oneLine(cleanReceived(it).replace(LinkToken, " ")) }
     val name = fields.firstNotNullOfOrNull { field -> oneLine(withoutDms(field)).takeIf { it.isNotEmpty() } }
     val links = LinkToken.findAll(body).map { it.value }.toList()
-    val prose = body.replace(LinkToken, " ")
+    val prose = body.replace(LinkToken, " ").replace(RepeatedSpaces, " ")
     val nameOrProse = name ?: linesAsName(prose)
     return geoLinkPlaceOrNull(links, nameOrProse)
         ?: prosePairPlaceOrNull(prose, name)
@@ -159,7 +159,9 @@ private fun linkPairPlaceOrNull(
     links
         .filterNot { it.startsWith(GEO_SCHEME, ignoreCase = true) }
         .firstNotNullOfOrNull { link ->
-            LinkPair.findAll(percentDecode(link, plusAsSpace = false)).firstNotNullOfOrNull { match ->
+            // Decoding can bring runs of spaces back (%20%20…); they go as in cleanReceived.
+            val decoded = percentDecode(link, plusAsSpace = false).replace(RepeatedSpaces, " ")
+            LinkPair.findAll(decoded).firstNotNullOfOrNull { match ->
                 pointOrNull(match.groupValues[1], match.groupValues[2])
             }
         }?.let { point -> ReceivedPlace.Found(point, label) }
@@ -244,8 +246,10 @@ private fun pointOrNull(
 
 /**
  * Cut [text] to [MAX_RECEIVED_TEXT_LENGTH] (never leaving half a surrogate
- * pair) and drop its control characters, keeping line breaks, which separate a
- * share's name from its link.
+ * pair), drop its control characters, keeping line breaks, which separate a
+ * share's name from its link, and turn every other run of whitespace into one
+ * space. A real share never needs more than one space in a row, and the
+ * patterns below are written for exactly that.
  */
 private fun cleanReceived(text: String): String =
     text
@@ -260,6 +264,7 @@ private fun cleanReceived(text: String): String =
                 else -> char
             }
         }.joinToString("")
+        .replace(RepeatedSpaces, " ")
 
 // One trimmed line, with runs of whitespace (line breaks included) as one space and no control characters: what a
 // field or a label can show. Decoding can bring control characters back (%00), so decoded text passes through here.
@@ -319,8 +324,14 @@ private const val GEO_SCHEME = "geo:"
 // gives those shorthands their Unicode meaning: a digit of any script, which toDouble does not read, and every
 // letter of every script (kana, kanji) as a word character, so a name glued to a link or a pair would read
 // differently on the device. The JVM's shorthands are ASCII-only, so unit tests on the JVM would never see the
-// difference; ReceivedDigitClassTest checks this file for the shorthands. The text these patterns read has been
-// through cleanReceived or oneLine, so its only whitespace is a space or a line break.
+// difference; ReceivedDigitClassTest checks this file for the shorthands.
+//
+// The text these patterns read has been through cleanReceived or oneLine (or, for a decoded link, RepeatedSpaces), so
+// its only whitespace is a single space or a line break. Every optional space in a pattern is therefore one space
+// (` ?`), never a run (` *`), and no two optional spaces stand side by side with only optional tokens between them.
+// Two runs side by side can split a long run of spaces between them in every way, and a backtracking engine tries
+// each split: polynomial time on 2,000 characters of the home screen's main thread. Bounding each run to one space,
+// rather than making it possessive, keeps the patterns readable and leaves nothing a run could hand back.
 private val RepeatedSpaces = Regex(" {2,}")
 
 // A link in shared text: any `scheme://…` or a `geo:` URI, up to the next space or line break. It may follow a
@@ -334,24 +345,27 @@ private val DecimalNumber = Regex("""[-+]?[0-9]+\.[0-9]+""")
 // "lat, lon" in prose: decimals on both, not glued to a longer ASCII number or word; a sentence's full stop, or a word
 // of another script ("35.6586,139.7454付近"), may follow.
 private val DecimalPair =
-    Regex("""(?<![A-Za-z0-9_.])([-+]?[0-9]{1,2}\.[0-9]+) *, *([-+]?[0-9]{1,3}\.[0-9]+)(?![A-Za-z0-9_]|\.[0-9])""")
+    Regex("""(?<![A-Za-z0-9_.])([-+]?[0-9]{1,2}\.[0-9]+) ?, ?([-+]?[0-9]{1,3}\.[0-9]+)(?![A-Za-z0-9_]|\.[0-9])""")
 
 // Degrees, minutes and seconds: `°`, `'` or `′`, `"` or `″`, seconds with an optional decimal part, a hemisphere letter
-// before or after each number, the two halves apart by spaces or a comma. Groups: the latitude's letter before, its
-// degrees, minutes, seconds, its letter after; then the same for the longitude.
+// before or after each number, the two halves apart by a space, a comma, or neither. Groups: the latitude's letter
+// before, its degrees, minutes, seconds, its letter after; then the same for the longitude. A letter after a number
+// takes the space before it inside its own group, which needs the letter, so the space before the separator belongs
+// to one token only: the letter's group when a letter follows, else the separator.
 private val DmsPair =
     Regex(
-        """(?<![0-9.])([NS] *)?([0-9]{1,2})° *([0-9]{1,2})['′] *([0-9]{1,2}(?:\.[0-9]+)?)["″] *([NS]?) *,? *""" +
-            """([EW] *)?([0-9]{1,3})° *([0-9]{1,2})['′] *([0-9]{1,2}(?:\.[0-9]+)?)["″] *([EW]?)""",
+        """(?<![0-9.])([NS] ?)?([0-9]{1,2})° ?([0-9]{1,2})['′] ?([0-9]{1,2}(?:\.[0-9]+)?)["″](?: ?([NS]))?""" +
+            """(?: ?, ?| )?""" +
+            """([EW] ?)?([0-9]{1,3})° ?([0-9]{1,2})['′] ?([0-9]{1,2}(?:\.[0-9]+)?)["″](?: ?([EW]))?""",
     )
 
 // A pair inside a decoded link: `?q=` / `&q=`, `?ll=` / `&ll=`, or `@`.
 private val LinkPair =
-    Regex("""(?:[?&](?:q|ll)=|@) *([-+]?[0-9]{1,2}\.[0-9]+) *, *([-+]?[0-9]{1,3}\.[0-9]+)(?![0-9])""")
+    Regex("""(?:[?&](?:q|ll)=|@) ?([-+]?[0-9]{1,2}\.[0-9]+) ?, ?([-+]?[0-9]{1,3}\.[0-9]+)(?![0-9])""")
 
-// The whole of a geo: `q`, as one line: "lat,lon" and an optional "(label)".
+// The whole of a geo: `q`, as one trimmed line (oneLine): "lat,lon" and an optional "(label)".
 private val CoordinateQuery =
     Regex(
-        """ *([-+]?[0-9]+(?:\.[0-9]+)?) *, *([-+]?[0-9]+(?:\.[0-9]+)?) *(?:\((.*)\))? *""",
+        """([-+]?[0-9]+(?:\.[0-9]+)?) ?, ?([-+]?[0-9]+(?:\.[0-9]+)?)(?: ?\((.*)\))?""",
         RegexOption.DOT_MATCHES_ALL,
     )
