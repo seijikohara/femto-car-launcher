@@ -352,11 +352,15 @@ private val DecimalPair =
 // before, its degrees, minutes, seconds, its letter after; then the same for the longitude. A letter after a number
 // takes the space before it inside its own group, which needs the letter, so the space before the separator belongs
 // to one token only: the letter's group when a letter follows, else the separator.
+//
+// A hemisphere letter stands alone: the pair does not start inside an ASCII word, and a letter after a number has no
+// ASCII letter behind it. Otherwise the S of "GPS 35°…N" would be the latitude's second letter, the real pair would
+// be passed over, and the E of "… Exit 5" would be an east the share never said.
 private val DmsPair =
     Regex(
-        """(?<![0-9.])([NS] ?)?([0-9]{1,2})° ?([0-9]{1,2})['′] ?([0-9]{1,2}(?:\.[0-9]+)?)["″](?: ?([NS]))?""" +
-            """(?: ?, ?| )?""" +
-            """([EW] ?)?([0-9]{1,3})° ?([0-9]{1,2})['′] ?([0-9]{1,2}(?:\.[0-9]+)?)["″](?: ?([EW]))?""",
+        """(?<![0-9.A-Za-z])([NS] ?)?([0-9]{1,2})° ?([0-9]{1,2})['′] ?([0-9]{1,2}(?:\.[0-9]+)?)["″]""" +
+            """(?: ?([NS])(?![A-Za-z]))?(?: ?, ?| )?""" +
+            """([EW] ?)?([0-9]{1,3})° ?([0-9]{1,2})['′] ?([0-9]{1,2}(?:\.[0-9]+)?)["″](?: ?([EW])(?![A-Za-z]))?""",
     )
 
 // A pair inside a decoded link: `?q=` / `&q=`, `?ll=` / `&ll=`, or `@`.

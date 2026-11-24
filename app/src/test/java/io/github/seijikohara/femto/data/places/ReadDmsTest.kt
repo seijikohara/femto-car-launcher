@@ -89,6 +89,21 @@ internal class ReadDmsTest(
                     CASTLE.copy(label = "Castle"),
                     title = "Castle",
                 ),
+                // A capital N, S, E or W of a neighbouring word is no hemisphere letter: taken as one, it gives the
+                // side two letters, or a letter the share never had.
+                row("a word before the pair", "GPS 35°39'31\"N 139°44'43\"E", At(35.65861, 139.74528, label = "GPS")),
+                row(
+                    "a word ending in a hemisphere letter before the pair",
+                    "LOCATION 33°50'44.2\"N 132°45'56.2\"E",
+                    CASTLE.copy(label = "LOCATION"),
+                ),
+                row(
+                    "a word after the pair",
+                    "33°50'44.2\"N 132°45'56.2\"E West gate",
+                    CASTLE.copy(label = "West gate"),
+                ),
+                row("a word's first letter is no hemisphere", "33°50'44.2\"N 132°45'56.2\" Exit 5", NotAPoint),
+                row("a pair glued to a word", "GPS35°39'31\"N 139°44'43\"E", NotAPoint),
                 row("minutes past 59", "33°60'44.2\"N 132°45'56.2\"E", NotAPoint),
                 row("seconds past 59", "33°50'60.0\"N 132°45'56.2\"E", NotAPoint),
                 row("latitude past 90", "91°00'00.0\"N 132°45'56.2\"E", NotAPoint),
