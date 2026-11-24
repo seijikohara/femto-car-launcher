@@ -32,14 +32,14 @@ internal fun revokeNotificationListenerAccess(context: Context) {
 }
 
 /**
- * Register an active session of [packageName] in [state] publishing [metadata] with the platform, appended to the
- * priority order [MediaSessionManager.getActiveSessions] hands out.
+ * Register an active session of [packageName] in [state] publishing [metadata] (null for none, as a stream can) with
+ * the platform, appended to the priority order [MediaSessionManager.getActiveSessions] hands out.
  */
 internal fun MediaSessionManager.addFakeSession(
     context: Context,
     packageName: String,
     state: Int,
-    metadata: MediaMetadata = fakeMediaMetadata(title = "Headlights"),
+    metadata: MediaMetadata? = fakeMediaMetadata(title = "Headlights"),
 ): MediaController =
     fakeMediaController(context, packageName).also { controller ->
         shadowOf(controller).setPackageName(packageName)

@@ -7,8 +7,10 @@ import android.media.session.PlaybackState
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import io.github.seijikohara.femto.testfixtures.FakeLastPlayedStore
 import io.github.seijikohara.femto.testfixtures.addFakeSession
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedKeeper
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedTrack
 import io.github.seijikohara.femto.testfixtures.grantNotificationListenerAccess
 import io.github.seijikohara.femto.testfixtures.startPlaying
 import kotlinx.coroutines.test.runTest
@@ -83,6 +85,20 @@ class MusicSessionRepositoryTest {
                 resumed.startPlaying()
 
                 assertEquals(RESUMED_PACKAGE, playingPackage(awaitItem()))
+            }
+        }
+
+    @Test
+    fun `a playing session without metadata keeps the remembered track off the card`() =
+        runTest {
+            // The session plays but publishes nothing to show, so the card has
+            // no live track; the remembered one must still stay away from it.
+            sessionManager.addFakeSession(application, RESUMED_PACKAGE, PlaybackState.STATE_PLAYING, metadata = null)
+            val remembering = fakeLastPlayedKeeper(store = FakeLastPlayedStore(fakeLastPlayedTrack()))
+
+            MusicSessionRepository(application, remembering).stateFlow().test {
+                assertEquals(MusicCardState.NoActiveSession, awaitItem())
+                cancelAndIgnoreRemainingEvents()
             }
         }
 
