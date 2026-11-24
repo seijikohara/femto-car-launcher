@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +40,7 @@ import io.github.seijikohara.femto.data.diagnostics.FactValue
 import io.github.seijikohara.femto.data.diagnostics.SectionId
 import io.github.seijikohara.femto.data.diagnostics.SectionPayload
 import io.github.seijikohara.femto.data.diagnostics.issues
+import io.github.seijikohara.femto.ui.theme.FemtoCircularProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.monoReference
@@ -148,7 +148,7 @@ private fun SectionHeader(
         }
         if (section.payload == null) {
             val collectingLabel = stringResource(R.string.diagnostics_loading)
-            CircularProgressIndicator(
+            FemtoCircularProgressIndicator(
                 modifier =
                     Modifier
                         .size(FemtoDimens.InlineIconSize)

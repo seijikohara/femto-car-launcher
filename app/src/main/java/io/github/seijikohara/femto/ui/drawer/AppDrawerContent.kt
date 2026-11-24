@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -51,6 +50,7 @@ import io.github.seijikohara.femto.ui.drawer.components.IndexRailWidth
 import io.github.seijikohara.femto.ui.drawer.components.PinnedDock
 import io.github.seijikohara.femto.ui.drawer.components.RecentAppsRow
 import io.github.seijikohara.femto.ui.home.components.FemtoHorizontalDivider
+import io.github.seijikohara.femto.ui.theme.FemtoCircularProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.drawerBody
@@ -146,7 +146,7 @@ internal fun AppDrawerContent(
 @Composable
 private fun LoadingState(modifier: Modifier = Modifier) =
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(modifier = Modifier.testTag(APP_DRAWER_PROGRESS_TEST_TAG))
+        FemtoCircularProgressIndicator(modifier = Modifier.testTag(APP_DRAWER_PROGRESS_TEST_TAG))
     }
 
 @Composable

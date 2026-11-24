@@ -5,7 +5,6 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItemShapes
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,6 +38,7 @@ import io.github.seijikohara.femto.ui.settings.UpdateStep
 import io.github.seijikohara.femto.ui.settings.UpdatesUiState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.FemtoLinearProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
@@ -356,7 +356,7 @@ private fun DownloadingRow(
         title = title,
         summary = stringResource(R.string.settings_updates_update_downloading, (fraction * 100).roundToInt()),
     )
-    LinearProgressIndicator(
+    FemtoLinearProgressIndicator(
         progress = { fraction },
         modifier = Modifier.fillMaxWidth(),
     )

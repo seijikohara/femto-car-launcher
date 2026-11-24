@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,6 +38,7 @@ import io.github.seijikohara.femto.ui.settings.components.BackButton
 import io.github.seijikohara.femto.ui.settings.components.SettingRow
 import io.github.seijikohara.femto.ui.settings.components.SettingsSubheader
 import io.github.seijikohara.femto.ui.settings.components.TrailingIcon
+import io.github.seijikohara.femto.ui.theme.FemtoCircularProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 
@@ -70,7 +70,7 @@ internal fun RegionPicker(
         when (picker) {
             RegionPickerUiState.Loading -> {
                 Status(text = stringResource(R.string.offline_regions_picker_loading)) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    FemtoCircularProgressIndicator()
                 }
             }
 
@@ -157,10 +157,9 @@ private fun PickerRow(
     ) {
         when {
             row.id == pendingId -> {
-                CircularProgressIndicator(
+                FemtoCircularProgressIndicator(
                     modifier = Modifier.size(FemtoDimens.InlineIconSize),
                     strokeWidth = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
                 )
             }
 
