@@ -320,6 +320,17 @@ class MainActivity : ComponentActivity() {
                             setShowLicenses = { showLicenses = it },
                         )
                     },
+                    // A place another app sent opens the destination panel in the
+                    // dashboard; every sheet is a window above it, so all close.
+                    onReceivePlace = {
+                        showAssistant = false
+                        showSettings = false
+                        fontPickerSlot = null
+                        showOfflineRegions = false
+                        showRoutingData = false
+                        showDiagnostics = false
+                        showLicenses = false
+                    },
                     sheetOpen =
                         showAssistant ||
                             showSettings ||

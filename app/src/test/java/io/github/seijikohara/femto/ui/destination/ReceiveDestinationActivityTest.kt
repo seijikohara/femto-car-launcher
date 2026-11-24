@@ -41,9 +41,14 @@ class ReceiveDestinationActivityTest {
         inbox.pending.value?.let(inbox::handled)
     }
 
-    private fun resolvers(intent: Intent): List<ComponentName> =
+    // Default-category matches, as startActivity resolves an implicit intent; the launcher-icon check passes no flags,
+    // since a MAIN + LAUNCHER filter needs no DEFAULT category to show an icon.
+    private fun resolvers(
+        intent: Intent,
+        flags: Int = PackageManager.MATCH_DEFAULT_ONLY,
+    ): List<ComponentName> =
         context.packageManager
-            .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            .queryIntentActivities(intent, flags)
             .map { ComponentName(it.activityInfo.packageName, it.activityInfo.name) }
 
     @Test
@@ -64,7 +69,16 @@ class ReceiveDestinationActivityTest {
     fun `the app keeps exactly one launcher icon`() {
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(context.packageName)
 
-        assertEquals(listOf(ComponentName(context, MainActivity::class.java)), resolvers(launcher))
+        assertEquals(listOf(ComponentName(context, MainActivity::class.java)), resolvers(launcher, flags = 0))
+    }
+
+    // Started with FLAG_ACTIVITY_NEW_TASK while the launcher is not running, an entrance with the app's own affinity
+    // would found the launcher's task: that task would keep the entrance's geo: base intent and drop out of recents.
+    @Test
+    fun `the entrance never joins the launcher's task`() {
+        val info = context.packageManager.getActivityInfo(entrance, 0)
+
+        assertTrue(info.taskAffinity.isNullOrEmpty(), "taskAffinity = ${info.taskAffinity}")
     }
 
     @Test
