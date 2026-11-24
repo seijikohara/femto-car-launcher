@@ -21,6 +21,7 @@ import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
+import io.github.seijikohara.femto.data.places.capPlaceName
 import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.CandidateFinder
@@ -51,6 +52,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -65,7 +68,8 @@ import kotlinx.coroutines.withContext
  *
  * The gate lives here rather than only in the UI, so a stale tap or a
  * keyboard that stays up as the vehicle pulls away cannot type, save or
- * delete: every edit that involves typing is dropped while moving. A voice
+ * delete: every edit that involves typing is dropped while moving, and a rename
+ * field open when the vehicle starts to move closes without saving. A voice
  * result fills the query in any motion state but never hands off by itself;
  * the user still taps Open in maps app. The hand-off is not an action here: the
  * panel raises it to the dashboard, whose ViewModel owns the launch events.
@@ -137,6 +141,10 @@ internal class DestinationViewModel(
 
     private val pickedPoint = MutableStateFlow<PlaceTarget.Point?>(null)
 
+    // The name being typed for one saved place. Kept here, not in the row, so the typing gate judges it and a
+    // rotation does not lose it.
+    private val renaming = MutableStateFlow<RenameDraft?>(null)
+
     private val entryState: Flow<DestinationUiState> =
         combine(
             query,
@@ -179,7 +187,14 @@ internal class DestinationViewModel(
                 pickedPoint = picked,
                 conditions = conditions,
             )
-        }.stateIn(viewModelScope, WhileUiSubscribed, DestinationUiState.Initial)
+        }.combine(renaming) { state, draft -> state to draft }
+            // The motion verdict reaches the VM only through this chain (collecting it elsewhere would keep the
+            // location stack running with no panel open), so the rename that moving closes is closed here: the
+            // draft is dropped for good, not only hidden until the next stop. The panel's own disposal clears it
+            // when the panel closes while the chain is idle.
+            .onEach { (state, draft) -> if (draft != null && !state.typingAllowed) renaming.value = null }
+            .map { (state, draft) -> state.copy(renaming = draft.takeIf { state.typingAllowed }) }
+            .stateIn(viewModelScope, WhileUiSubscribed, DestinationUiState.Initial)
 
     init {
         // A final transcript becomes the query, and the recognizer goes back to
@@ -235,7 +250,35 @@ internal class DestinationViewModel(
             }
 
             is DestinationAction.DeletePlace -> {
-                if (typingAllowed) viewModelScope.launch { placesStore.delete(action.id) }
+                if (typingAllowed) {
+                    if (renaming.value?.id == action.id) renaming.value = null
+                    viewModelScope.launch { placesStore.delete(action.id) }
+                }
+            }
+
+            is DestinationAction.StartRename -> {
+                if (typingAllowed) {
+                    state.places
+                        .firstOrNull { it.id == action.id }
+                        ?.let { place -> renaming.value = RenameDraft(place.id, capPlaceName(place.title)) }
+                }
+            }
+
+            is DestinationAction.RenameChanged -> {
+                if (typingAllowed) renaming.update { draft -> draft?.copy(text = capPlaceName(action.text)) }
+            }
+
+            DestinationAction.SaveRename -> {
+                // The store decides what is kept (trim, blank, equal to the label); a place deleted meanwhile stays
+                // gone. viewModelScope outlives a panel collapsed right after the tap, so the write always lands.
+                renaming.value
+                    ?.takeIf { typingAllowed }
+                    ?.let { draft -> viewModelScope.launch { placesStore.rename(draft.id, draft.text) } }
+                renaming.value = null
+            }
+
+            DestinationAction.CancelRename -> {
+                renaming.value = null
             }
 
             DestinationAction.ClearQuery -> {

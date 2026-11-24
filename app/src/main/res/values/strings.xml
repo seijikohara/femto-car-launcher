@@ -204,13 +204,19 @@
     <string name="destination_no_handler">No app on this device can open a destination. Install a maps or navigation app.</string>
     <string name="destination_saved_places">Saved places</string>
     <string name="destination_no_saved_places">No saved places yet. Save a search or your current location while stopped.</string>
-    <!-- %1$s = the saved place's label -->
+    <!-- %1$s = the saved place's title (its own name, else its label) -->
     <string name="destination_delete_place">Delete %1$s</string>
-    <!-- What a tap on a saved place does, for screen readers; %1$s = the saved place's label -->
+    <!-- %1$s = the saved place's title (its own name, else its label) -->
+    <string name="destination_rename_place">Rename %1$s</string>
+    <!-- The label of the name field a saved place's row turns into while it is renamed. -->
+    <string name="destination_rename_field">Name</string>
+    <string name="destination_rename_save">Save name</string>
+    <string name="destination_rename_cancel">Cancel renaming</string>
+    <!-- What a tap on a saved place does, for screen readers; %1$s = the saved place's title (its own name, else its label) -->
     <string name="destination_open_place">Open %1$s in maps app</string>
     <!-- Route preview (issue #389 phase 3, nightly builds only): a route on the launcher's own map. -->
     <string name="destination_route">Show route</string>
-    <!-- %1$s = the saved place's label -->
+    <!-- %1$s = the saved place's title (its own name, else its label) -->
     <string name="destination_route_place">Show route to %1$s</string>
     <string name="destination_route_finding_position">Finding your position…</string>
     <string name="destination_route_locating">Looking up the place…</string>

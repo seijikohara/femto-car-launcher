@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.geocoding.PlaceLookup
 import io.github.seijikohara.femto.data.location.CurrentFix
 import io.github.seijikohara.femto.data.location.LOCATION_STALE_THRESHOLD_MS
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.places.MAX_PLACE_NAME_LENGTH
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
@@ -316,6 +317,154 @@ class DestinationViewModelTest {
             val viewModel = subscribedViewModel(saved = listOf(place))
             viewModel.onAction(DestinationAction.DeletePlace(place.id))
             assertEquals(listOf(place), viewModel.uiState.value.places)
+        }
+
+    @Test
+    fun rename_starts_with_the_current_title() =
+        runTest {
+            val unnamed = fakeSavedPlace(id = 1L, label = "Office")
+            val named = fakeSavedPlace(id = 2L, label = "1-9-1 Marunouchi", name = "Home")
+            val viewModel = subscribedViewModel(saved = listOf(unnamed, named))
+
+            viewModel.onAction(DestinationAction.StartRename(unnamed.id))
+            assertEquals(RenameDraft(unnamed.id, "Office"), viewModel.uiState.value.renaming)
+
+            viewModel.onAction(DestinationAction.StartRename(named.id))
+            assertEquals(RenameDraft(named.id, "Home"), viewModel.uiState.value.renaming)
+        }
+
+    @Test
+    fun rename_of_a_place_that_is_not_there_does_not_start() =
+        runTest {
+            val viewModel = subscribedViewModel(saved = listOf(fakeSavedPlace(id = 1L)))
+
+            viewModel.onAction(DestinationAction.StartRename(99L))
+
+            assertNull(viewModel.uiState.value.renaming)
+        }
+
+    @Test
+    fun saving_stores_the_trimmed_name_and_closes_the_field() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.RenameChanged("  Work  "))
+
+            viewModel.onAction(DestinationAction.SaveRename)
+
+            assertEquals("Work", store.current.single().name)
+            assertEquals(
+                "Work",
+                viewModel.uiState.value.places
+                    .single()
+                    .name,
+            )
+            assertNull(viewModel.uiState.value.renaming)
+        }
+
+    @Test
+    fun saving_a_blank_name_takes_the_name_away() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office", name = "Work")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.RenameChanged("   "))
+
+            viewModel.onAction(DestinationAction.SaveRename)
+
+            assertNull(store.current.single().name)
+        }
+
+    @Test
+    fun the_typed_name_is_cut_to_the_cap() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L)
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+
+            viewModel.onAction(DestinationAction.RenameChanged("a".repeat(MAX_PLACE_NAME_LENGTH + 20)))
+
+            assertEquals(
+                MAX_PLACE_NAME_LENGTH,
+                viewModel.uiState.value.renaming
+                    ?.text
+                    ?.length,
+            )
+        }
+
+    @Test
+    fun cancel_stores_nothing() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.RenameChanged("Work"))
+
+            viewModel.onAction(DestinationAction.CancelRename)
+
+            assertEquals(listOf(place), store.current)
+            assertNull(viewModel.uiState.value.renaming)
+        }
+
+    @Test
+    fun starting_to_move_closes_the_rename_without_saving() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.RenameChanged("Work"))
+
+            motion.value = VehicleMotion.MOVING
+
+            assertNull(viewModel.uiState.value.renaming)
+            assertEquals(listOf(place), store.current)
+
+            // Stopping again does not bring the field back, and a late Save has nothing to store.
+            motion.value = VehicleMotion.PARKED
+            viewModel.onAction(DestinationAction.SaveRename)
+            assertNull(viewModel.uiState.value.renaming)
+            assertEquals(listOf(place), store.current)
+        }
+
+    @Test
+    fun rename_is_ignored_while_moving() =
+        runTest {
+            motion.value = VehicleMotion.MOVING
+            val place = fakeSavedPlace(id = 1L, label = "Office")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+
+            assertNull(viewModel.uiState.value.renaming)
+        }
+
+    @Test
+    fun saving_a_name_while_moving_stores_nothing() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.RenameChanged("Work"))
+            motion.value = VehicleMotion.MOVING
+
+            viewModel.onAction(DestinationAction.SaveRename)
+
+            assertEquals(listOf(place), store.current)
+        }
+
+    @Test
+    fun deleting_the_place_being_renamed_closes_the_field_and_a_save_brings_nothing_back() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.DeletePlace(place.id))
+
+            viewModel.onAction(DestinationAction.SaveRename)
+
+            assertNull(viewModel.uiState.value.renaming)
+            assertEquals(emptyList(), store.current)
         }
 
     @Test

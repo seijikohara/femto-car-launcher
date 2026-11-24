@@ -18,8 +18,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -63,6 +65,8 @@ class DestinationPanelTest {
         geocoderAvailable: Boolean = true,
         route: RouteStep = RouteStep.Idle,
         pickedPoint: PlaceTarget.Point? = null,
+        places: List<SavedPlace> = listOf(office, home),
+        renaming: RenameDraft? = null,
     ) = rule.setContent {
         FemtoTheme {
             DestinationPanel(
@@ -70,13 +74,14 @@ class DestinationPanelTest {
                     DestinationUiState(
                         query = query,
                         voice = VoiceState.Idle,
-                        places = listOf(office, home),
+                        places = places,
                         motion = if (stationary) VehicleMotion.PARKED else VehicleMotion.MOVING,
                         handOffAvailable = handOffAvailable,
                         routeAvailable = routeAvailable,
                         geocoderAvailable = geocoderAvailable,
                         route = route,
                         pickedPoint = pickedPoint,
+                        renaming = renaming,
                     ),
                 lastFix = lastFix,
                 currentAddress = "1-9-1 Marunouchi",
@@ -185,6 +190,91 @@ class DestinationPanelTest {
     fun moving_a_saved_place_offers_no_delete() {
         setPanel(stationary = false)
         rule.onNodeWithContentDescription("Delete Office").assertDoesNotExist()
+    }
+
+    @Test
+    fun stopped_a_saved_place_offers_rename() {
+        setPanel(stationary = true)
+        rule.onNodeWithContentDescription("Rename Office").performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.StartRename(office.id)), actions)
+    }
+
+    @Test
+    fun moving_a_saved_place_offers_no_rename() {
+        setPanel(stationary = false)
+        rule.onNodeWithContentDescription("Rename Office").assertDoesNotExist()
+    }
+
+    // The title is the name; the line under it is what the place was saved as, and the buttons use the name too.
+    @Test
+    fun a_named_place_shows_its_name_with_what_it_was_saved_as_underneath() {
+        setPanel(stationary = true, routeAvailable = true, places = listOf(office.copy(name = "Work")))
+
+        rule.onNodeWithText("Work").assertIsDisplayed()
+        rule.onNodeWithText("1st & Pike, Seattle").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Rename Work").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Delete Work").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Show route to Work").assertIsDisplayed()
+        assertEquals(
+            "Open Work in maps app",
+            rule
+                .onNodeWithText("Work")
+                .fetchSemanticsNode()
+                .config[SemanticsActions.OnClick]
+                .label,
+        )
+    }
+
+    @Test
+    fun a_named_point_is_handed_off_with_its_name_as_the_pin_label() {
+        setPanel(stationary = false, places = listOf(home.copy(name = "Mum's (new) place")))
+
+        rule.onNodeWithText("Mum's (new) place").performClick()
+
+        assertEquals(listOf(home.target to "Mum's (new) place"), handoffs)
+    }
+
+    @Test
+    fun a_row_in_rename_mode_is_a_labelled_field_holding_the_draft_with_save_and_cancel() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).assertIsDisplayed()
+        rule.onNodeWithText("Work").assertIsDisplayed()
+        rule.onNodeWithText("Name").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Save name").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Cancel renaming").assertIsDisplayed()
+        // The row is the field: no hand-off, rename or delete for that place, while the other row is unchanged.
+        rule.onNodeWithContentDescription("Rename Office").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Delete Office").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Rename Home").assertIsDisplayed()
+    }
+
+    @Test
+    fun typing_in_the_rename_field_reports_the_text() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("Work")
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.RenameChanged("Work")), actions)
+    }
+
+    @Test
+    fun the_keyboards_done_key_saves_the_rename() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performImeAction()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.SaveRename), actions)
+    }
+
+    @Test
+    fun the_save_and_cancel_buttons_report_their_actions() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        rule.onNodeWithContentDescription("Save name").performClick()
+        rule.onNodeWithContentDescription("Cancel renaming").performClick()
+
+        assertEquals(listOf(DestinationAction.SaveRename, DestinationAction.CancelRename), actions)
     }
 
     @Test
