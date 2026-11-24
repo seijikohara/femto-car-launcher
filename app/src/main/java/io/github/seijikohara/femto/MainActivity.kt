@@ -54,6 +54,8 @@ import io.github.seijikohara.femto.data.location.hasLocationPermission
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.destinationIntent
 import io.github.seijikohara.femto.data.places.geoCentreUri
+import io.github.seijikohara.femto.data.places.geoLaunchIntentOrNull
+import io.github.seijikohara.femto.data.places.geoViewIntent
 import io.github.seijikohara.femto.data.system.SystemPermissionSignals
 import io.github.seijikohara.femto.data.update.UpdateChannel
 import io.github.seijikohara.femto.data.update.dismissUpdateNotification
@@ -626,19 +628,19 @@ class MainActivity : ComponentActivity() {
         tryStartActivity(intent)
     }
 
+    // A bare geo: URI lets whichever maps app the user has elected resolve the
+    // position; no provider or package is hard-coded. The launcher takes geo:
+    // itself (ReceiveDestinationActivity), so the start goes through
+    // geoLaunchIntentOrNull, which never resolves it back to the launcher.
     private fun launchGeo(
         latitude: Double,
         longitude: Double,
     ) {
-        // A bare geo: URI lets whichever maps app the user has elected resolve
-        // the position — no provider or package is hard-coded.
-        val intent =
-            Intent(Intent.ACTION_VIEW, geoCentreUri(latitude, longitude, MAPS_ZOOM_LEVEL).toUri())
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        tryStartActivity(intent)
+        geoLaunchIntentOrNull(geoViewIntent(geoCentreUri(latitude, longitude, MAPS_ZOOM_LEVEL)))
+            ?.let(::tryStartActivity)
     }
 
-    // The destination panel's hand-off: the same package-agnostic geo: intent
+    // The destination panel's hand-off: the same package-agnostic geo: start
     // as launchGeo, carrying a query or a labelled point (destinationIntent).
     // The panel already says so when no app takes it (hasDestinationHandler);
     // a handler removed between that check and the tap leaves a no-op here.
@@ -649,8 +651,7 @@ class MainActivity : ComponentActivity() {
         target: PlaceTarget,
         label: String,
     ) {
-        val intent = destinationIntent(target, label).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        tryStartActivity(intent)
+        geoLaunchIntentOrNull(destinationIntent(target, label))?.let(::tryStartActivity)
     }
 
     private fun openNotificationListenerSettings() {

@@ -45,6 +45,8 @@ import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.music.PlatformResumePort
 import io.github.seijikohara.femto.data.music.ResumeOutcome
+import io.github.seijikohara.femto.data.places.ReceivedPlace
+import io.github.seijikohara.femto.data.places.ReceivedPlaceInbox
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.FollowEvent
@@ -160,6 +162,9 @@ internal class HomeViewModel(
     // stamp and its check at the first fix, which also runs with no route on
     // the map. Defaults to nowhere, so previews and tests are unaffected.
     private val onGpsFix: (timeEpochMs: Long) -> Unit = {},
+    // Where a place another app sent waits for the dashboard. Defaults to an
+    // inbox of its own, so previews and tests receive nothing.
+    private val receivedPlaces: ReceivedPlaceInbox = ReceivedPlaceInbox(),
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -421,6 +426,16 @@ internal class HomeViewModel(
             }.distinctUntilChanged(),
         ).stateIn(viewModelScope, WhileUiSubscribed, null)
 
+    /**
+     * A place another app sent (the share sheet or a `geo:` link), waiting for
+     * the destination panel, or null. A state rather than an [events] entry:
+     * on a cold start through a share the place arrives before the dashboard
+     * is composed, and an event with no collector would be lost. The panel
+     * reports the place taken ([HomeAction.ReceivedPlaceHandled]), which
+     * empties the inbox, so a recreated dashboard opens nothing again.
+     */
+    val receivedPlace: StateFlow<ReceivedPlace?> = receivedPlaces.pending
+
     // extraBufferCapacity = 1 lets a single tryEmit succeed without a live collector,
     // matching the semantics of a one-shot navigation request that is dropped if the
     // host is already detached (e.g. during configuration change).
@@ -459,6 +474,10 @@ internal class HomeViewModel(
 
             is HomeAction.Navigate -> {
                 mutableEvents.tryEmit(HomeEvent.LaunchDestination(action.target, action.label))
+            }
+
+            is HomeAction.ReceivedPlaceHandled -> {
+                receivedPlaces.handled(action.place)
             }
 
             is HomeAction.Shortcut -> {
@@ -858,6 +877,7 @@ internal class HomeViewModelFactory(
             selectRouteCandidate = { session, index -> ActiveRouteStore.shared.select(session, index) },
             closeRouteChoice = { session -> ActiveRouteStore.shared.closeChoice(session) },
             onGpsFix = routeKeeper::onGpsFix,
+            receivedPlaces = ReceivedPlaceInbox.shared,
         ) as T
     }
 }

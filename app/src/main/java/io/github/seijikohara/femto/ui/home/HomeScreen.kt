@@ -13,6 +13,7 @@ import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
+import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.DockConfig
@@ -65,6 +66,8 @@ internal fun HomeScreen(
     videoPictureVisible: Boolean = false,
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
+    // A place another app sent, waiting for the destination panel (HomeViewModel.receivedPlace).
+    receivedPlace: ReceivedPlace? = null,
 ) = Surface(
     modifier = modifier.fillMaxSize(),
     color = MaterialTheme.colorScheme.background,
@@ -95,6 +98,7 @@ internal fun HomeScreen(
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
         fullscreen = fullscreen,
+        receivedPlace = receivedPlace,
     )
     // The update prompt waits while a sheet covers the dashboard. Over Settings
     // it could ask about the very offer the Updates section shows (and records

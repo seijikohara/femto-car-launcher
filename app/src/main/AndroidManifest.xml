@@ -147,6 +147,39 @@
             </intent-filter>
         </activity>
 
+        <!--
+          The entrance for a destination from another app: a shared text, or a
+          geo: link. It shows no window and finishes at once, after handing the
+          place to the dashboard (ReceiveDestinationActivity), so it stays out
+          of recents and history. Its own label names it in the share sheet
+          and the "Open with" list; it has no LAUNCHER category, so the app
+          keeps one launcher icon. The launcher's own geo: hand-offs leave it
+          out (geoLaunchIntentOrNull).
+        -->
+        <activity
+            android:name=".ui.destination.ReceiveDestinationActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/receive_destination_label"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="geo" />
+            </intent-filter>
+        </activity>
+
         <service
             android:name=".data.music.MusicSessionListenerService"
             android:label="@string/music_listener_label"

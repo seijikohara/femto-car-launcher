@@ -17,6 +17,8 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.SPECTRUM_BAND_COUNT
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.ReceivedPlace
+import io.github.seijikohara.femto.data.places.ReceivedPlaceInbox
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Route
@@ -274,6 +276,22 @@ class HomeViewModelTest {
                 cancelAndIgnoreRemainingEvents()
             }
         }
+
+    // The dashboard of a recreated activity (a rotation, or one the system
+    // finished while the launcher was away) reads the same process inbox: once
+    // the panel has taken the place, it must find nothing to open again.
+    @Test
+    fun `a received place reaches the dashboard once and not after a recreation`() {
+        val inbox = ReceivedPlaceInbox()
+        val place = ReceivedPlace.Found(PlaceTarget.Query("Matsuyama Castle"))
+        inbox.offer(place)
+        val first = stubViewModel(receivedPlaces = inbox)
+        assertEquals(place, first.receivedPlace.value)
+
+        first.onAction(HomeAction.ReceivedPlaceHandled(place))
+
+        assertNull(stubViewModel(receivedPlaces = inbox).receivedPlace.value)
+    }
 
     @Test
     fun `onAction Navigate with a typed query emits LaunchDestination for the query`() =
@@ -1773,6 +1791,7 @@ class HomeViewModelTest {
         resumeLastMusicSession: () -> Unit = {},
         resetTrip: () -> Unit = {},
         resolveMusicSourceComponent: (String) -> ComponentName? = { null },
+        receivedPlaces: ReceivedPlaceInbox = ReceivedPlaceInbox(),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = emptyFlow(),
@@ -1786,6 +1805,7 @@ class HomeViewModelTest {
             resumeLastMusicSession = resumeLastMusicSession,
             resetTrip = resetTrip,
             resolveMusicSourceComponent = resolveMusicSourceComponent,
+            receivedPlaces = receivedPlaces,
         )
 
     private companion object {

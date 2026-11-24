@@ -52,6 +52,7 @@ import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.ui.destination.DestinationPanelHost
 import io.github.seijikohara.femto.ui.destination.LastFix
@@ -205,6 +206,9 @@ internal fun DashboardScaffold(
     // The fullscreen choice, for the app drawer's search view, which opens in a
     // window of its own.
     fullscreen: Boolean = false,
+    // A place another app sent, waiting for the destination panel
+    // (HomeViewModel.receivedPlace); it opens the panel on that place.
+    receivedPlace: ReceivedPlace? = null,
 ) = DashboardContent(
     uiState = uiState,
     is24Hour = is24Hour,
@@ -236,6 +240,7 @@ internal fun DashboardScaffold(
     onVideoAction = onVideoAction,
     videoSurface = videoSurface,
     fullscreen = fullscreen,
+    receivedPlace = receivedPlace,
 )
 
 // The full-screen dashboard body: the map fills the viewport as the background
@@ -274,6 +279,7 @@ private fun DashboardContent(
     onVideoAction: (VideoAction) -> Unit = {},
     videoSurface: @Composable (Modifier) -> Unit = {},
     fullscreen: Boolean = false,
+    receivedPlace: ReceivedPlace? = null,
 ) = BoxWithConstraints(modifier = modifier) {
     val compact = maxHeight < CompactHeightBreakpoint || maxWidth < CompactWidthBreakpoint
     val portrait = maxHeight > maxWidth
@@ -320,6 +326,12 @@ private fun DashboardContent(
     // ViewModel has taken it (DestinationPanelHost); the ViewModel keeps it
     // from then on, across a rotation too.
     var mapPick by remember { mutableStateOf<PlaceTarget.Point?>(null) }
+    // A place another app sent opens the destination panel, in any motion
+    // state: the driver chose it in that app. The panel's host hands the place
+    // to its ViewModel and empties the inbox (see DestinationPanelHost).
+    LaunchedEffect(receivedPlace) {
+        if (receivedPlace != null) destinationExpanded = true
+    }
     var nowPlayingExpanded by rememberSaveable { mutableStateOf(false) }
     var calendarExpanded by rememberSaveable { mutableStateOf(false) }
     var weatherExpanded by rememberSaveable { mutableStateOf(false) }
@@ -588,6 +600,7 @@ private fun DashboardContent(
         onCloseDestination = { destinationExpanded = false },
         mapPick = mapPick,
         onConsumeMapPick = { mapPick = null },
+        receivedPlace = receivedPlace,
         dismissOpenPanel = dismissOpenPanel,
         modifier = Modifier.fillMaxSize().padding(dockEdgePadding(dockPosition, dockExtent)),
         spectrum = spectrum,
@@ -702,6 +715,8 @@ private fun DashboardOverlays(
     // A point a long press on the map picked, for the destination panel to take.
     mapPick: PlaceTarget.Point?,
     onConsumeMapPick: () -> Unit,
+    // A place another app sent, for the destination panel to take.
+    receivedPlace: ReceivedPlace?,
     // Non-null while any panel is open: the inner outside-tap catcher's action.
     dismissOpenPanel: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -1195,6 +1210,8 @@ private fun DashboardOverlays(
                 onClose = onCloseDestination,
                 pickedPoint = mapPick,
                 onConsumePickedPoint = onConsumeMapPick,
+                receivedPlace = receivedPlace,
+                onConsumeReceivedPlace = { onAction(HomeAction.ReceivedPlaceHandled(it)) },
                 hazeState = hazeState,
                 glassConfig = glassConfig,
                 modifier = Modifier.fillMaxSize(),

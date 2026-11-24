@@ -54,6 +54,7 @@ internal fun HomeRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val updatePrompt by viewModel.updatePrompt.collectAsStateWithLifecycle()
+    val receivedPlace by viewModel.receivedPlace.collectAsStateWithLifecycle()
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event -> currentOnEvent(event) }
@@ -101,5 +102,6 @@ internal fun HomeRoute(
         videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
+        receivedPlace = receivedPlace,
     )
 }
