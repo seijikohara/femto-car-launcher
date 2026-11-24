@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.theme
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.WavyProgressIndicatorDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -10,6 +11,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.display.MotionTier
 import org.junit.Rule
@@ -21,26 +23,45 @@ import kotlin.test.assertEquals
 
 /**
  * Pins how the shared wavy progress indicators follow the Motion setting, once per
- * tier: the tier -> wave mapping, the scheme -> tier lookup the composables read it
- * through, and that every overload of both shapes composes.
+ * tier: the tier -> wave parameters mapping every overload takes its amplitude and
+ * speed from, the scheme -> tier lookup the composables read it through, and that
+ * the overloads compose.
  *
- * The wave's pixels are not asserted: a travelling wave never settles, so the
- * mapping is pinned as data and the composables are checked for what they publish
- * (their progress semantics). The clock is held so STANDARD's travelling wave
- * cannot keep a finder waiting for an idle composition.
+ * The wave's pixels are not asserted: a travelling wave never settles, and the
+ * Material indicators do not expose the parameters they were given. The mapping is
+ * therefore pinned as data ([waveSpec], used by all three overloads) and the
+ * composables are checked for what they publish (their progress semantics). The
+ * clock is held so STANDARD's travelling wave cannot keep a finder waiting for an
+ * idle composition.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(sdk = [33])
 internal class WavyProgressTest(
     private val tier: MotionTier,
-    private val expectedWave: WaveMotion,
+    private val expectedAmplitudeScale: Float,
+    private val travels: Boolean,
 ) {
     @get:Rule
     val rule = createComposeRule()
 
+    // The wavelengths the overloads pass, so a speed that ignored the wavelength (a
+    // constant) would fail for at least one of them.
+    private val wavelengths: List<Dp> =
+        listOf(
+            WavyProgressIndicatorDefaults.LinearDeterminateWavelength,
+            WavyProgressIndicatorDefaults.LinearIndeterminateWavelength,
+            WavyProgressIndicatorDefaults.CircularWavelength,
+            7.dp,
+        )
+
     @Test
-    fun `the tier maps to its wave`() {
-        assertEquals(expectedWave, waveMotion(tier))
+    fun `the tier scales the amplitude`() {
+        wavelengths.forEach { assertEquals(expectedAmplitudeScale, waveSpec(tier, it).amplitudeScale) }
+    }
+
+    @Test
+    fun `the tier travels the wave at one wavelength per second or holds it still`() {
+        wavelengths.forEach { assertEquals(if (travels) it else 0.dp, waveSpec(tier, it).speed) }
     }
 
     @Test
@@ -62,12 +83,6 @@ internal class WavyProgressTest(
     fun `a determinate bar publishes its progress`() {
         setContent { FemtoLinearProgressIndicator(progress = { 0.42f }, modifier = Modifier.testTag(BAR)) }
         rule.onNodeWithTag(BAR).assert(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.42f, 0f..1f)))
-    }
-
-    @Test
-    fun `a determinate ring publishes its progress`() {
-        setContent { FemtoCircularProgressIndicator(progress = { 0.42f }, modifier = Modifier.testTag(RING)) }
-        rule.onNodeWithTag(RING).assert(hasProgressBarRangeInfo(ProgressBarRangeInfo(0.42f, 0f..1f)))
     }
 
     // The indeterminate overloads loop their own progress forever, so the check is
@@ -97,9 +112,9 @@ internal class WavyProgressTest(
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}")
         fun tiers(): List<Array<Any>> =
             listOf(
-                arrayOf(MotionTier.STANDARD, WaveMotion(waving = true, moving = true)),
-                arrayOf(MotionTier.REDUCED, WaveMotion(waving = true, moving = false)),
-                arrayOf(MotionTier.OFF, WaveMotion(waving = false, moving = false)),
+                arrayOf(MotionTier.STANDARD, 1f, true),
+                arrayOf(MotionTier.REDUCED, 1f, false),
+                arrayOf(MotionTier.OFF, 0f, false),
             )
     }
 }

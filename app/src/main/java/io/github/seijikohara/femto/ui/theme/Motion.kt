@@ -48,9 +48,9 @@ internal object Motion {
     /**
      * Return the tier whose [scheme] [FemtoTheme] installed, the inverse of [scheme].
      * Lets a shared component follow the user's setting from `MaterialTheme.motionScheme`
-     * instead of a parameter threaded through every screen. A scheme this object did not
-     * hand out (a bare `MaterialTheme` outside [FemtoTheme]) reads as STANDARD, the
-     * default tier.
+     * instead of a parameter threaded through every screen. Outside [FemtoTheme] a plain
+     * `MaterialTheme` carries Material's own default, the standard scheme, which reads as
+     * REDUCED; a scheme this object never handed out reads as STANDARD, the default tier.
      */
     fun tier(scheme: MotionScheme): MotionTier =
         when {

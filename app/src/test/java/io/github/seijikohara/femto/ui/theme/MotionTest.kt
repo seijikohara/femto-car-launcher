@@ -38,10 +38,16 @@ class MotionTest {
         assertSame(MotionScheme.standard(), Motion.scheme(MotionTier.REDUCED))
     }
 
-    // A scheme this object did not hand out (a bare MaterialTheme outside FemtoTheme)
-    // must not read as REDUCED or OFF, which would silently take a user's wave away.
+    // Outside FemtoTheme a plain MaterialTheme carries material3's default scheme, the
+    // standard() singleton, which is the one REDUCED installs: it reads as REDUCED.
     @Test
-    fun `tier reads a scheme Motion did not hand out as STANDARD`() {
+    fun `tier reads the Material default scheme as REDUCED`() {
+        assertEquals(MotionTier.REDUCED, Motion.tier(MotionScheme.standard()))
+    }
+
+    // A scheme this object never handed out falls back to the default tier.
+    @Test
+    fun `tier reads a foreign scheme as STANDARD`() {
         assertEquals(MotionTier.STANDARD, Motion.tier(object : MotionScheme by MotionScheme.expressive() {}))
     }
 
