@@ -156,6 +156,20 @@ class MediaResumerTest {
         }
 
     @Test
+    fun `an app that cold-starts slowly after the media key still plays before the app is opened`() =
+        runTest {
+            // A slow head unit just after boot: no state at all for 10 s after
+            // the key, then PLAYING. The app must not be opened over it first.
+            port.hasBrowser = false
+            val attempt = start()
+            advanceTimeBy(SLOW_COLD_START_MS)
+            play(SessionPlayback.PLAYING)
+
+            assertEquals(started(ResumeStep.MEDIA_KEY), attempt.await())
+            assertFalse("open app" in port.calls)
+        }
+
+    @Test
     fun `the app opens only once the media key's window shows no progress`() =
         runTest {
             port.hasBrowser = false
@@ -431,5 +445,8 @@ class MediaResumerTest {
 
     private companion object {
         const val OTHER_PACKAGE = "com.example.radio"
+
+        // About three times the 3 s an emulator on a fast host took from the key to PLAYING.
+        const val SLOW_COLD_START_MS = 10_000L
     }
 }

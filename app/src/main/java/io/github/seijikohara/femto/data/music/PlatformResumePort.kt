@@ -131,8 +131,11 @@ internal class PlatformResumePort(
         runCatching { audioManager.dispatchPlayMediaKey() }.onFailure { Log.w(TAG, "play media key failed", it) }
     }
 
-    // In front means the top importance: a launcher kept alive only by its trip
-    // foreground service, or visible behind another app, is not in front.
+    // The top importance, which the launcher's process holds while it has a
+    // visible or resumed activity: a translucent activity of another app over
+    // the dashboard still counts as in front. A process kept alive only by the
+    // trip's foreground service, or held behind another app as the home
+    // process or a cached one, does not.
     override fun isForeground(): Boolean =
         ActivityManager
             .RunningAppProcessInfo()

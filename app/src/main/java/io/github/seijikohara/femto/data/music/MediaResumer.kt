@@ -21,20 +21,23 @@ private const val TAG = "MediaResumer"
  * step. Internal so tests probe both sides of each.
  *
  * The browser step's window covers a cold start after the head unit boots: the app's process, its browser service
- * and session, and the prepare that loads its recent item. The media key reaches an app that is already running (the
- * browser bound it) or one the platform starts through its media button receiver, so it gets less. Opening the app is
- * the last step: its window only tells an app that starts playing on open from one that waits for the user, for the
- * diagnostics record, and keeps the browser bound meanwhile.
+ * and session, and the prepare that loads its recent item. The media key's window is the longest: the app it reaches
+ * is often one whose process the browser bind has only just started (an app that refuses the browser still starts that
+ * way), and that app still has its own start-up and the load of its track ahead. On an emulator on a fast host it took
+ * about 3 s from the key to PLAYING; a slow head unit just after boot takes several times that, and a shorter window
+ * would open the app over the screen just before it plays. Opening the app is the last step: its window only tells an
+ * app that starts playing on open from one that waits for the user, for the diagnostics record, and keeps the browser
+ * bound meanwhile.
  */
 internal const val RESUME_BROWSER_WINDOW_MS = 8_000L
-internal const val RESUME_MEDIA_KEY_WINDOW_MS = 5_000L
+internal const val RESUME_MEDIA_KEY_WINDOW_MS = 12_000L
 internal const val RESUME_OPEN_APP_WINDOW_MS = 5_000L
 
 /**
  * How long a step keeps waiting for PLAYING once the app buffers. A streaming app just after boot buffers while the
  * network comes up, which on a head unit's tethered or cellular link can take tens of seconds. Bounded, so the chain
- * always ends: with no progress at all it ends within the three windows (18 s); buffering at every step without ever
- * playing, within the windows plus three of these (78 s).
+ * always ends: with no progress at all it ends within the three windows (25 s); buffering at every step without ever
+ * playing, within the windows plus three of these (85 s).
  */
 internal const val RESUME_BUFFERING_LIMIT_MS = 20_000L
 

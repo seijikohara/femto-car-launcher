@@ -609,6 +609,43 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `waiting for the card after playback starts subscribes to no dashboard source`() =
+        runTest {
+            // The driver taps, then leaves the dashboard while the app buffers;
+            // the app plays once the dashboard's sources have stopped. Waiting
+            // on uiState would subscribe to it and start every source again.
+            var calendarCollections = 0
+            val attemptPlays = CompletableDeferred<Boolean>()
+            val viewModel =
+                HomeViewModel(
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(fakeWeatherSnapshot()),
+                    musicStateFlow = flowOf(fakeLastPlayedState()),
+                    calendarFlow =
+                        flow {
+                            calendarCollections++
+                            emit(fakeCalendarSnapshot())
+                        },
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                    resumeLastPlayed = { attemptPlays.await() },
+                )
+            val dashboard = backgroundScope.launch { viewModel.uiState.collect { } }
+            runCurrent()
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            dashboard.cancel()
+            advanceTimeBy(UI_SUBSCRIPTION_GRACE_MS + 1)
+            attemptPlays.complete(true)
+            advanceTimeBy(RESUME_SETTLE_GRACE_MS + 1)
+            runCurrent()
+
+            assertEquals(1, calendarCollections)
+        }
+
+    @Test
     fun `a tap that lands after a live session took the card starts nothing`() =
         runTest {
             var attempts = 0

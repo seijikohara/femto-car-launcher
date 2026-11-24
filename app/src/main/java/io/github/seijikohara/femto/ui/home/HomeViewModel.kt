@@ -172,6 +172,12 @@ internal class HomeViewModel(
     // null. One attempt at a time: a tap while one runs does nothing.
     private val resumingPackage = MutableStateFlow<String?>(null)
 
+    // The music card's state as the dashboard last received it, mirrored as
+    // it passes into uiState. A resume attempt waits on this alone for the
+    // card to show the playback: a wait on uiState would subscribe to it and,
+    // with the dashboard left, restart every dashboard source for the wait.
+    private val cardMusic = MutableStateFlow(HomeUiState.Initial.musicState)
+
     // The motion verdict as each fix or trip update arrives (vehicleMotionFlow),
     // for the update dot and the route choice card; each reader collects it
     // afresh.
@@ -224,6 +230,7 @@ internal class HomeViewModel(
             // The card's last played track shows its attempt as resuming.
             musicStateFlow
                 .catchAsDefault(TAG, "music", HomeUiState.Initial.musicState)
+                .onEach { cardMusic.value = it }
                 .combine(resumingPackage) { music, resuming -> music.resumingIn(resuming) },
             updateBadge,
         ) { location, address, weather, music, badge ->
@@ -604,10 +611,12 @@ internal class HomeViewModel(
     // thread). Until the card stops offering the track the button stays
     // pending, so a tap in between cannot send prepare() and play() again to
     // an app already playing, which an older app answers by reloading the
-    // track. Bounded, in case the card never hears of the playback.
+    // track. Bounded, in case the card never hears of the playback, as when
+    // the dashboard is no longer collecting: the wait reads the card's mirror
+    // (cardMusic) and subscribes to nothing.
     private suspend fun awaitCardLeaves(packageName: String) {
         withTimeoutOrNull(RESUME_SETTLE_GRACE_MS) {
-            uiState.first { it.musicState.offeredPackageOrNull() != packageName }
+            cardMusic.first { it.offeredPackageOrNull() != packageName }
         }
     }
 

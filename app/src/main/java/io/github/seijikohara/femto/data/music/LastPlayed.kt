@@ -102,8 +102,9 @@ internal class PackageManagerMediaApps(
 /**
  * Keeps the last played track: remembers each track a session plays, keeps it when the session goes away, and lets
  * it go once the launcher could no longer offer it. That is when notification access is revoked (the launcher can no
- * longer see or control the app), and when the app is uninstalled or loses its launch intent. A track of the
- * launcher's own package ([ownPackage]) is never remembered.
+ * longer see or control the app), and when the app is uninstalled or loses its launch intent: found the next time the
+ * dashboard is opened (see [remembered]), or when the play button is pressed (the resume attempt's APP_GONE). A track
+ * of the launcher's own package ([ownPackage]) is never remembered.
  */
 internal class LastPlayedKeeper(
     private val store: LastPlayedStore,
@@ -111,8 +112,10 @@ internal class LastPlayedKeeper(
     private val ownPackage: String,
 ) {
     /**
-     * The remembered track while its app can still be opened, else null. A track whose app is gone or has no launch
-     * intent is forgotten on the way.
+     * The remembered track while its app can still be opened, else null. The app is checked each time the store is
+     * read, which is when the dashboard starts collecting the card and when the store changes; a track whose app is
+     * gone or has no launch intent is then forgotten. An app uninstalled while the dashboard stays open is therefore
+     * still offered until the dashboard is next opened or the play button is pressed.
      */
     val remembered: Flow<LastPlayedTrack?> =
         store.track
