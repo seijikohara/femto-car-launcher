@@ -177,7 +177,8 @@ private fun qPlaceOrNull(raw: String): QPlace? {
 }
 
 // A position from two numbers in the plain decimal syntax (no exponent, NaN or Infinity), in range. Free text asks
-// for decimals on both, so a count such as "10, 20" is no place.
+// for decimals on both, so a count such as "10, 20" is no place. The parse is the null-returning one even after the
+// syntax check: the text is untrusted, and a throw here would take down the home screen.
 private fun pointOrNull(
     latitude: String,
     longitude: String,
@@ -185,8 +186,8 @@ private fun pointOrNull(
 ): PlaceTarget.Point? {
     val syntax = if (decimalsRequired) DecimalNumber else PlainNumber
     if (!syntax.matches(latitude) || !syntax.matches(longitude)) return null
-    val lat = latitude.toDouble()
-    val lon = longitude.toDouble()
+    val lat = latitude.toDoubleOrNull() ?: return null
+    val lon = longitude.toDoubleOrNull() ?: return null
     return PlaceTarget.Point(lat, lon).takeIf { lat in -90.0..90.0 && lon in -180.0..180.0 }
 }
 
@@ -267,16 +268,24 @@ private val Whitespace = Regex("""\s+""")
 // A link in shared text: any `scheme://…` or a `geo:` URI, up to the next whitespace.
 private val LinkToken = Regex("""(?i)\b(?:[a-z][a-z0-9+.\-]*://|geo:)\S+""")
 
-private val PlainNumber = Regex("""[-+]?\d+(?:\.\d+)?""")
+// Every digit class below is spelled [0-9], never the backslash-d shorthand: Android's regex engine (ICU) matches any
+// script's digits with the shorthand (Arabic-Indic, full-width, Devanagari), which toDouble does not read, while the
+// JVM's shorthand is ASCII-only, so unit tests on the JVM would never see the difference. ReceivedDigitClassTest
+// checks this file for the shorthand.
+private val PlainNumber = Regex("""[-+]?[0-9]+(?:\.[0-9]+)?""")
 
-private val DecimalNumber = Regex("""[-+]?\d+\.\d+""")
+private val DecimalNumber = Regex("""[-+]?[0-9]+\.[0-9]+""")
 
 // "lat, lon" in prose: decimals on both, not glued to a longer number or word; a sentence's full stop may follow.
-private val DecimalPair = Regex("""(?<![\w.])([-+]?\d{1,2}\.\d+)\s*,\s*([-+]?\d{1,3}\.\d+)(?!\w|\.\d)""")
+private val DecimalPair = Regex("""(?<![\w.])([-+]?[0-9]{1,2}\.[0-9]+)\s*,\s*([-+]?[0-9]{1,3}\.[0-9]+)(?!\w|\.[0-9])""")
 
 // A pair inside a decoded link: `?q=` / `&q=`, `?ll=` / `&ll=`, or `@`.
-private val LinkPair = Regex("""(?:[?&](?:q|ll)=|@)\s*([-+]?\d{1,2}\.\d+)\s*,\s*([-+]?\d{1,3}\.\d+)(?!\d)""")
+private val LinkPair =
+    Regex("""(?:[?&](?:q|ll)=|@)\s*([-+]?[0-9]{1,2}\.[0-9]+)\s*,\s*([-+]?[0-9]{1,3}\.[0-9]+)(?![0-9])""")
 
 // The whole of a geo: `q`: "lat,lon" and an optional "(label)".
 private val CoordinateQuery =
-    Regex("""\s*([-+]?\d+(?:\.\d+)?)\s*,\s*([-+]?\d+(?:\.\d+)?)\s*(?:\((.*)\))?\s*""", RegexOption.DOT_MATCHES_ALL)
+    Regex(
+        """\s*([-+]?[0-9]+(?:\.[0-9]+)?)\s*,\s*([-+]?[0-9]+(?:\.[0-9]+)?)\s*(?:\((.*)\))?\s*""",
+        RegexOption.DOT_MATCHES_ALL,
+    )
