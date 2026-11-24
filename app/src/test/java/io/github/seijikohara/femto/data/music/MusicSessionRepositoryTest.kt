@@ -12,6 +12,7 @@ import android.provider.Settings
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedKeeper
 import io.github.seijikohara.femto.testfixtures.fakeMediaMetadata
 import io.github.seijikohara.femto.testfixtures.fakePlaybackState
 import kotlinx.coroutines.test.runTest
@@ -66,7 +67,7 @@ class MusicSessionRepositoryTest {
             addSession(IDLE_PACKAGE, PlaybackState.STATE_STOPPED)
             val resumed = addSession(RESUMED_PACKAGE, PlaybackState.STATE_STOPPED)
 
-            MusicSessionRepository(application).stateFlow().test {
+            repository().stateFlow().test {
                 assertEquals(MusicCardState.NoActiveSession, awaitItem())
 
                 startPlaying(resumed)
@@ -83,7 +84,7 @@ class MusicSessionRepositoryTest {
             val paused = addSession(PAUSED_PACKAGE, PlaybackState.STATE_PAUSED)
             val resumed = addSession(RESUMED_PACKAGE, PlaybackState.STATE_STOPPED)
 
-            MusicSessionRepository(application).stateFlow().test {
+            repository().stateFlow().test {
                 assertEquals(PAUSED_PACKAGE, playingPackage(awaitItem()))
 
                 // The user resumes the second session from its own app: the
@@ -95,6 +96,11 @@ class MusicSessionRepositoryTest {
                 assertEquals(RESUMED_PACKAGE, playingPackage(awaitItem()))
             }
         }
+
+    // The last played track is kept in memory here: these tests are about
+    // which session reaches the card, and a remembered track would carry over
+    // from one test to the next through the real store.
+    private fun repository() = MusicSessionRepository(application, fakeLastPlayedKeeper())
 
     private fun playingPackage(state: MusicCardState): String? =
         (state as? MusicCardState.Playing)?.nowPlaying?.packageName

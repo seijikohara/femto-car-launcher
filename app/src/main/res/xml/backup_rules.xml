@@ -3,7 +3,8 @@
    Legacy Auto Backup rules (devices on API <= 30; minSdk is 33 so
    data_extraction_rules.xml governs in practice). Kept consistent with it:
    exclude location-related settings, saved places, the kept route, the
-   updater's bookkeeping and the video window's settings from backup.
+   last played track, the updater's bookkeeping and the video window's
+   settings from backup.
 -->
 <full-backup-content>
     <!-- display_preferences (incl. the user's BYO Google Maps key) deliberately stays in backup: it is a client-side key designed to live in distributed apps, and restoring it avoids re-entry on a new head unit. location_preferences stays excluded (position history is not portable state). -->
@@ -18,4 +19,6 @@
     <exclude domain="file" path="datastore/video_preferences.preferences_pb" />
     <!-- active-route is the route kept across a restart, location data that stays on the device (see data_extraction_rules.xml). -->
     <exclude domain="file" path="active-route" />
+    <!-- music_resume is the last played track (its app, title and artist), personal data that stays on the device (see data_extraction_rules.xml). -->
+    <exclude domain="file" path="datastore/music_resume.preferences_pb" />
 </full-backup-content>

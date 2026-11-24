@@ -45,6 +45,9 @@ internal const val ENABLED_NOTIFICATION_LISTENERS = "enabled_notification_listen
 
 internal class MusicSessionRepository(
     private val context: Context,
+    // Remembers the track each session plays, for the card to offer after a
+    // restart. The session tests pass one over an in-memory store.
+    private val lastPlayed: LastPlayedKeeper = LastPlayedKeeper.of(context),
 ) {
     private val sessionManager: MediaSessionManager = checkNotNull(context.getSystemService())
     private val audioManager: AudioManager = checkNotNull(context.getSystemService())
@@ -153,13 +156,15 @@ internal class MusicSessionRepository(
 
     fun stateFlow(): Flow<MusicCardState> =
         combine(permissionFlow(), activeControllersFlow()) { hasPermission, controllers ->
-            musicCardStateOf(hasPermission) { controllers.toNowPlaying() }
+            if (hasPermission) controllers.toReading() else SessionsReading(hasPermission = false)
         }.flowOn(Dispatchers.Main.immediate)
-            // Resolve the source-app icon off Main: the PackageManager icon decode
-            // is too heavy for the frame thread. The session logic stays on Main
-            // (where MediaController callbacks arrive); the icon resolves on
-            // Default, cached per package so it runs at most once per source.
-            .map { it.withSourceIcon() }
+            // Off Main from here: the last played track's store write and its
+            // launch-intent lookup, and the PackageManager icon decode, are too
+            // heavy for the frame thread. The session logic stays on Main (where
+            // MediaController callbacks arrive); the icon resolves on Default,
+            // cached per package so it runs at most once per source.
+            .recordingLastPlayed(lastPlayed)
+            .map { reading -> musicCardStateOf(reading.hasPermission) { reading.nowPlaying }.withSourceIcon() }
             .flowOn(Dispatchers.Default)
 
     /**
@@ -429,6 +434,17 @@ internal class MusicSessionRepository(
 
     private fun hasPermission(): Boolean =
         context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
+
+    // Only called with notification access: without it the card inspects no
+    // session (see musicCardStateOf).
+    private fun List<MediaController>.toReading(): SessionsReading =
+        SessionsReading(
+            hasPermission = true,
+            nowPlaying = toNowPlaying(),
+            playing =
+                firstOrNull { it.playbackState.isPlaying() }
+                    ?.let { lastPlayedTrackOrNull(it.packageName, it.playbackState, it.metadata) },
+        )
 
     private fun List<MediaController>.toNowPlaying(): NowPlaying? =
         selectPrimaryController(this)

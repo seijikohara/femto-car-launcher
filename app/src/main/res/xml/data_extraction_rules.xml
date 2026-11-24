@@ -4,7 +4,8 @@
    Everything is backed up by default, with these exclusions: location-related
    settings, the recorded trip track, the destination panel's saved places and
    the route kept across a restart, so no location data is ever copied
-   off-device; and the updater's bookkeeping and the video window's settings,
+   off-device; the last played track, whose title and artist are personal
+   data; and the updater's bookkeeping and the video window's settings,
    which describe only this install. The DataStore preference files live under
    the "file" domain at datastore/<name>.preferences_pb.
 -->
@@ -22,6 +23,8 @@
         <exclude domain="file" path="datastore/video_preferences.preferences_pb" />
         <!-- active-route keeps the route on the map across a restart: its destination, its line and the time it was last driven. That is location data, and the privacy policy promises it stays on the device. The directory covers both files and the temp files of their writes. -->
         <exclude domain="file" path="active-route" />
+        <!-- music_resume holds the track a media app played last (its app, title and artist), which the music card offers to resume after a restart. Titles and artists are personal data, and the privacy policy promises the record stays on the device. -->
+        <exclude domain="file" path="datastore/music_resume.preferences_pb" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
@@ -35,5 +38,7 @@
         <exclude domain="file" path="datastore/video_preferences.preferences_pb" />
         <!-- The kept route stays on this device (see cloud-backup). -->
         <exclude domain="file" path="active-route" />
+        <!-- The last played track stays on this device (see cloud-backup). -->
+        <exclude domain="file" path="datastore/music_resume.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>
