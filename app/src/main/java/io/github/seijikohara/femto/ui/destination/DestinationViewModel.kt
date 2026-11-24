@@ -213,6 +213,7 @@ internal class DestinationViewModel(
             speech.state.collect { state ->
                 if (state is VoiceState.Result) {
                     query.value = state.text
+                    receivedUnreadable.value = false
                     speech.reset()
                 }
             }
@@ -234,6 +235,8 @@ internal class DestinationViewModel(
                 // Some engines silently ignore the next start after an error
                 // unless the recognizer is cancelled first (VoiceRecognizer.reset).
                 if (speech.state.value is VoiceState.Failed) speech.reset()
+                // The driver is entering a place now; the line about the last share no longer applies.
+                receivedUnreadable.value = false
                 speech.start()
             }
 
@@ -361,11 +364,7 @@ internal class DestinationViewModel(
             }
 
             DestinationAction.DismissRoute -> {
-                routeJob?.cancel()
-                routeJob = null
-                routeEnds = null
-                pendingDownload = TileDownload()
-                routeStep.value = RouteStep.Idle
+                stopRoute()
             }
 
             is DestinationAction.SetAvoidMotorways -> {
@@ -379,15 +378,19 @@ internal class DestinationViewModel(
     }
 
     // Not gated on motion: the driver chose the place in the other app, and the query field it fills still takes no
-    // typing while moving. Recognition stops first, so a late transcript cannot overwrite the place.
+    // typing while moving. Two things stop first. A route under way, whose status would hide the place behind a step
+    // that names no destination (a download prompt), so a tap meant for the new place would route to the old one. And
+    // recognition, so a late transcript cannot overwrite the place.
     private fun receive(place: ReceivedPlace) {
+        stopRoute()
         speech.reset()
         when (place) {
             is ReceivedPlace.Found -> {
                 receivedUnreadable.value = false
                 when (val target = place.target) {
+                    // Cut to the name cap: the label names the pin and, saved, the place's row.
                     is PlaceTarget.Point -> {
-                        pickedPoint.value = PickedPoint(target, place.label)
+                        pickedPoint.value = PickedPoint(target, capPlaceName(place.label))
                     }
 
                     is PlaceTarget.Query -> {
@@ -402,6 +405,15 @@ internal class DestinationViewModel(
                 receivedUnreadable.value = true
             }
         }
+    }
+
+    // Stop the route under way, or put its message away, and give the panel its entry back.
+    private fun stopRoute() {
+        routeJob?.cancel()
+        routeJob = null
+        routeEnds = null
+        pendingDownload = TileDownload()
+        routeStep.value = RouteStep.Idle
     }
 
     // viewModelScope outlives a panel collapsed right after the tap, so the

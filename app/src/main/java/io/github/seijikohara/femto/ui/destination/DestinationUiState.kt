@@ -35,7 +35,8 @@ import java.util.Locale
  *
  * [receivedUnreadable] says the last place another app sent held no position
  * and no name (a bare link): the panel says so under the search field until the
- * driver types, picks a point, receives another place, or closes the panel.
+ * driver types, speaks, picks a point, receives another place, or closes the
+ * panel.
  *
  * [renaming] is the name being typed for one saved place, or null. Renaming is typing, so it follows
  * [typingAllowed]: it never starts while moving, and a rename open when the vehicle starts to move closes without
@@ -314,7 +315,8 @@ internal sealed interface DestinationAction {
      * Show [place], which another app sent: a point as a picked point with its name, a search text in the search
      * field, or the line that nothing could be read from it. It replaces what an earlier place showed. Allowed in every
      * motion state: the driver chose it in the other app, and a filled field still takes no typing while moving.
-     * Recognition is cancelled, so a late transcript cannot overwrite the place.
+     * A route under way stops as [DismissRoute] stops it, and recognition is cancelled, so neither a route's status
+     * nor a late transcript can hide or overwrite the place. A name longer than the name cap is cut to it.
      */
     data class Receive(
         val place: ReceivedPlace,

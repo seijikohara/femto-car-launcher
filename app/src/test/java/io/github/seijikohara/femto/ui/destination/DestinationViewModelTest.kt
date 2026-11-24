@@ -1778,6 +1778,76 @@ class DestinationViewModelTest {
             assertEquals(listOf("Imabari Castle" to DESTINATION), store.current.map { it.label to it.target })
         }
 
+    // A route's status takes the panel's body over and names no destination: left running, a download prompt for the
+    // old route would stand where the received place should, and Download would route to the old place.
+    @Test
+    fun a_place_received_at_a_download_prompt_stops_the_route_and_shows() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.offerTile(TILE, sizeBytes = TILE_BYTES)
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            assertEquals(RouteStep.ConfirmDownload(TILE_BYTES), viewModel.uiState.value.route)
+
+            viewModel.onAction(DestinationAction.Receive(ReceivedPlace.Found(OTHER_DESTINATION, "Imabari Castle")))
+            advanceUntilIdle()
+
+            assertEquals(
+                RouteStep.Idle to OTHER_DESTINATION,
+                viewModel.uiState.value.let { it.route to it.pickedPoint },
+            )
+        }
+
+    @Test
+    fun a_place_received_during_a_search_stops_it_and_shows() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            assertEquals(RouteStep.Computing, viewModel.uiState.value.route)
+
+            viewModel.onAction(DestinationAction.Receive(ReceivedPlace.Found(OTHER_DESTINATION, "Imabari Castle")))
+            advanceUntilIdle()
+
+            assertEquals(
+                Triple(RouteStep.Idle, OTHER_DESTINATION, null),
+                viewModel.uiState.value.let { Triple(it.route, it.pickedPoint, activeRoute.active.value?.route) },
+            )
+        }
+
+    @Test
+    fun speaking_puts_the_unreadable_line_away() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.Receive(ReceivedPlace.Unreadable))
+
+            viewModel.onAction(DestinationAction.StartListening)
+
+            assertFalse(viewModel.uiState.value.receivedUnreadable)
+        }
+
+    @Test
+    fun a_voice_result_puts_the_unreadable_line_away() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(DestinationAction.Receive(ReceivedPlace.Unreadable))
+
+            speech.mutableState.value = VoiceState.Result("Airport")
+
+            assertEquals("Airport" to false, viewModel.uiState.value.let { it.query to it.receivedUnreadable })
+        }
+
+    @Test
+    fun a_received_name_past_the_name_cap_is_cut_to_it() =
+        runTest {
+            val viewModel = subscribedViewModel()
+
+            viewModel.onAction(DestinationAction.Receive(ReceivedPlace.Found(DESTINATION, "x".repeat(2_000))))
+
+            assertEquals(MAX_PLACE_NAME_LENGTH, viewModel.uiState.value.pickedLabel.length)
+        }
+
     @Test
     fun a_received_place_stops_the_microphone_so_no_transcript_overwrites_it() =
         runTest {
