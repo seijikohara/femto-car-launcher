@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Auto Backup / device-transfer rules (API 31+).
-   Everything is backed up by default, with four exclusions: location-related
-   settings and the destination panel's saved places, so no location data is
-   ever copied off-device; and the updater's bookkeeping and the video window's
-   settings, which describe only this install. The DataStore preference files
-   live under the "file" domain at datastore/<name>.preferences_pb.
+   Everything is backed up by default, with these exclusions: location-related
+   settings, the recorded trip track, the destination panel's saved places and
+   the route kept across a restart, so no location data is ever copied
+   off-device; and the updater's bookkeeping and the video window's settings,
+   which describe only this install. The DataStore preference files live under
+   the "file" domain at datastore/<name>.preferences_pb.
 -->
 <data-extraction-rules>
     <cloud-backup>
@@ -19,6 +20,8 @@
         <exclude domain="file" path="datastore/saved_places.preferences_pb" />
         <!-- video_preferences holds the picked video file, whose read grant belongs to this install: a restored record would name a file the new install cannot open. It also holds the "Hide the picture while driving" choice, which a new install starts from its default (on) rather than inherit switched off. -->
         <exclude domain="file" path="datastore/video_preferences.preferences_pb" />
+        <!-- active-route keeps the route on the map across a restart: its destination, its line and the time it was last driven. That is location data, and the privacy policy promises it stays on the device. The directory covers both files and the temp files of their writes. -->
+        <exclude domain="file" path="active-route" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="datastore/location_preferences.preferences_pb" />
@@ -30,5 +33,7 @@
         <exclude domain="file" path="datastore/saved_places.preferences_pb" />
         <!-- The picked file's read grant does not move with the data, and the picture gate starts on (see cloud-backup). -->
         <exclude domain="file" path="datastore/video_preferences.preferences_pb" />
+        <!-- The kept route stays on this device (see cloud-backup). -->
+        <exclude domain="file" path="active-route" />
     </device-transfer>
 </data-extraction-rules>

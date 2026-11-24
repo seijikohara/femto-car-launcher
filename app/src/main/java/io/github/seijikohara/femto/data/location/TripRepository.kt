@@ -230,7 +230,7 @@ internal class TripRepository(
                 locationFlow
                     .filterNotNull()
                     .filter { it.isGpsFix() }
-                    .filterNot { arrivedStale(it) }
+                    .filterNot { it.arrivedStale(nowElapsedRealtimeNanos()) }
                     .map { TripSignal.Fix(it) }
             val resets: Flow<TripSignal> = resetSignals.map { TripSignal.Reset }
             val settings: Flow<TripSignal> = autoReset.map { TripSignal.AutoResetChanged(it) }
@@ -304,11 +304,6 @@ internal class TripRepository(
         tripId = persisted.tripId
         restored = true
     }
-
-    // A cached getLastKnownLocation seed can be hours old at arrival; anything
-    // older than the accrual gap window never enters the chain (class KDoc).
-    private fun arrivedStale(fix: Location): Boolean =
-        (nowElapsedRealtimeNanos() - fix.elapsedRealtimeNanos) > MAX_GAP_SECONDS * NANOS_PER_SECOND
 
     // Receives only GPS (non-network, non-null, non-stale) fixes; the rest are
     // filtered upstream in stateFlow so they never advance the anchor. Returns
@@ -491,7 +486,6 @@ internal class TripRepository(
     }
 
     private companion object {
-        const val NANOS_PER_SECOND = 1_000_000_000.0
         const val NANOS_PER_MILLI = 1_000_000L
 
         // Must be strictly positive; covers same-instant emissions where
@@ -529,6 +523,16 @@ internal fun interface TripFixTap {
 // metres between updates. Top-level so the motion verdict (vehicleMotionFlow)
 // judges the same fixes (SSOT for the rule).
 internal fun Location.isGpsFix(): Boolean = provider != LocationManager.NETWORK_PROVIDER
+
+// The trip math's age rule (class KDoc): a cached getLastKnownLocation seed can
+// be hours old at arrival, so a fix older than the accrual gap window at
+// [nowElapsedRealtimeNanos] never enters the chain. Top-level so the stamp of
+// the route kept across a restart (RoutePersistence, fed by the dashboard)
+// takes the same fixes (SSOT for the rule).
+internal fun Location.arrivedStale(nowElapsedRealtimeNanos: Long): Boolean =
+    (nowElapsedRealtimeNanos - elapsedRealtimeNanos) > MAX_GAP_SECONDS * NANOS_PER_SECOND
+
+private const val NANOS_PER_SECOND = 1_000_000_000.0
 
 // ~1.8 km/h — below this the device is treated as stationary. Top-level so the
 // speed overlay's snap-to-zero shares the same definition of "stationary" as

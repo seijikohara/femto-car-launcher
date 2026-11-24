@@ -8,6 +8,7 @@ import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -179,6 +180,68 @@ class ActiveRouteStoreTest {
 
         assertFalse(replaced)
         assertNull(store.active.value)
+    }
+
+    // --- A route kept across a restart ---------------------------------------
+
+    @Test
+    fun `the restored route has one candidate, no choice, no reference`() {
+        val conditions = RouteConditions(avoidMotorways = true)
+
+        val session = assertNotNull(store.restore(ROUTE, DESTINATION, conditions))
+
+        assertEquals(
+            ActiveRoute(
+                session = session,
+                route = ROUTE,
+                destination = DESTINATION,
+                reference = null,
+                conditions = conditions,
+                candidates = listOf(RouteCandidate(ROUTE, reference = null, computingMs = 0L)),
+            ),
+            store.active.value,
+        )
+    }
+
+    @Test
+    fun `a restore takes its session from the store's counter`() {
+        val started = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        store.clear()
+
+        val restored = store.restore(ROUTE, DESTINATION, NO_CONDITIONS)
+
+        assertTrue(restored != null && restored > started)
+    }
+
+    @Test
+    fun `a restore never replaces an active session`() {
+        val current = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+
+        val restored = store.restore(REROUTED, DESTINATION, NO_CONDITIONS)
+
+        assertNull(restored)
+        assertEquals(ActiveRoute(current, ROUTE, DESTINATION, FIRST_REFERENCE), store.active.value?.withoutChoice())
+    }
+
+    @Test
+    fun `clearing a session ends it`() {
+        val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+
+        val cleared = store.clear(session)
+
+        assertTrue(cleared)
+        assertNull(store.active.value)
+    }
+
+    @Test
+    fun `clearing an old session leaves the current one`() {
+        val old = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)
+        val current = store.start(REROUTED, DESTINATION, NO_CONDITIONS, SECOND_REFERENCE)
+
+        val cleared = store.clear(old)
+
+        assertFalse(cleared)
+        assertEquals(current, store.active.value?.session)
     }
 
     private companion object {

@@ -25,8 +25,10 @@ import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
 import io.github.seijikohara.femto.data.routing.RerouteStats
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteConditions
+import io.github.seijikohara.femto.data.routing.RoutePersistence
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePreferences
+import io.github.seijikohara.femto.data.routing.RouteRestoreDecision
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
@@ -120,8 +122,9 @@ internal fun mapFactsFrom(
 
 /**
  * What the route preview (#389 phase 3) needs to be judged on a head unit: whether the build and backend offer it,
- * the routing data on the device, the last route, the conditions the next one runs under, the reroutes, and the
- * geocoder that text destinations need. [tiles] is null when the build offers no routing, which reads no file.
+ * the routing data on the device, the last route, the conditions the next one runs under, the reroutes, what became of
+ * the route kept across a restart, and the geocoder that text destinations need. [tiles] is null when the build offers
+ * no routing, which reads no file.
  */
 internal data class RoutingFacts(
     val buildEnabled: Boolean,
@@ -132,6 +135,8 @@ internal data class RoutingFacts(
     val conditions: RouteConditions? = null,
     /** The last search for more routes: each candidate's computing time, and how the search ended. */
     val candidateSearch: CandidateSearch? = null,
+    /** What the start of this process did with the route the last one kept; null before it decided anything. */
+    val restore: RouteRestoreDecision? = null,
 )
 
 // Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
@@ -172,6 +177,8 @@ private fun routingFacts(
             // A later candidate recomputes every one before it, so its time says how much the card costs.
             add(DiagnosticFact("Route candidates", FactValue.Text(facts.candidateSearch?.summary() ?: NO_RUN_YET)))
             add(DiagnosticFact("Last reroute", FactValue.Text(facts.reroutes?.summaryOrNull() ?: NO_RUN_YET)))
+            // A route that did or did not come back after a restart reads differently once the reason is known.
+            add(DiagnosticFact("Route restore", FactValue.Text(facts.restore?.label() ?: NO_RUN_YET)))
         }
         add(DiagnosticFact("Geocoder", FactValue.Text(if (facts.geocoderPresent) "present" else "absent")))
     }
@@ -179,6 +186,17 @@ private fun routingFacts(
 private const val NO_RUN_YET = "none this session"
 
 private fun RouteRunOutcome.label(): String = name.lowercase().replace('_', ' ')
+
+private fun RouteRestoreDecision.label(): String =
+    when (this) {
+        RouteRestoreDecision.RESTORED -> "restored"
+        RouteRestoreDecision.PARKED_TOO_LONG -> "parked too long, deleted"
+        RouteRestoreDecision.NO_SNAPSHOT -> "no route kept"
+        RouteRestoreDecision.WAITING_FOR_FIX -> "waiting for a GPS fix"
+        RouteRestoreDecision.REPLACED -> "replaced by a new route"
+        RouteRestoreDecision.UNDATED -> "no time of the last drive, deleted"
+        RouteRestoreDecision.FIX_BEFORE_LAST_DRIVE -> "GPS time before the last drive, deleted"
+    }
 
 // "3: 0.5 s, 1.1 s, 1.6 s; all found": how many candidates, each one's time in the order they were found, and how
 // the search ended.
@@ -520,6 +538,7 @@ internal class MapFactsCollector(
             reroutes = if (enabled) Rerouter.get(context).stats.value else null,
             conditions = if (enabled) RoutePreferences(context).conditions.first() else null,
             candidateSearch = if (enabled) CandidateFinder.get(context).lastSearch.value else null,
+            restore = if (enabled) RoutePersistence.get(context).decision.value else null,
         )
     }
 }

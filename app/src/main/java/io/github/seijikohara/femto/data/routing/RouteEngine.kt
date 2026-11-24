@@ -5,7 +5,9 @@ import java.io.File
 /** The offsets that keep the engine's micro-degrees positive, as BRouter stores a position. */
 private const val LONGITUDE_OFFSET_MICRODEGREES = 180_000_000
 private const val LATITUDE_OFFSET_MICRODEGREES = 90_000_000
-private const val MICRODEGREES_PER_DEGREE = 1_000_000.0
+
+/** BRouter's resolution: it stores and returns every position in whole micro-degrees. */
+internal const val MICRODEGREES_PER_DEGREE = 1_000_000.0
 
 private val MissingTileMessage = Regex("datafile (\\S+)\\.rd5 not found")
 

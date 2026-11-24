@@ -6,9 +6,11 @@ import io.github.seijikohara.femto.data.common.download.RevalidationResult
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.EnginePosition
+import io.github.seijikohara.femto.data.routing.KeptRoute
 import io.github.seijikohara.femto.data.routing.ROUTE_TIME_LIMIT_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_HOST_PREFIX
 import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
@@ -225,6 +227,17 @@ internal fun fakeRouteFix(
 /** This route session without its choice between routes, for tests about the route being followed. */
 internal fun ActiveRoute.withoutChoice(): ActiveRoute =
     copy(candidates = emptyList(), selected = 0, choosing = false, finding = false, searchCompleted = false)
+
+/**
+ * A route kept across a restart: [fakeRoute], whose points lie on whole micro-degrees as an engine route's do, to a
+ * destination picked to more digits than a micro-degree holds, avoiding tolls.
+ */
+internal fun fakeKeptRoute(): KeptRoute =
+    KeptRoute(
+        route = fakeRoute(),
+        destination = RoutePoint(latitude = 34.0712345678, longitude = 133.0098765432),
+        conditions = RouteConditions(avoidTolls = true),
+    )
 
 /** A short route in the routing tile E130_N30, as the planner returns one. */
 internal fun fakeRoute(
