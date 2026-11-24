@@ -38,6 +38,13 @@ class MotionTest {
         assertSame(MotionScheme.standard(), Motion.scheme(MotionTier.REDUCED))
     }
 
+    // A scheme this object did not hand out (a bare MaterialTheme outside FemtoTheme)
+    // must not read as REDUCED or OFF, which would silently take a user's wave away.
+    @Test
+    fun `tier reads a scheme Motion did not hand out as STANDARD`() {
+        assertEquals(MotionTier.STANDARD, Motion.tier(object : MotionScheme by MotionScheme.expressive() {}))
+    }
+
     // The accessibility invariant for Material components: a MotionTier.OFF
     // user must never see one animate, so every spec the OFF scheme hands out
     // is the zero-duration snap(). A regression that fell back to a built-in
