@@ -154,6 +154,35 @@ class DashboardScreenshotTest {
     fun dashboard_head_unit_rerouting_dark() =
         capture("head-unit-853x512-rerouting-dark", darkTheme = true, uiState = DashboardFixtures.reroutingState)
 
+    // The route choice card over the map: two routes found and a third being
+    // searched for, then all three with the second chosen. The narrower
+    // geometries show where the card goes when the map leaves it less room:
+    // beside the clock on a phone in landscape, below it elsewhere.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_route_choice_finding() =
+        capture("head-unit-853x512-route-choice-finding", uiState = DashboardFixtures.routeChoiceFindingState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_route_choice_dark() =
+        capture("head-unit-853x512-route-choice-dark", darkTheme = true, uiState = DashboardFixtures.routeChoiceState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.FLOOR_800X480)
+    fun dashboard_floor_route_choice() =
+        capture("floor-800x480-route-choice", uiState = DashboardFixtures.routeChoiceState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.PHONE_PORTRAIT_412X915)
+    fun dashboard_phone_portrait_route_choice() =
+        capture("phone-portrait-412x915-route-choice", uiState = DashboardFixtures.routeChoiceState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.PHONE_LANDSCAPE_915X412)
+    fun dashboard_phone_landscape_route_choice() =
+        capture("phone-landscape-915x412-route-choice", uiState = DashboardFixtures.routeChoiceState)
+
     private fun capture(
         name: String,
         uiScale: UiScale = UiScale.MEDIUM,

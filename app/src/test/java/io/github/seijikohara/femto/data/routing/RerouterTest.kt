@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.data.routing
 import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeRoute
 import io.github.seijikohara.femto.testfixtures.fakeRouteFix
+import io.github.seijikohara.femto.testfixtures.withoutChoice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.TestScope
@@ -30,6 +31,9 @@ class RerouterTest {
     // Runs on every read of the rerouter's clock, so a test can act between two steps of a reroute.
     private var onClockRead: () -> Unit = {}
 
+    // How often the rerouter has stopped the candidate search.
+    private var candidateCancels = 0
+
     // The rerouter runs its reroutes on the test's background scope, so each test steps them with runCurrent.
     private fun TestScope.rerouter(): Rerouter =
         Rerouter(
@@ -41,7 +45,20 @@ class RerouterTest {
                 onClockRead()
                 nowMs
             },
+            cancelCandidates = { candidateCancels++ },
         )
+
+    // The candidates were found from where the route started, so they no longer apply once the vehicle left it.
+    @Test
+    fun `leaving the route stops the candidate search and closes the choice`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+
+            rerouter.onLeftRoute(session, LEFT_AT)
+
+            assertEquals(1 to false, candidateCancels to store.active.value?.choosing)
+        }
 
     @Test
     fun `leaving the route routes again from the fix to the same destination with the reference and heading`() =
@@ -79,7 +96,10 @@ class RerouterTest {
             rerouter.onLeftRoute(session, LEFT_AT)
             runCurrent()
 
-            assertEquals(ActiveRoute(session, REROUTED, DESTINATION, NEW_REFERENCE), store.active.value)
+            assertEquals(
+                ActiveRoute(session, REROUTED, DESTINATION, NEW_REFERENCE),
+                store.active.value?.withoutChoice(),
+            )
             assertEquals(listOf<Collection<File>>(setOf(NEW_REFERENCE)), pruned)
         }
 
@@ -121,7 +141,10 @@ class RerouterTest {
         runTest {
             val session = rerouteAnswered(RouteResult.MissingTiles(listOf("E130_N30")))
 
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE, RerouteStatus.NO_DATA), store.active.value)
+            assertEquals(
+                ActiveRoute(session, ROUTE, DESTINATION, REFERENCE, RerouteStatus.NO_DATA),
+                store.active.value?.withoutChoice(),
+            )
         }
 
     @Test
@@ -137,7 +160,10 @@ class RerouterTest {
         runTest {
             val session = rerouteAnswered(RouteResult.Failed("no track found"))
 
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE, RerouteStatus.FAILED), store.active.value)
+            assertEquals(
+                ActiveRoute(session, ROUTE, DESTINATION, REFERENCE, RerouteStatus.FAILED),
+                store.active.value?.withoutChoice(),
+            )
         }
 
     @Test
@@ -282,7 +308,7 @@ class RerouterTest {
             runCurrent()
 
             assertEquals(emptyList(), planner.calls)
-            assertEquals(ActiveRoute(current, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(current, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     @Test
@@ -314,7 +340,7 @@ class RerouterTest {
             runCurrent()
 
             assertTrue(planner.cancelled)
-            assertEquals(ActiveRoute(next, REROUTED, DESTINATION, NEW_REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(next, REROUTED, DESTINATION, NEW_REFERENCE), store.active.value?.withoutChoice())
         }
 
     @Test
@@ -351,7 +377,7 @@ class RerouterTest {
             runCurrent()
 
             assertFalse(written.exists())
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     // The engine returns a found route just as the panel cancels the reroute, too late for the cancel to stop it.
@@ -368,7 +394,7 @@ class RerouterTest {
             runCurrent()
 
             assertFalse(written.exists())
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     @Test
@@ -382,7 +408,7 @@ class RerouterTest {
             rerouter.cancel()
             runCurrent()
 
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     @Test
@@ -408,7 +434,7 @@ class RerouterTest {
             runCurrent()
 
             assertTrue(planner.cancelled)
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     // The engine answers in the same moment the vehicle rejoins the route, too late for the cancel to stop it.
@@ -417,7 +443,7 @@ class RerouterTest {
         runTest {
             val session = rerouteAnsweredAfterBackOnRoute(RouteResult.Failed("no track found"))
 
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     @Test
@@ -425,7 +451,7 @@ class RerouterTest {
         runTest {
             val session = rerouteAnsweredAfterBackOnRoute(RouteResult.MissingTiles(listOf("E130_N30")))
 
-            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
         }
 
     @Test

@@ -500,6 +500,7 @@ private fun DashboardContent(
         mapSurface = mapSurface,
         attributionBottomInset = attributionBottomInset,
         routeLine = uiState.activeRoute?.line,
+        alternativeLines = uiState.activeRoute?.alternativeLines.orEmpty(),
         // Where routing is offered, a long press on the map opens the
         // destination panel on the pressed point.
         onLongPress =
@@ -745,6 +746,9 @@ private fun DashboardOverlays(
     // The clock's measured size: the video window sits beside it when the top
     // row has room, and below it otherwise (videoWindowPlacement).
     var clockSize by remember { mutableStateOf(IntSize.Zero) }
+    // The speed readout's measured height: the route choice card stops above
+    // it (routeChoicePlacement).
+    var speedHeightPx by remember { mutableIntStateOf(0) }
 
     BoxWithConstraints(modifier = modifier) {
         // Map controls render only when the map does (a fix exists). The compass pins
@@ -859,8 +863,10 @@ private fun DashboardOverlays(
                 clock = clock,
                 modifier =
                     Modifier
-                        .onSizeChanged { onOverlayHeightChange(it.height) }
-                        .testTag(DashboardTags.SPEED),
+                        .onSizeChanged {
+                            speedHeightPx = it.height
+                            onOverlayHeightChange(it.height)
+                        }.testTag(DashboardTags.SPEED),
             )
         }
 
@@ -962,6 +968,48 @@ private fun DashboardOverlays(
                             },
                         ).width(placement.width)
                         .testTag(DashboardTags.VIDEO_WINDOW),
+            )
+        }
+
+        // The route choice card (issue #389 phase 3), in the video window's
+        // corner of the map and drawn over it: the card is brief, and the
+        // window has nowhere else to go. Below the maximize panels, which
+        // cover it while open.
+        uiState.activeRoute?.choice?.let { choice ->
+            // The bottom padding of the speed readout's box above.
+            val speedBottomInset = cardGap + if (bottomCards) bottomCardExtent else 0.dp
+            val placement =
+                with(LocalDensity.current) {
+                    routeChoicePlacement(
+                        overlayWidth = maxWidth,
+                        mapAreaWidth = if (landscapeCards) maxWidth - floatingCardWidth else maxWidth,
+                        outerPad = outerPad,
+                        gap = cardGap,
+                        clockInset = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
+                        clockWidth = clockSize.width.toDp(),
+                        clockHeight = clockSize.height.toDp(),
+                        speedTop = maxHeight - speedBottomInset - speedHeightPx.toDp(),
+                    )
+                }
+            RouteChoiceCard(
+                choice = choice,
+                speedUnit = speedUnit,
+                onSelect = { index -> onAction(HomeAction.SelectRouteCandidate(index)) },
+                onClose = { onAction(HomeAction.CloseRouteChoice) },
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier =
+                    Modifier
+                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(
+                            if (mirror) {
+                                PaddingValues(end = placement.start, top = placement.top)
+                            } else {
+                                PaddingValues(start = placement.start, top = placement.top)
+                            },
+                        ).width(placement.width)
+                        .heightIn(max = placement.maxHeight)
+                        .testTag(DashboardTags.ROUTE_CHOICE),
             )
         }
 
@@ -1184,6 +1232,7 @@ internal object DashboardTags {
     const val CARDS = "dashboard-cards"
     const val VIDEO_WINDOW = "dashboard-video-window"
     const val VIDEO_PANEL = "dashboard-video-panel"
+    const val ROUTE_CHOICE = "dashboard-route-choice"
 }
 
 // Where the video window sits, as insets from the top corner on the side
@@ -1212,7 +1261,7 @@ private fun videoWindowPlacement(
     clockWidth: Dp,
     clockHeight: Dp,
 ): VideoWindowPlacement {
-    val start = outerPad + maxOf(MapCompassSize, MapControlsStripWidth) + gap
+    val start = mapControlsClearance(outerPad, gap)
     val width =
         (mapAreaWidth * VIDEO_WINDOW_WIDTH_FRACTION)
             .coerceIn(VideoWindowMinWidth, VideoWindowMaxWidth)
@@ -1226,6 +1275,58 @@ private fun videoWindowPlacement(
 private const val VIDEO_WINDOW_WIDTH_FRACTION = 1f / 3f
 private val VideoWindowMinWidth: Dp = 240.dp
 private val VideoWindowMaxWidth: Dp = 480.dp
+
+// The inset from the edge opposite the cards that clears the column the
+// compass and the map control column share, plus a gap: where the video window
+// and the route choice card start.
+private fun mapControlsClearance(
+    outerPad: Dp,
+    gap: Dp,
+): Dp = outerPad + maxOf(MapCompassSize, MapControlsStripWidth) + gap
+
+// Where the route choice card sits, as insets from the top corner on the side
+// opposite the cards, how wide it is, and how tall it may grow.
+private data class RouteChoicePlacement(
+    val start: Dp,
+    val top: Dp,
+    val width: Dp,
+    val maxHeight: Dp,
+)
+
+// The card starts past the compass and control column, as the video window
+// does. It takes the top row beside the clock when that row leaves room for
+// its three tiles (RouteChoiceCardMinWidth), where it has the most height, as
+// on a phone in landscape; otherwise it drops below the clock and takes the
+// map area's width, up to RouteChoiceCardMaxWidth. Either way it stays above
+// the speed readout's top edge ([speedTop], from the top of the overlay box),
+// so the compass, the control column, the clock, the speed readout and the
+// cards all stay uncovered. Its own height, a header and one row of tiles,
+// also ends it above the vehicle's chevron, which the map drops below the
+// middle of the screen; RouteChoiceLayoutTest checks both on every geometry.
+// The tiles scroll inside the card only where the speed readout leaves less
+// room than that.
+private fun routeChoicePlacement(
+    overlayWidth: Dp,
+    mapAreaWidth: Dp,
+    outerPad: Dp,
+    gap: Dp,
+    clockInset: Dp,
+    clockWidth: Dp,
+    clockHeight: Dp,
+    speedTop: Dp,
+): RouteChoicePlacement {
+    val start = mapControlsClearance(outerPad, gap)
+    val topRowRoom = overlayWidth - clockInset - clockWidth - gap - start
+    val inTopRow = topRowRoom >= RouteChoiceCardMinWidth
+    val top = if (inTopRow) outerPad else outerPad + maxOf(clockHeight, MapCompassSize) + gap
+    val room = if (inTopRow) topRowRoom else mapAreaWidth - start - outerPad
+    return RouteChoicePlacement(
+        start = start,
+        top = top,
+        width = room.coerceIn(0.dp, RouteChoiceCardMaxWidth),
+        maxHeight = (speedTop - gap - top).coerceAtLeast(0.dp),
+    )
+}
 
 // Margins that float the dock off its free edges by [margin] (a vertical rail's
 // inner edge faces the dashboard, where the overlay inset already opens the gap).

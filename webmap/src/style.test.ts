@@ -1,6 +1,14 @@
 import type { LayerSpecification, StyleSpecification } from "maplibre-gl";
 import { describe, expect, it } from "vite-plus/test";
-import { decodeRoute, ROUTE_CASING_LAYER_ID, ROUTE_LINE_LAYER_ID, ROUTE_SOURCE_ID } from "./route";
+import {
+    decodeRoute,
+    decodeRouteAlternatives,
+    ROUTE_ALTERNATIVES_LAYER_ID,
+    ROUTE_ALTERNATIVES_SOURCE_ID,
+    ROUTE_CASING_LAYER_ID,
+    ROUTE_LINE_LAYER_ID,
+    ROUTE_SOURCE_ID,
+} from "./route";
 import {
     BUILDING_EXTRUSION_OPACITY,
     clampMarkerPos,
@@ -296,6 +304,38 @@ describe("injectFeatures: route line", () => {
         const cleared = injectFeatures(injectFeatures(baseStyle(), ROUTE), OFF);
         expect(routeIds(cleared)).toEqual([]);
         expect(cleared.sources[ROUTE_SOURCE_ID]).toBeUndefined();
+    });
+});
+
+describe("injectFeatures: route alternatives", () => {
+    const route = decodeRoute([35.68, 139.76, 35.69, 139.69], "#3367D6", "#FFFFFF");
+    const routeAlternatives = decodeRouteAlternatives(
+        [[35.68, 139.76, 35.7, 139.7, 35.69, 139.69]],
+        "#79747E",
+    );
+    const CHOOSING = { ...OFF, route, routeAlternatives };
+
+    it("puts the alternatives directly under the route's casing", () => {
+        expect(routeIds(injectFeatures(baseStyle(), CHOOSING))).toEqual([
+            ROUTE_ALTERNATIVES_LAYER_ID,
+            ROUTE_CASING_LAYER_ID,
+            ROUTE_LINE_LAYER_ID,
+        ]);
+    });
+
+    it("is idempotent across re-application", () => {
+        const twice = injectFeatures(injectFeatures(baseStyle(), CHOOSING), CHOOSING);
+        expect(routeIds(twice)).toEqual([
+            ROUTE_ALTERNATIVES_LAYER_ID,
+            ROUTE_CASING_LAYER_ID,
+            ROUTE_LINE_LAYER_ID,
+        ]);
+    });
+
+    it("removes the alternatives once cleared and keeps the route", () => {
+        const cleared = injectFeatures(injectFeatures(baseStyle(), CHOOSING), { ...OFF, route });
+        expect(routeIds(cleared)).toEqual([ROUTE_CASING_LAYER_ID, ROUTE_LINE_LAYER_ID]);
+        expect(cleared.sources[ROUTE_ALTERNATIVES_SOURCE_ID]).toBeUndefined();
     });
 });
 

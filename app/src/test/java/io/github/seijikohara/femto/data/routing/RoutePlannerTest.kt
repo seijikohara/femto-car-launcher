@@ -231,6 +231,31 @@ class RoutePlannerTest {
         }
 
     @Test
+    fun `an alternative's index reaches the engine`() =
+        runTest {
+            installTile("E130_N30")
+            val engine = FakeRouteEngine(outcome = TRACK)
+
+            planner(engine).route(MATSUYAMA, IMABARI, alternativeIndex = 2)
+
+            assertEquals(2, engine.requests.single().alternativeIndex)
+        }
+
+    // The report's last route is the one the dashboard follows, or its last reroute; a candidate search for the choice
+    // card ending otherwise must not stand in for it.
+    @Test
+    fun `an alternative's search never becomes the last route`() =
+        runTest {
+            val planner = planner(FakeRouteEngine(outcome = TRACK))
+            planner.route(MATSUYAMA, IMABARI)
+
+            installTile("E130_N30")
+            planner.route(MATSUYAMA, IMABARI, alternativeIndex = 1)
+
+            assertEquals(RouteRunOutcome.MISSING_TILES, planner.lastRunOrNull()?.outcome)
+        }
+
+    @Test
     fun `a found route whose engine wrote no reference returns none`() =
         runTest {
             installTile("E130_N30")

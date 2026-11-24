@@ -73,6 +73,8 @@ internal class Rerouter(
     private val scope: CoroutineScope,
     private val pruneReferences: (Collection<File>) -> Unit,
     private val nowMs: () -> Long = SystemClock::elapsedRealtime,
+    // Stops the search for more candidates (the CandidateFinder), which would hold the planner the reroute needs.
+    private val cancelCandidates: () -> Unit = {},
 ) {
     private val lock = Any()
 
@@ -97,6 +99,10 @@ internal class Rerouter(
                 running?.job?.isActive == true ||
                     lastFinished?.let { it.session == session && now - it.finishedMs < REROUTE_MIN_INTERVAL_MS } == true
             if (held) return
+            // The candidates were found from where the route started; from where the vehicle is now, they no longer
+            // apply, so the choice closes on the route being followed.
+            cancelCandidates()
+            store.closeChoice(session)
             running = RunningReroute(session, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
         }
     }
@@ -234,6 +240,7 @@ internal class Rerouter(
                             store = ActiveRouteStore.shared,
                             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
                             pruneReferences = planner::pruneReferences,
+                            cancelCandidates = CandidateFinder.get(context)::cancel,
                         )
                     }.also { instance = it }
             }

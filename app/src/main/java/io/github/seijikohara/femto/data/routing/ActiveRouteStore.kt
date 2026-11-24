@@ -3,7 +3,7 @@ package io.github.seijikohara.femto.data.routing
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.updateAndGet
+import kotlinx.coroutines.flow.update
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 
@@ -22,11 +22,23 @@ internal enum class RerouteStatus {
     FAILED,
 }
 
+/** One of the routes found for a session: the route, the engine's reference for it, and how long it took to find. */
+internal data class RouteCandidate(
+    val route: Route,
+    val reference: File?,
+    val computingMs: Long,
+)
+
 /**
  * The route the dashboard follows, in one session: from the destination panel's route to the next one or a clear.
  * A reroute replaces the [route] and its [reference] within the session; [destination] is the point the driver chose,
  * kept so that a reroute never asks the geocoder again, and [conditions] are those the route was found under, kept so
  * that a reroute avoids the same roads whatever the driver has picked for the next route since.
+ *
+ * While the driver may still choose between routes ([choosing], the choice card), [candidates] holds the routes found
+ * so far, the first one first, and [selected] the one [route] and [reference] are. [finding] says whether a search for
+ * another one runs, and [searchCompleted] whether the search ran to its end rather than being stopped: only then do
+ * the candidates found so far stand for all there are.
  */
 internal data class ActiveRoute(
     val session: Long,
@@ -36,6 +48,11 @@ internal data class ActiveRoute(
     val reference: File?,
     val reroute: RerouteStatus = RerouteStatus.NONE,
     val conditions: RouteConditions = RouteConditions(),
+    val candidates: List<RouteCandidate> = emptyList(),
+    val selected: Int = 0,
+    val choosing: Boolean = false,
+    val finding: Boolean = false,
+    val searchCompleted: Boolean = false,
 )
 
 /**
@@ -58,25 +75,51 @@ internal class ActiveRouteStore {
     val active: StateFlow<ActiveRoute?> = mutableActive.asStateFlow()
 
     /**
-     * Make [route] to [destination], found under [conditions], the active route in a new session, and return the
-     * session.
+     * Make [route] to [destination], found under [conditions] in [computingMs], the active route in a new session,
+     * and return the session. The session opens with the choice between routes, [route] its first candidate.
      */
     fun start(
         route: Route,
         destination: RoutePoint,
         conditions: RouteConditions,
         reference: File?,
+        computingMs: Long = 0L,
     ): Long =
         sessions.incrementAndGet().also { session ->
-            mutableActive.value = ActiveRoute(session, route, destination, reference, conditions = conditions)
+            mutableActive.value =
+                ActiveRoute(
+                    session = session,
+                    route = route,
+                    destination = destination,
+                    reference = reference,
+                    conditions = conditions,
+                    candidates = listOf(RouteCandidate(route, reference, computingMs)),
+                    choosing = true,
+                )
         }
 
-    /** Replace the route of [session] and clear its reroute status; false, changing nothing, once it has ended. */
+    /**
+     * Replace the route of [session] and clear its reroute status; false, changing nothing, once it has ended. A
+     * reroute starts from where the vehicle is now, so the candidates found from the old start no longer apply and the
+     * choice closes.
+     */
     fun replace(
         session: Long,
         route: Route,
         reference: File?,
-    ): Boolean = updateSession(session) { it.copy(route = route, reference = reference, reroute = RerouteStatus.NONE) }
+    ): Boolean =
+        updateSession(session) {
+            it.copy(
+                route = route,
+                reference = reference,
+                reroute = RerouteStatus.NONE,
+                candidates = emptyList(),
+                selected = 0,
+                choosing = false,
+                finding = false,
+                searchCompleted = false,
+            )
+        }
 
     /** Set the reroute status of [session]; false, changing nothing, once it has ended. */
     fun setStatus(
@@ -84,18 +127,79 @@ internal class ActiveRouteStore {
         status: RerouteStatus,
     ): Boolean = updateSession(session) { it.copy(reroute = status) }
 
+    /** Add [candidate] to the choice of [session]; false, changing nothing, once the session or its choice has ended. */
+    fun addCandidate(
+        session: Long,
+        candidate: RouteCandidate,
+    ): Boolean = updateSession(session, applies = { it.choosing }) { it.copy(candidates = it.candidates + candidate) }
+
+    /**
+     * Make candidate [index] of [session] the active route; false, changing nothing, once the session or its choice has
+     * ended, or for an index it does not hold. A reroute status belonged to the route left behind.
+     */
+    fun select(
+        session: Long,
+        index: Int,
+    ): Boolean =
+        updateSession(session, applies = { it.choosing && index in it.candidates.indices }) {
+            it.copy(
+                route = it.candidates[index].route,
+                reference = it.candidates[index].reference,
+                selected = index,
+                reroute = RerouteStatus.NONE,
+            )
+        }
+
+    /** Say whether a search for another candidate of [session] runs; one only starts while the choice is open. */
+    fun setFinding(
+        session: Long,
+        finding: Boolean,
+    ): Boolean = updateSession(session, applies = { it.choosing || !finding }) { it.copy(finding = finding) }
+
+    /**
+     * Say that the search for more candidates of [session] ran to its end, so the candidates found are all there are;
+     * false, changing nothing, once the session or its choice has ended. A search that was stopped says nothing of
+     * the kind and only lowers [ActiveRoute.finding] ([setFinding]).
+     */
+    fun completeSearch(session: Long): Boolean =
+        updateSession(session, applies = { it.choosing }) { it.copy(finding = false, searchCompleted = true) }
+
+    /**
+     * Close the choice of [session], keeping the selected route: the other candidates go from the session. Their
+     * reference files are the candidate finder's to delete; the store deletes nothing.
+     */
+    fun closeChoice(session: Long): Boolean =
+        updateSession(session, applies = { it.choosing }) {
+            it.copy(
+                candidates = listOfNotNull(it.candidates.getOrNull(it.selected)),
+                selected = 0,
+                choosing = false,
+                finding = false,
+                searchCompleted = false,
+            )
+        }
+
     /** End the session: no route is active until the next [start]. */
     fun clear() {
         mutableActive.value = null
     }
 
+    // Applies [change] to [session] in one step, when [applies] holds for it; whether it did.
     private inline fun updateSession(
         session: Long,
+        crossinline applies: (ActiveRoute) -> Boolean = { true },
         crossinline change: (ActiveRoute) -> ActiveRoute,
-    ): Boolean =
-        mutableActive
-            .updateAndGet { current -> current?.takeIf { it.session == session }?.let(change) ?: current }
-            ?.session == session
+    ): Boolean {
+        var applied = false
+        mutableActive.update { current ->
+            current
+                ?.takeIf { it.session == session && applies(it) }
+                ?.let(change)
+                .also { applied = it != null }
+                ?: current
+        }
+        return applied
+    }
 
     companion object {
         /** The one store the destination panel, the rerouter and the dashboard share in a process. */

@@ -17,6 +17,7 @@ import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Route
+import io.github.seijikohara.femto.data.routing.RouteCandidate
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteProgress
@@ -32,6 +33,7 @@ import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
+import io.github.seijikohara.femto.testfixtures.fakeParallelRoadsRoute
 import io.github.seijikohara.femto.testfixtures.fakeRouteFix
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
@@ -1246,6 +1248,166 @@ class HomeViewModelTest {
             assertEquals(emptyList(), left)
         }
 
+    // --- Route choice card (issue #389 phase 3) -------------------------------
+
+    @Test
+    fun `the choice shows the session's candidates and selection`() =
+        runTest {
+            val viewModel = routeViewModel(available = true, activeRouteFlow = flowOf(choosingRoute()))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val route = assertNotNull(viewModel.uiState.value.activeRoute)
+            assertEquals(
+                RouteChoiceState(
+                    session = SESSION,
+                    candidates =
+                        listOf(
+                            CandidateSummary(distanceMeters = 22_000, durationSeconds = 1_200),
+                            CandidateSummary(distanceMeters = 22_461, durationSeconds = 1_200),
+                        ),
+                    selected = 1,
+                    finding = true,
+                    searchCompleted = false,
+                ),
+                route.choice,
+            )
+            assertEquals(PARALLEL_ROUTE.points, route.line, "the selected candidate is the route followed")
+            assertEquals(listOf(EQUATOR_ROUTE.points), route.alternativeLines, "the other candidate is drawn thin")
+        }
+
+    @Test
+    fun `the card says no other route only after a search that ran to its end`() =
+        runTest {
+            val alone = choosingRoute().copy(route = EQUATOR_ROUTE, candidates = choosingRoute().candidates.take(1))
+            val active = MutableStateFlow<ActiveRoute?>(alone.copy(selected = 0, finding = false))
+            val viewModel = routeViewModel(available = true, activeRouteFlow = active)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val afterAStop = viewModel.uiState.value.activeRoute
+                ?.choice
+                ?.noOtherRoute
+
+            active.value = active.value?.copy(searchCompleted = true)
+
+            assertEquals(
+                false to true,
+                afterAStop to
+                    viewModel.uiState.value.activeRoute
+                        ?.choice
+                        ?.noOtherRoute,
+            )
+        }
+
+    @Test
+    fun `a closed choice shows no card and no other lines`() =
+        runTest {
+            val closed = choosingRoute().copy(choosing = false, finding = false)
+            val viewModel = routeViewModel(available = true, activeRouteFlow = flowOf(closed))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val route = assertNotNull(viewModel.uiState.value.activeRoute)
+            assertEquals(null to emptyList(), route.choice to route.alternativeLines)
+        }
+
+    @Test
+    fun `selecting a candidate dispatches to the store`() =
+        runTest {
+            val selections = mutableListOf<Pair<Long, Int>>()
+            val viewModel =
+                routeViewModel(
+                    available = true,
+                    activeRouteFlow = flowOf(choosingRoute()),
+                    selectRouteCandidate = { session, index -> selections += session to index },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.onAction(HomeAction.SelectRouteCandidate(0))
+
+            assertEquals(listOf(SESSION to 0), selections)
+        }
+
+    @Test
+    fun `Done on the card dispatches the close to the store`() =
+        runTest {
+            val closes = mutableListOf<Long>()
+            val viewModel =
+                routeViewModel(
+                    available = true,
+                    activeRouteFlow = flowOf(choosingRoute()),
+                    closeRouteChoice = { closes += it },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.onAction(HomeAction.CloseRouteChoice)
+
+            assertEquals(listOf(SESSION), closes)
+        }
+
+    @Test
+    fun `the choice closes after 30 s of driving`() =
+        runTest {
+            val closes = mutableListOf<Long>()
+            val viewModel =
+                routeViewModel(
+                    location = liveGpsFix(),
+                    available = true,
+                    activeRouteFlow = flowOf(choosingRoute()),
+                    tripStateFlow = flowOf(fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)),
+                    closeRouteChoice = { closes += it },
+                )
+            backgroundScope.launch { viewModel.uiState.collect {} }
+
+            at(ROUTE_CHOICE_DRIVING_CLOSE_MS - 1)
+            val beforeTheEnd = closes.toList()
+            at(ROUTE_CHOICE_DRIVING_CLOSE_MS)
+
+            assertEquals(emptyList<Long>() to listOf(SESSION), beforeTheEnd to closes)
+        }
+
+    @Test
+    fun `a stop resets the driving count`() =
+        runTest {
+            val closes = mutableListOf<Long>()
+            val trip = MutableStateFlow(fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0))
+            val viewModel =
+                routeViewModel(
+                    location = liveGpsFix(),
+                    available = true,
+                    activeRouteFlow = flowOf(choosingRoute()),
+                    tripStateFlow = trip,
+                    closeRouteChoice = { closes += it },
+                )
+            backgroundScope.launch { viewModel.uiState.collect {} }
+            at(20_000L)
+
+            // A stop at a light, then driving on: the 30 s count starts again.
+            trip.value = fakeTripState(currentSpeedMs = 0.0)
+            at(25_000L)
+            trip.value = fakeTripState(currentSpeedMs = MIN_MOVING_SPEED_MS + 10.0)
+            at(25_000L + ROUTE_CHOICE_DRIVING_CLOSE_MS - 1)
+            val beforeTheEnd = closes.toList()
+            at(25_000L + ROUTE_CHOICE_DRIVING_CLOSE_MS)
+
+            assertEquals(emptyList<Long>() to listOf(SESSION), beforeTheEnd to closes)
+        }
+
+    // The session while the driver chooses: the equator route found first, the parallel roads second and selected,
+    // and a third being searched for.
+    private fun choosingRoute(): ActiveRoute =
+        ActiveRoute(
+            session = SESSION,
+            route = PARALLEL_ROUTE,
+            destination = ROUTE_DESTINATION,
+            reference = null,
+            candidates =
+                listOf(
+                    RouteCandidate(EQUATOR_ROUTE, reference = null, computingMs = 500L),
+                    RouteCandidate(PARALLEL_ROUTE, reference = null, computingMs = 900L),
+                ),
+            selected = 1,
+            choosing = true,
+            finding = true,
+        )
+
     // On the equator route at 0 s, then about 110 m north of it, moving east, a fix a second until the watch decides
     // at 6 s that the vehicle has left the route.
     private fun leaveTheRoute(
@@ -1291,6 +1453,9 @@ class HomeViewModelTest {
         onLeftRoute: (Long, RouteFix) -> Unit = { _, _ -> },
         onBackOnRoute: (Long) -> Unit = {},
         tripState: TripState = fakeTripState(),
+        tripStateFlow: Flow<TripState> = flowOf(tripState),
+        selectRouteCandidate: (Long, Int) -> Unit = { _, _ -> },
+        closeRouteChoice: (Long) -> Unit = {},
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1299,12 +1464,14 @@ class HomeViewModelTest {
             musicStateFlow = flowOf(MusicCardState.NeedsPermission),
             calendarFlow = flowOf(null),
             systemStatusFlow = flowOf(fakeSystemStatus()),
-            tripStateFlow = flowOf(tripState),
+            tripStateFlow = tripStateFlow,
             activeRouteFlow = activeRouteFlow,
             routingAvailable = flowOf(available),
             clearRoute = clearRoute,
             onLeftRoute = onLeftRoute,
             onBackOnRoute = onBackOnRoute,
+            selectRouteCandidate = selectRouteCandidate,
+            closeRouteChoice = closeRouteChoice,
             routeDispatcher = UnconfinedTestDispatcher(testScheduler),
         )
 
@@ -1333,6 +1500,9 @@ class HomeViewModelTest {
 
         // The fix at 0.1° east is halfway along it.
         val EQUATOR_ROUTE = fakeEquatorRoute()
+
+        // The second route on the choice card.
+        val PARALLEL_ROUTE = fakeParallelRoadsRoute()
 
         // The session the destination panel opened for the route under test, and where the route goes.
         const val SESSION = 7L

@@ -17,11 +17,15 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.ui.home.ActiveRouteState
+import io.github.seijikohara.femto.ui.home.CandidateSummary
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.RouteChoiceState
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import java.time.Clock
 import java.time.Instant
@@ -56,6 +60,36 @@ internal object DashboardFixtures {
     /** [routeState] while the launcher reroutes after the vehicle left the route: the row says so in place of the ETA. */
     val reroutingState: HomeUiState =
         routeState.copy(activeRoute = routeState.activeRoute?.copy(reroute = RerouteStatus.REROUTING))
+
+    /**
+     * [routeState] just after the route was found: the choice card lists it and a second route, the first one
+     * followed, and searches for a third.
+     */
+    val routeChoiceFindingState: HomeUiState =
+        routeState.withChoice(
+            RouteChoiceState(
+                session = 1L,
+                candidates = FixtureRouteCandidates.take(2),
+                selected = 0,
+                finding = true,
+                searchCompleted = false,
+            ),
+        )
+
+    /** [routeState] once three routes were found and the driver chose the second: the card at its tallest. */
+    val routeChoiceState: HomeUiState =
+        routeState.withChoice(
+            RouteChoiceState(
+                session = 1L,
+                candidates = FixtureRouteCandidates,
+                selected = 1,
+                finding = false,
+                searchCompleted = true,
+            ),
+        )
+
+    private fun HomeUiState.withChoice(choice: RouteChoiceState): HomeUiState =
+        copy(activeRoute = activeRoute?.copy(choice = choice))
 
     // Decoded once per JVM. The captures are smaller than the widest geometry
     // (2000x1200), so Crop upscales there — acceptable because the backdrop is
@@ -114,6 +148,15 @@ internal fun MapBackdrop(
     SelfMarker(mapConfig)
 }
 
+// The routes on the fixture choice card: the route followed in routeState, a
+// longer and slower one, and a longer but quicker one over an hour.
+private val FixtureRouteCandidates =
+    listOf(
+        CandidateSummary(distanceMeters = 12_400, durationSeconds = 1_080),
+        CandidateSummary(distanceMeters = 13_900, durationSeconds = 1_260),
+        CandidateSummary(distanceMeters = 61_500, durationSeconds = 3_900),
+    )
+
 // Ripple disc radius and opacity; a frozen mid-animation frame of the live CSS
 // pulse (index.html's .ripple), which this static render cannot animate.
 private val RippleRadius = 24.dp
@@ -140,9 +183,8 @@ private fun SelfMarker(mapConfig: MapConfig) {
     val chevronColor = MaterialTheme.colorScheme.primary
     val rippleColor = chevronColor.copy(alpha = RippleAlpha)
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val xShift = SelfMarkerAnchor.xShift(mapConfig.leftSafeFraction, mapConfig.rightSafeFraction)
-        val drop = SelfMarkerAnchor.drop(mapConfig.markerPos, mapConfig.bottomSafeFraction)
-        val center = Offset(x = size.width * (0.5f + xShift), y = size.height * (0.5f + drop))
+        val centerFraction = mapConfig.selfMarkerCenterFraction()
+        val center = Offset(x = size.width * centerFraction.x, y = size.height * centerFraction.y)
 
         // Map the SVG path's 30-unit viewBox coordinates into the 34dp icon
         // box centred on the anchor point.
@@ -171,8 +213,7 @@ private fun SelfMarker(mapConfig: MapConfig) {
         // tiltDeg is the map pitch the same MapConfig drives. A vertical squash
         // by cos(tilt) is that transform's first-order effect; the perspective
         // term on a 34dp element is under 3 % and not worth a 3D projection.
-        val foreshorten = cos(Math.toRadians(mapConfig.tiltDeg.toDouble())).toFloat()
-        scale(scaleX = 1f, scaleY = foreshorten, pivot = center) {
+        scale(scaleX = 1f, scaleY = mapConfig.markerForeshortening(), pivot = center) {
             drawCircle(color = rippleColor, radius = RippleRadius.toPx(), center = center)
             drawPath(chevron, color = chevronColor)
             drawPath(
@@ -183,3 +224,33 @@ private fun SelfMarker(mapConfig: MapConfig) {
         }
     }
 }
+
+/**
+ * The box [SelfMarker] draws its chevron in on a map of [width] × [height], squashed by the map's pitch as it is
+ * drawn: what a layout test checks an overlay leaves visible.
+ */
+internal fun selfMarkerChevronBounds(
+    mapConfig: MapConfig,
+    width: Dp,
+    height: Dp,
+): DpRect {
+    val center = mapConfig.selfMarkerCenterFraction()
+    val halfWidth = ChevronBoxSize / 2
+    val halfHeight = halfWidth * mapConfig.markerForeshortening()
+    return DpRect(
+        left = width * center.x - halfWidth,
+        top = height * center.y - halfHeight,
+        right = width * center.x + halfWidth,
+        bottom = height * center.y + halfHeight,
+    )
+}
+
+// Where the chevron's centre sits, as fractions of the map's width and height.
+private fun MapConfig.selfMarkerCenterFraction(): Offset =
+    Offset(
+        x = 0.5f + SelfMarkerAnchor.xShift(leftSafeFraction, rightSafeFraction),
+        y = 0.5f + SelfMarkerAnchor.drop(markerPos, bottomSafeFraction),
+    )
+
+// The marker's vertical squash on the pitched ground plane (see SelfMarker).
+private fun MapConfig.markerForeshortening(): Float = cos(Math.toRadians(tiltDeg.toDouble())).toFloat()

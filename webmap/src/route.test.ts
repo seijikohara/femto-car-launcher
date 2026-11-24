@@ -2,13 +2,18 @@ import type { GeoJSONSourceSpecification, LayerSpecification } from "maplibre-gl
 import { describe, expect, it } from "vite-plus/test";
 import {
     decodeRoute,
+    decodeRouteAlternatives,
+    ROUTE_ALTERNATIVES_LAYER_ID,
+    ROUTE_ALTERNATIVES_SOURCE_ID,
     ROUTE_CASING_LAYER_ID,
     ROUTE_LINE_LAYER_ID,
     ROUTE_SOURCE_ID,
+    type RouteAlternatives,
     type RouteLine,
     type RouteMap,
     routeInsertIndex,
     showRoute,
+    showRouteAlternatives,
 } from "./route";
 
 const LINE = "#3367D6";
@@ -197,5 +202,120 @@ describe("showRoute", () => {
         const map = fakeMap(LABELED);
         showRoute(map, null);
         expect(map.getLayersOrder()).toEqual(LABELED.map((l) => l.id));
+    });
+});
+
+const MUTED = "#79747E";
+
+// Two routes, as the host sends them: one flat lat, lon array each.
+const ALTERNATIVES_PAYLOAD = [
+    [35.681236, 139.767125, 35.6895, 139.6917],
+    [35.681236, 139.767125, 35.67, 139.7, 35.6895, 139.6917],
+];
+
+function alternatives(): RouteAlternatives {
+    const decoded = decodeRouteAlternatives(ALTERNATIVES_PAYLOAD, MUTED);
+    if (decoded === null) throw new Error("the fixture payload must decode");
+    return decoded;
+}
+
+describe("decodeRouteAlternatives", () => {
+    it("turns each flat lat, lon array into a GeoJSON line", () => {
+        expect(decodeRouteAlternatives(ALTERNATIVES_PAYLOAD, MUTED)).toEqual({
+            lines: [
+                [
+                    [139.767125, 35.681236],
+                    [139.6917, 35.6895],
+                ],
+                [
+                    [139.767125, 35.681236],
+                    [139.7, 35.67],
+                    [139.6917, 35.6895],
+                ],
+            ],
+            color: MUTED,
+        });
+    });
+
+    it("rejects an empty list", () => {
+        expect(decodeRouteAlternatives([], MUTED)).toBeNull();
+    });
+
+    it("rejects the whole payload when one route cannot be drawn", () => {
+        expect(
+            decodeRouteAlternatives([ALTERNATIVES_PAYLOAD[0], [35.68, 139.76]], MUTED),
+        ).toBeNull();
+        expect(
+            decodeRouteAlternatives([ALTERNATIVES_PAYLOAD[0], [91, 139.76, 35.69, 139.69]], MUTED),
+        ).toBeNull();
+    });
+
+    it("rejects anything but a list of arrays", () => {
+        expect(decodeRouteAlternatives(ALTERNATIVES_PAYLOAD[0], MUTED)).toBeNull();
+        expect(decodeRouteAlternatives(null, MUTED)).toBeNull();
+    });
+
+    it("rejects a colour that is not CSS hex", () => {
+        expect(decodeRouteAlternatives(ALTERNATIVES_PAYLOAD, "grey")).toBeNull();
+    });
+});
+
+describe("showRouteAlternatives", () => {
+    it("draws the alternatives under the route's casing", () => {
+        const map = fakeMap(LABELED);
+        showRoute(map, route());
+        showRouteAlternatives(map, alternatives());
+        expect(map.getLayersOrder()).toEqual([
+            "bg",
+            "water_name",
+            "building",
+            "road",
+            ROUTE_ALTERNATIVES_LAYER_ID,
+            ROUTE_CASING_LAYER_ID,
+            ROUTE_LINE_LAYER_ID,
+            "road-label",
+            "place-label",
+        ]);
+        expect(map.sources[ROUTE_ALTERNATIVES_SOURCE_ID]).toMatchObject({
+            data: { geometry: { type: "MultiLineString" } },
+        });
+    });
+
+    it("keeps the route above the alternatives when the route comes after them", () => {
+        const map = fakeMap(LABELED);
+        showRouteAlternatives(map, alternatives());
+        showRoute(map, route());
+        const order = map.getLayersOrder();
+        expect(order.indexOf(ROUTE_ALTERNATIVES_LAYER_ID)).toBeLessThan(
+            order.indexOf(ROUTE_CASING_LAYER_ID),
+        );
+        expect(order.indexOf(ROUTE_LINE_LAYER_ID)).toBe(order.indexOf("road-label") - 1);
+    });
+
+    it("paints the host's colour", () => {
+        const map = fakeMap(LABELED);
+        showRouteAlternatives(map, alternatives());
+        expect(map.getLayer(ROUTE_ALTERNATIVES_LAYER_ID)).toMatchObject({
+            paint: { "line-color": MUTED },
+        });
+    });
+
+    it("clearing removes the layer and the source and leaves the route", () => {
+        const map = fakeMap(LABELED);
+        showRoute(map, route());
+        showRouteAlternatives(map, alternatives());
+        showRouteAlternatives(map, null);
+        expect(map.getLayer(ROUTE_ALTERNATIVES_LAYER_ID)).toBeUndefined();
+        expect(map.sources[ROUTE_ALTERNATIVES_SOURCE_ID]).toBeUndefined();
+        expect(map.getLayer(ROUTE_LINE_LAYER_ID)).toBeDefined();
+    });
+
+    it("replaces shown alternatives instead of adding a second set", () => {
+        const map = fakeMap(LABELED);
+        showRouteAlternatives(map, alternatives());
+        showRouteAlternatives(map, alternatives());
+        expect(
+            map.getLayersOrder().filter((id) => id === ROUTE_ALTERNATIVES_LAYER_ID),
+        ).toHaveLength(1);
     });
 });

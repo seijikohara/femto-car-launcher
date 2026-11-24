@@ -79,6 +79,10 @@ class DestinationViewModelTest {
     // How often a route run has stopped the rerouter.
     private var rerouteCancels = 0
 
+    // The candidate searches a found route started (its session and origin), and how often a route run stopped one.
+    private val candidateStarts = mutableListOf<Pair<Long, RoutePoint>>()
+    private var candidateCancels = 0
+
     // The route conditions kept on the device, as the last subscribedViewModel holds them.
     private var routeConditions = FakeRouteConditionsStore()
 
@@ -122,6 +126,8 @@ class DestinationViewModelTest {
             nowEpochMs = { routing.nowEpochMs },
             cancelReroute = { rerouteCancels++ },
             ioDispatcher = ioDispatcher,
+            startCandidates = { session, origin -> candidateStarts += session to origin },
+            cancelCandidates = { candidateCancels++ },
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -672,6 +678,34 @@ class DestinationViewModelTest {
         File(routing.referenceDir.apply { mkdirs() }, "earlier.bin").apply {
             writeText("x")
             setLastModified(routing.nowEpochMs - 2 * REFERENCE_PRUNE_GRACE_MS)
+        }
+
+    @Test
+    fun a_found_route_starts_the_finder_with_the_routes_origin() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            val session = assertNotNull(activeRoute.active.value).session
+            assertEquals(listOf(session to RoutePoint(ORIGIN.point.latitude, ORIGIN.point.longitude)), candidateStarts)
+        }
+
+    // Once as the run starts, and again right before its search: the old route's candidates hold the planner too.
+    @Test
+    fun a_new_route_stops_the_finder_before_searching() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true)
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(2, candidateCancels)
         }
 
     @Test

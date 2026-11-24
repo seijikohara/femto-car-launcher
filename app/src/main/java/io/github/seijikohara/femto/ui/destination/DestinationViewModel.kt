@@ -23,6 +23,7 @@ import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
 import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
+import io.github.seijikohara.femto.data.routing.CandidateFinder
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteConditionsStore
@@ -115,6 +116,10 @@ internal class DestinationViewModel(
     private val cancelReroute: () -> Unit = {},
     // Where the panel's own file work runs, off the main thread; tests pin it to their scheduler.
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    // The search for more routes once one is found (the CandidateFinder): started from the route's origin, and stopped
+    // like a reroute before each search of the panel's own.
+    private val startCandidates: (session: Long, origin: RoutePoint) -> Unit = { _, _ -> },
+    private val cancelCandidates: () -> Unit = {},
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -367,9 +372,15 @@ internal class DestinationViewModel(
         }
     }
 
+    // A reroute and a search for more candidates both hold the planner, and both belong to the route this run replaces.
+    private fun stopBackgroundSearches() {
+        cancelReroute()
+        cancelCandidates()
+    }
+
     private fun runRoute(block: suspend () -> Unit) {
         routeJob?.cancel()
-        cancelReroute()
+        stopBackgroundSearches()
         routeJob = viewModelScope.launch { block() }
     }
 
@@ -400,12 +411,21 @@ internal class DestinationViewModel(
         if (newer.isNotEmpty()) return offerDownload(ends, missing = tiles.missingTiles(needed), newer = newer)
         routeStep.value = RouteStep.Computing
         // Checking or downloading data takes time, during which a reroute of the old route may have started.
-        cancelReroute()
+        stopBackgroundSearches()
         when (val result = planner.route(ends.origin, ends.destination, conditions = ends.conditions)) {
             is RouteResult.Found -> {
-                activeRoute.start(result.route, ends.destination, ends.conditions, result.reference)
+                val computingMs = planner.lastRunOrNull()?.computingMs ?: 0L
+                val session = activeRoute.start(
+                    result.route,
+                    ends.destination,
+                    ends.conditions,
+                    result.reference,
+                    computingMs,
+                )
                 routeStep.value = RouteStep.Done
-                // The new session replaced every earlier route, whose references no reroute reads again.
+                startCandidates(session, ends.origin)
+                // The new session replaced every earlier route, whose references no reroute reads again. The new
+                // candidates' files are younger than the prune's grace.
                 withContext(ioDispatcher) { planner.pruneReferences(setOfNotNull(result.reference)) }
             }
 
@@ -598,6 +618,8 @@ internal val DestinationViewModelFactory =
                 hasLocationPermission = application::hasLocationPermission,
                 currentFix = PlatformCurrentFixSource(application),
                 cancelReroute = Rerouter.get(application)::cancel,
+                startCandidates = CandidateFinder.get(application)::start,
+                cancelCandidates = CandidateFinder.get(application)::cancel,
             )
         }
     }

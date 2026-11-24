@@ -95,7 +95,8 @@ internal class RoutePlanner(
      * Compute a route from [origin] to [destination]; the tiles around both must be installed first. A [reference]
      * from an earlier [RouteResult.Found] to the same destination lets the search stop where it rejoins that route,
      * and [startHeadingDegrees] keeps the route from opening with a U-turn. The route avoids what [conditions] ask
-     * it to, and every search runs at [ROUTE_TARGET_SPEED_KMH]. The search stops after [timeLimitMs].
+     * it to, and every search runs at [ROUTE_TARGET_SPEED_KMH]. [alternativeIndex] asks for one of BRouter's later
+     * routes ([EngineRequest.alternativeIndex]). The search stops after [timeLimitMs].
      */
     suspend fun route(
         origin: RoutePoint,
@@ -103,6 +104,7 @@ internal class RoutePlanner(
         startHeadingDegrees: Int? = null,
         reference: File? = null,
         conditions: RouteConditions = RouteConditions(),
+        alternativeIndex: Int = 0,
         timeLimitMs: Long = this.timeLimitMs,
     ): RouteResult =
         lock.withLock {
@@ -112,14 +114,32 @@ internal class RoutePlanner(
                     .missingTiles(routingTilesAround(origin, destination))
                     .takeIf { it.isNotEmpty() }
                     ?.let(RouteResult::MissingTiles)
-                    ?: search(origin, destination, startHeadingDegrees, reference, conditions, timeLimitMs)
-                        .withoutNoDataTiles()
+                    ?: search(
+                        origin = origin,
+                        destination = destination,
+                        startHeadingDegrees = startHeadingDegrees,
+                        reference = reference,
+                        conditions = conditions,
+                        alternativeIndex = alternativeIndex,
+                        timeLimitMs = timeLimitMs,
+                    ).withoutNoDataTiles()
             ).also { result ->
-                lastRun = RouteRun(result.runOutcome(), computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI)
+                // The driver's route or a reroute, never a search for a candidate on the choice card: the candidate
+                // finder reports those, and the report's "Last route" says how the route being followed came about.
+                if (alternativeIndex == 0) {
+                    lastRun =
+                        RouteRun(
+                            outcome = result.runOutcome(),
+                            computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI,
+                        )
+                }
             }
         }
 
-    /** How the last route this process computed ended, and how long it took; null before the first one. */
+    /**
+     * How the last route this process computed ended, and how long it took; null before the first one. A search for
+     * one of BRouter's later routes does not count.
+     */
     fun lastRunOrNull(): RouteRun? = lastRun
 
     /**
@@ -164,6 +184,7 @@ internal class RoutePlanner(
         startHeadingDegrees: Int?,
         reference: File?,
         conditions: RouteConditions,
+        alternativeIndex: Int,
         timeLimitMs: Long,
     ): RouteResult {
         val referenceOut = File(referenceDir, "route-${System.nanoTime()}-${++referenceCount}.bin")
@@ -188,6 +209,7 @@ internal class RoutePlanner(
                                     referenceIn = reference,
                                     referenceOut = referenceOut,
                                     parameters = conditions.engineParameters(),
+                                    alternativeIndex = alternativeIndex,
                                 ),
                             ).runTerminable(timeLimitMs)
                             .toRouteResult()

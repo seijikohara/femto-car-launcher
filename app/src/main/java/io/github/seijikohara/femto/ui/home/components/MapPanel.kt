@@ -66,6 +66,8 @@ internal fun MapPanel(
     attributionBottomInset: Dp = 0.dp,
     // The route line the OSM map draws, in travel order; null draws none.
     routeLine: List<RoutePoint>? = null,
+    // The other routes on the open choice card, drawn thin under the route.
+    alternativeLines: List<List<RoutePoint>> = emptyList(),
     // A point picked by a long press on the OSM map; null ignores long presses.
     onLongPress: ((RoutePoint) -> Unit)? = null,
     // Substitute for the live map surface; null means the real [WebMapView].
@@ -99,6 +101,7 @@ internal fun MapPanel(
                 onOpenLicenses = onOpenLicenses,
                 attributionBottomInset = attributionBottomInset,
                 routeLine = routeLine,
+                alternativeLines = alternativeLines,
                 onLongPress = onLongPress,
             )
         } else {

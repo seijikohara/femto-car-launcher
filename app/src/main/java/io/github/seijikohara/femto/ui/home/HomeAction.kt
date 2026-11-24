@@ -104,6 +104,14 @@ internal sealed interface HomeAction {
     /** The speed readout's clear button on the route row: the active route goes, from the map too. */
     data object ClearRoute : HomeAction
 
+    /** A row of the route choice card: candidate [index] becomes the route followed. */
+    data class SelectRouteCandidate(
+        val index: Int,
+    ) : HomeAction
+
+    /** The route choice card's close button: the card goes, and the route chosen stays. */
+    data object CloseRouteChoice : HomeAction
+
     /** The dock's long-press menu: swap a nav button one step within the visible order. */
     data class MoveDockNav(
         val id: DockNavId,

@@ -36,6 +36,18 @@ describe("installPendingStubs: route", () => {
         window.setRoute(...ROUTE);
         expect(pending.setRoute).toEqual(ROUTE);
     });
+
+    it("keeps the latest alternatives pending, and none after a clear", () => {
+        const pending = installPendingStubs();
+        const alternatives: Parameters<Window["setRouteAlternatives"]> = [
+            [[35.68, 139.76, 35.69, 139.69]],
+            "#79747E",
+        ];
+        window.setRouteAlternatives(...alternatives);
+        const kept = pending.setRouteAlternatives;
+        window.clearRouteAlternatives();
+        expect([kept, pending.setRouteAlternatives]).toEqual([alternatives, null]);
+    });
 });
 
 describe("redactSecrets", () => {

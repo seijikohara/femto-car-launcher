@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.testfixtures
 import io.github.seijikohara.femto.data.common.download.ProbeResult
 import io.github.seijikohara.femto.data.common.download.RemoteFile
 import io.github.seijikohara.femto.data.common.download.RevalidationResult
+import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.EnginePosition
 import io.github.seijikohara.femto.data.routing.ROUTE_TIME_LIMIT_MS
@@ -220,6 +221,10 @@ internal fun fakeRouteFix(
         bearingDegrees = bearingDegrees,
         elapsedMs = elapsedMs,
     )
+
+/** This route session without its choice between routes, for tests about the route being followed. */
+internal fun ActiveRoute.withoutChoice(): ActiveRoute =
+    copy(candidates = emptyList(), selected = 0, choosing = false, finding = false, searchCompleted = false)
 
 /** A short route in the routing tile E130_N30, as the planner returns one. */
 internal fun fakeRoute(

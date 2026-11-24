@@ -76,7 +76,43 @@ class RouteScriptTest {
             assertEquals(CLEAR_ROUTE_SCRIPT, setRouteScript(points, lineColor = LINE, casingColor = CASING))
         }
     }
+
+    @Test fun `the alternatives go out as one flat lat, lon array per route with their colour`() {
+        assertEquals(
+            "window.setRouteAlternatives && setRouteAlternatives(" +
+                "[[35.681236,139.767125,35.689500,139.691700],[0.000010,-0.000020,0.500000,0.500000]], '#79747E')",
+            setRouteAlternativesScript(
+                listOf(
+                    listOf(RoutePoint(35.681236, 139.767125), RoutePoint(35.6895, 139.6917)),
+                    listOf(RoutePoint(0.00001, -0.00002), RoutePoint(0.5, 0.5)),
+                ),
+                color = MUTED,
+            ),
+        )
+    }
+
+    @Test fun `an alternative the page could not draw is left out`() {
+        assertEquals(
+            "window.setRouteAlternatives && setRouteAlternatives([[35.680000,139.760000,35.700000,139.700000]], " +
+                "'#79747E')",
+            setRouteAlternativesScript(
+                listOf(
+                    listOf(RoutePoint(35.68, 139.76), RoutePoint(Double.NaN, 139.7)),
+                    listOf(RoutePoint(35.68, 139.76)),
+                    listOf(RoutePoint(35.68, 139.76), RoutePoint(35.7, 139.7)),
+                ),
+                color = MUTED,
+            ),
+        )
+    }
+
+    @Test fun `no drawable alternative clears them`() {
+        listOf(emptyList(), listOf(listOf(RoutePoint(0.0, 0.0), RoutePoint(91.0, 0.0)))).forEach { lines ->
+            assertEquals(CLEAR_ROUTE_ALTERNATIVES_SCRIPT, setRouteAlternativesScript(lines, color = MUTED))
+        }
+    }
 }
 
 private const val LINE = "#3367D6"
 private const val CASING = "#FFFFFF"
+private const val MUTED = "#79747E"

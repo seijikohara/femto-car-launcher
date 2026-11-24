@@ -56,10 +56,36 @@ internal data class HomeUiState(
 
 /**
  * The active route as the dashboard shows it: its [line] in travel order, what is left of it from the last fix, and
- * where an automatic reroute of it stands.
+ * where an automatic reroute of it stands. While the driver may still choose between routes, [choice] is the choice
+ * card and [alternativeLines] the routes not selected, which the map draws under the route; otherwise null and empty.
  */
 internal data class ActiveRouteState(
     val line: List<RoutePoint>,
     val progress: RouteProgress,
     val reroute: RerouteStatus = RerouteStatus.NONE,
+    val choice: RouteChoiceState? = null,
+    val alternativeLines: List<List<RoutePoint>> = emptyList(),
+)
+
+/**
+ * The choice card of route [session]: the routes found so far, the first one first, the [selected] one, whether a
+ * search for another one runs, and whether the search ran to its end, so the routes found are all there are; a search
+ * that was stopped never says there is no other route.
+ */
+internal data class RouteChoiceState(
+    val session: Long,
+    val candidates: List<CandidateSummary>,
+    val selected: Int,
+    val finding: Boolean,
+    val searchCompleted: Boolean,
+) {
+    /** Whether the card says no other route was found: the search ended, and only the first route came of it. */
+    val noOtherRoute: Boolean
+        get() = searchCompleted && !finding && candidates.size == 1
+}
+
+/** One route on the choice card, as the card names it: its length and the profile's travel time. */
+internal data class CandidateSummary(
+    val distanceMeters: Int,
+    val durationSeconds: Int,
 )
