@@ -66,6 +66,15 @@
     <string name="speed_route_rerouting">Rerouting…</string>
     <string name="speed_route_reroute_no_data">No routing data here</string>
     <string name="speed_route_reroute_failed">Could not reroute</string>
+    <!-- The route choice card over the map (issue #389 phase 3): the routes found to the destination, one row each, while
+         the driver may still choose the one to follow. -->
+    <string name="route_choice_title">Choose a route</string>
+    <!-- %1$d = the route's number on the card, 1 for the route found first. -->
+    <string name="route_choice_candidate">Route %1$d</string>
+    <string name="route_choice_finding">Finding another route…</string>
+    <string name="route_choice_none">No other route found</string>
+    <!-- Closes the card and keeps the route chosen. -->
+    <string name="route_choice_close">Done</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>

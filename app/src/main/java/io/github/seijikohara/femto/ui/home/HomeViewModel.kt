@@ -65,6 +65,7 @@ import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,6 +82,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import okhttp3.Cache
@@ -127,13 +129,17 @@ internal class HomeViewModel(
     // The active route (ActiveRouteStore) and whether this build and map backend
     // offer routing (routingAvailableFlow). Default to none and off, so previews
     // and tests that do not exercise routing show none of it.
-    activeRouteFlow: Flow<ActiveRoute?> = flowOf(null),
+    private val activeRouteFlow: Flow<ActiveRoute?> = flowOf(null),
     routingAvailable: Flow<Boolean> = flowOf(false),
     private val clearRoute: () -> Unit = {},
     // Where the follow reports that the vehicle left the route of a session, and
     // that it is back on it (the Rerouter).
     onLeftRoute: (session: Long, fix: RouteFix) -> Unit = { _, _ -> },
     onBackOnRoute: (session: Long) -> Unit = {},
+    // The route choice card's two actions on the store: a candidate becomes the
+    // route followed, and the card closes keeping the route chosen.
+    private val selectRouteCandidate: (session: Long, index: Int) -> Unit = { _, _ -> },
+    private val closeRouteChoice: (session: Long) -> Unit = {},
     // Where the active route's progress is worked out; tests pin it to their
     // scheduler.
     routeDispatcher: CoroutineDispatcher = Dispatchers.Default,
@@ -144,6 +150,12 @@ internal class HomeViewModel(
     // close it (the updater keeps its daily gate in memory for the same
     // reason). The store carries the answers to later processes.
     private val answeredVersionCodes = MutableStateFlow(emptySet<Int>())
+
+    // The motion verdict as each fix or trip update arrives (vehicleMotionFlow),
+    // for the update dot and the route choice card; each reader collects it
+    // afresh.
+    private val vehicleMotion: Flow<VehicleMotion> =
+        vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos)
 
     // The dock's update dot: an update is on offer and a live GPS fix shows the
     // vehicle parked (fail-closed; see VehicleMotion). The motion is judged as
@@ -159,7 +171,7 @@ internal class HomeViewModel(
         combine(
             updateStateFlow,
             updateSettingsFlow.catchAsDefault(TAG, "update badge settings", UpdateSettings.Default),
-            vehicleMotionFlow(locationFlow, tripStateFlow, nowElapsedRealtimeNanos),
+            vehicleMotion,
         ) { state, settings, motion -> state.offersUpdate(settings) && motion == VehicleMotion.PARKED }
             .onStart { emit(false) }
             .distinctUntilChanged()
@@ -211,7 +223,8 @@ internal class HomeViewModel(
     // with the route's session. It restarts on a new session or a new route (a
     // reroute's), never on a reroute status alone: a restart would put the
     // progress back to the start of the line and the off-route watch back to
-    // unarmed. The status joins in beside it.
+    // unarmed. The status and the choice card join in beside it: selecting a
+    // candidate changes the route, which restarts the follow on the new line.
     private val activeRoute: Flow<ActiveRouteState?> =
         combine(activeRouteFlow, routingAvailable) { active, available -> active?.takeIf { available } }
             .distinctUntilChangedBy { it?.session to it?.route }
@@ -227,14 +240,14 @@ internal class HomeViewModel(
                                     null -> Unit
                                 }
                             },
-                        activeRouteFlow
-                            .map { current -> current?.takeIf { it.session == shown.session }?.reroute }
-                            .distinctUntilChanged(),
-                    ) { follow, reroute ->
+                        activeRouteFlow.map { it.sessionView(shown.session) }.distinctUntilChanged(),
+                    ) { follow, view ->
                         ActiveRouteState(
                             line = shown.route.points,
                             progress = follow.progress,
-                            reroute = reroute ?: RerouteStatus.NONE,
+                            reroute = view.reroute,
+                            choice = view.choice,
+                            alternativeLines = view.alternativeLines,
                         )
                     }
                 } ?: flowOf(null)
@@ -242,6 +255,34 @@ internal class HomeViewModel(
             .onStart { emit(null) }
             .distinctUntilChanged()
             .catchAsDefault(TAG, "route", null)
+
+    // The choice card closes by itself once the vehicle has read MOVING for
+    // ROUTE_CHOICE_DRIVING_CLOSE_MS without a break: by then the route being
+    // followed is the one chosen, and the card would only sit on the map. Any
+    // other verdict starts the count over; selecting a candidate does not, as
+    // the count is keyed on the session alone. The motion is read only while a
+    // card is open, and the count runs while the dashboard collects uiState.
+    // Its one emission lets the combine below start without waiting on it.
+    private val routeChoiceAutoClose: Flow<Unit> =
+        activeRouteFlow
+            .map { active -> active?.takeIf { it.choosing }?.session }
+            .distinctUntilChanged()
+            .flatMapLatest { session ->
+                session?.let { open ->
+                    vehicleMotion
+                        .map { it == VehicleMotion.MOVING }
+                        .distinctUntilChanged()
+                        .transformLatest { driving ->
+                            if (driving) {
+                                delay(ROUTE_CHOICE_DRIVING_CLOSE_MS)
+                                closeRouteChoice(open)
+                            }
+                            emit(Unit)
+                        }
+                } ?: flowOf(Unit)
+            }.onStart { emit(Unit) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "route choice auto-close", Unit)
 
     // Seeded off like the route, so the dashboard never waits on the settings store.
     private val routingOffered: Flow<Boolean> =
@@ -256,7 +297,7 @@ internal class HomeViewModel(
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            combine(activeRoute, routingOffered, ::Pair),
+            combine(activeRoute, routingOffered, routeChoiceAutoClose) { route, offered, _ -> route to offered },
         ) { core, calendar, systemStatus, tripState, (route, offered) ->
             HomeUiState(
                 location = core.location,
@@ -463,6 +504,20 @@ internal class HomeViewModel(
                 clearRoute()
             }
 
+            // The card on screen names its session, so a tap that lands after a
+            // new route has started changes nothing of it.
+            is HomeAction.SelectRouteCandidate -> {
+                uiState.value.activeRoute
+                    ?.choice
+                    ?.let { selectRouteCandidate(it.session, action.index) }
+            }
+
+            HomeAction.CloseRouteChoice -> {
+                uiState.value.activeRoute
+                    ?.choice
+                    ?.let { closeRouteChoice(it.session) }
+            }
+
             is HomeAction.MoveDockNav -> {
                 mutableEvents.tryEmit(HomeEvent.MoveDockNav(action.id, action.direction))
             }
@@ -509,6 +564,52 @@ private fun Location.toRouteFix(tripSpeedMs: Double): RouteFix =
     )
 
 private const val NANOS_PER_MILLI = 1_000_000L
+
+// What the dashboard shows of route session [session] beside its line: where a
+// reroute of it stands and, while the driver may still choose, the choice card
+// and the routes not selected. Another session, or none, shows nothing.
+private data class SessionView(
+    val reroute: RerouteStatus = RerouteStatus.NONE,
+    val choice: RouteChoiceState? = null,
+    val alternativeLines: List<List<RoutePoint>> = emptyList(),
+)
+
+private fun ActiveRoute?.sessionView(session: Long): SessionView =
+    this
+        ?.takeIf { it.session == session }
+        ?.let { active ->
+            SessionView(
+                reroute = active.reroute,
+                choice =
+                    active.takeIf { it.choosing }?.let {
+                        RouteChoiceState(
+                            session = session,
+                            candidates =
+                                it.candidates.map { candidate ->
+                                    CandidateSummary(
+                                        distanceMeters = candidate.route.distanceMeters,
+                                        durationSeconds = candidate.route.durationSeconds,
+                                    )
+                                },
+                            selected = it.selected,
+                            finding = it.finding,
+                        )
+                    },
+                alternativeLines =
+                    active.candidates
+                        .takeIf { active.choosing }
+                        .orEmpty()
+                        .filterIndexed { index, _ -> index != active.selected }
+                        .map { it.route.points },
+            )
+        } ?: SessionView()
+
+/**
+ * How long the vehicle must read MOVING without a break before the route
+ * choice card closes by itself, keeping the route chosen. Internal so tests
+ * probe both sides of it.
+ */
+internal const val ROUTE_CHOICE_DRIVING_CLOSE_MS = 30_000L
 
 // File-private holder that groups the first five slots (four sources and the
 // update badge) so the two-stage combine stays within Kotlin's typed
@@ -648,6 +749,8 @@ internal class HomeViewModelFactory(
             // routing stack behind it.
             onLeftRoute = { session, fix -> Rerouter.get(application).onLeftRoute(session, fix) },
             onBackOnRoute = { session -> Rerouter.get(application).onBackOnRoute(session) },
+            selectRouteCandidate = { session, index -> ActiveRouteStore.shared.select(session, index) },
+            closeRouteChoice = { session -> ActiveRouteStore.shared.closeChoice(session) },
         ) as T
     }
 }

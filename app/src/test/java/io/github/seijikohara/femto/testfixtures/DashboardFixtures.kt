@@ -21,7 +21,9 @@ import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.ui.home.ActiveRouteState
+import io.github.seijikohara.femto.ui.home.CandidateSummary
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.RouteChoiceState
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import java.time.Clock
 import java.time.Instant
@@ -56,6 +58,29 @@ internal object DashboardFixtures {
     /** [routeState] while the launcher reroutes after the vehicle left the route: the row says so in place of the ETA. */
     val reroutingState: HomeUiState =
         routeState.copy(activeRoute = routeState.activeRoute?.copy(reroute = RerouteStatus.REROUTING))
+
+    /**
+     * [routeState] just after the route was found: the choice card lists it and a second route, the first one
+     * followed, and searches for a third.
+     */
+    val routeChoiceFindingState: HomeUiState =
+        routeState.withChoice(
+            RouteChoiceState(
+                session = 1L,
+                candidates = FixtureRouteCandidates.take(2),
+                selected = 0,
+                finding = true,
+            ),
+        )
+
+    /** [routeState] once three routes were found and the driver chose the second: the card at its tallest. */
+    val routeChoiceState: HomeUiState =
+        routeState.withChoice(
+            RouteChoiceState(session = 1L, candidates = FixtureRouteCandidates, selected = 1, finding = false),
+        )
+
+    private fun HomeUiState.withChoice(choice: RouteChoiceState): HomeUiState =
+        copy(activeRoute = activeRoute?.copy(choice = choice))
 
     // Decoded once per JVM. The captures are smaller than the widest geometry
     // (2000x1200), so Crop upscales there — acceptable because the backdrop is
@@ -113,6 +138,15 @@ internal fun MapBackdrop(
     )
     SelfMarker(mapConfig)
 }
+
+// The routes on the fixture choice card: the route followed in routeState, a
+// longer and slower one, and a longer but quicker one over an hour.
+private val FixtureRouteCandidates =
+    listOf(
+        CandidateSummary(distanceMeters = 12_400, durationSeconds = 1_080),
+        CandidateSummary(distanceMeters = 13_900, durationSeconds = 1_260),
+        CandidateSummary(distanceMeters = 61_500, durationSeconds = 3_900),
+    )
 
 // Ripple disc radius and opacity; a frozen mid-animation frame of the live CSS
 // pulse (index.html's .ripple), which this static render cannot animate.

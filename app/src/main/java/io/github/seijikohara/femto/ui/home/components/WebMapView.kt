@@ -159,6 +159,9 @@ internal fun WebMapView(
     attributionBottomInset: Dp = 0.dp,
     // The route line, OSM backend only (see the route effect below); null draws none.
     routeLine: List<RoutePoint>? = null,
+    // The other routes on the choice card, drawn thin and muted under the route
+    // while the card is open; OSM backend only, like the route.
+    alternativeLines: List<List<RoutePoint>> = emptyList(),
     // A point picked by a long press on the OSM map; null ignores long presses.
     // The Google page never reports one.
     onLongPress: ((RoutePoint) -> Unit)? = null,
@@ -984,6 +987,25 @@ internal fun WebMapView(
         }
     }
 
+    // The other routes while the choice card is open, under the same terms and
+    // lifecycle as the route above. Outline is the theme's muted line colour,
+    // so the alternatives read as options next to the primary-coloured route.
+    if (mapConfig.backend == MapBackend.OSM && alternativeLines.isNotEmpty()) {
+        val alternativesColor = MaterialTheme.colorScheme.outline.toCssHex()
+        LaunchedEffect(webView, pageReady.value, alternativeLines, alternativesColor) {
+            if (!pageReady.value) return@LaunchedEffect
+            delay(STYLE_PUSH_DEBOUNCE_MS)
+            webView.evaluateJavascript(setRouteAlternativesScript(alternativeLines, alternativesColor), null)
+        }
+        DisposableEffect(webView) {
+            onDispose {
+                if (livePage[0] === webView && webView !in crashedViews) {
+                    webView.evaluateJavascript(CLEAR_ROUTE_ALTERNATIVES_SCRIPT, null)
+                }
+            }
+        }
+    }
+
     Box(modifier = modifier) {
         // Keyed on the WebView so a post-crash rebuild swaps in the fresh view
         // (AndroidView's factory runs once per node otherwise).
@@ -1190,6 +1212,36 @@ internal fun setRouteScript(
     }
 
 internal const val CLEAR_ROUTE_SCRIPT = "window.clearRoute && clearRoute()"
+
+// The setRouteAlternatives bridge call for [lines]: one flat lat, lon array per
+// route, encoded as setRouteScript encodes the route, plus the colour. A route
+// the page could not draw is left out, and with none left the call is the
+// clear call (the page validates the payload again: route.ts
+// decodeRouteAlternatives).
+internal fun setRouteAlternativesScript(
+    lines: List<List<RoutePoint>>,
+    color: String,
+): String =
+    lines
+        .filter { line -> line.size >= 2 && line.all { it.isDrawable() } }
+        .takeIf { it.isNotEmpty() }
+        ?.let { drawable ->
+            buildString {
+                append("window.setRouteAlternatives && setRouteAlternatives([")
+                drawable.forEachIndexed { lineIndex, line ->
+                    if (lineIndex > 0) append(',')
+                    append('[')
+                    line.forEachIndexed { index, point ->
+                        if (index > 0) append(',')
+                        appendDegrees(point.latitude).append(',').appendDegrees(point.longitude)
+                    }
+                    append(']')
+                }
+                append("], '").append(color).append("')")
+            }
+        } ?: CLEAR_ROUTE_ALTERNATIVES_SCRIPT
+
+internal const val CLEAR_ROUTE_ALTERNATIVES_SCRIPT = "window.clearRouteAlternatives && clearRouteAlternatives()"
 
 private fun RoutePoint.isDrawable() =
     latitude.isFinite() && longitude.isFinite() && abs(latitude) <= 90.0 && abs(longitude) <= 180.0

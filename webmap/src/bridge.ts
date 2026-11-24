@@ -55,6 +55,11 @@ declare global {
         // sent to the Google page: its terms forbid drawing a route over it.
         setRoute: (latLons: number[], lineColor: string, casingColor: string) => void;
         clearRoute: () => void;
+        // The other routes on the host's choice card: one flat lat, lon array
+        // per route plus the line colour as CSS hex, validated like the route
+        // (route.ts decodeRouteAlternatives). OSM page only, like the route.
+        setRouteAlternatives: (latLonsList: number[][], color: string) => void;
+        clearRouteAlternatives: () => void;
         // Google Maps only.
         setGoogleMapsOptions: (mapType: string, traffic: boolean) => void;
         // Callback the Google Maps JS API invokes when authentication fails;
@@ -268,6 +273,8 @@ export interface PendingBridgeCalls {
     setFeatures: Parameters<Window["setFeatures"]> | null;
     // A clearRoute resets it: a fresh page has no route to clear.
     setRoute: Parameters<Window["setRoute"]> | null;
+    // Likewise reset by clearRouteAlternatives.
+    setRouteAlternatives: Parameters<Window["setRouteAlternatives"]> | null;
     setGoogleMapsOptions: Parameters<Window["setGoogleMapsOptions"]> | null;
     setFollow: boolean | null;
     setNorthUp: boolean | null;
@@ -280,6 +287,7 @@ export function installPendingStubs(): PendingBridgeCalls {
         setStyleUrl: null,
         setFeatures: null,
         setRoute: null,
+        setRouteAlternatives: null,
         setGoogleMapsOptions: null,
         setFollow: null,
         setNorthUp: null,
@@ -299,6 +307,12 @@ export function installPendingStubs(): PendingBridgeCalls {
     };
     window.clearRoute = () => {
         pending.setRoute = null;
+    };
+    window.setRouteAlternatives = (...a) => {
+        pending.setRouteAlternatives = a;
+    };
+    window.clearRouteAlternatives = () => {
+        pending.setRouteAlternatives = null;
     };
     window.setGoogleMapsOptions = (...a) => {
         pending.setGoogleMapsOptions = a;

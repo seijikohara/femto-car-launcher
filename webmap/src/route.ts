@@ -18,6 +18,18 @@ export const ROUTE_LINE_LAYER_ID = "femto-route-line";
 // Bottom to top: the casing is the wider line under the main one.
 export const ROUTE_LAYER_IDS = [ROUTE_CASING_LAYER_ID, ROUTE_LINE_LAYER_ID] as const;
 
+// The other routes the driver may choose between while the host's choice card
+// is open (#389 phase 3 additions): thin muted lines under the route's casing.
+export const ROUTE_ALTERNATIVES_SOURCE_ID = "femto-route-alternatives";
+export const ROUTE_ALTERNATIVES_LAYER_ID = "femto-route-alternatives-line";
+
+// Decoded alternatives the page can draw: one GeoJSON [lon, lat] line per
+// route, each of at least two vertices, plus the host's colour.
+export interface RouteAlternatives {
+    lines: [number, number][][];
+    color: string;
+}
+
 // A decoded route the page can draw: GeoJSON [lon, lat] vertices in travel
 // order, at least two, plus the host's colours.
 export interface RouteLine {
@@ -39,31 +51,78 @@ function isLongitude(value: unknown): value is number {
     return typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= 180;
 }
 
-// Decode setRoute's arguments: a flat [lat, lon, lat, lon, …] array (the
-// order updateCamera takes its fix in) and two hex colours. A payload the page
-// cannot draw — not an array, an odd length, fewer than two points, a
-// non-finite or out-of-range coordinate, a colour that is not hex — yields
-// null, which clears the route: a partial or guessed line would be worse than
-// none.
-export function decodeRoute(
-    latLons: unknown,
-    lineColor: unknown,
-    casingColor: unknown,
-): RouteLine | null {
+// A flat [lat, lon, lat, lon, …] array (the order updateCamera takes its fix
+// in) as GeoJSON [lon, lat] vertices, or null for anything the page cannot
+// draw: not an array, an odd length, fewer than two points, a non-finite or
+// out-of-range coordinate.
+function decodeLatLons(latLons: unknown): [number, number][] | null {
     if (!Array.isArray(latLons) || latLons.length < 4 || latLons.length % 2 !== 0) return null;
-    if (typeof lineColor !== "string" || !HEX_COLOR.test(lineColor)) return null;
-    if (typeof casingColor !== "string" || !HEX_COLOR.test(casingColor)) return null;
     const values: unknown[] = latLons;
     const valid = values.every((value, i) =>
         i % 2 === 0 ? isLatitude(value) : isLongitude(value),
     );
     if (!valid) return null;
     const numbers = values.filter((value): value is number => typeof value === "number");
-    const coordinates = Array.from({ length: numbers.length / 2 }, (_, i): [number, number] => [
+    return Array.from({ length: numbers.length / 2 }, (_, i): [number, number] => [
         numbers[2 * i + 1],
         numbers[2 * i],
     ]);
-    return { coordinates, lineColor, casingColor };
+}
+
+function isHexColor(value: unknown): value is string {
+    return typeof value === "string" && HEX_COLOR.test(value);
+}
+
+// Decode setRoute's arguments: the flat lat, lon array and two hex colours. A
+// payload the page cannot draw yields null, which clears the route: a partial
+// or guessed line would be worse than none.
+export function decodeRoute(
+    latLons: unknown,
+    lineColor: unknown,
+    casingColor: unknown,
+): RouteLine | null {
+    if (!isHexColor(lineColor) || !isHexColor(casingColor)) return null;
+    const coordinates = decodeLatLons(latLons);
+    return coordinates ? { coordinates, lineColor, casingColor } : null;
+}
+
+// Decode setRouteAlternatives' arguments: one flat lat, lon array per route
+// and a hex colour. As for the route, a payload the page cannot draw in full —
+// no route, or any route it cannot decode — yields null, which clears the
+// lines.
+export function decodeRouteAlternatives(
+    latLonsList: unknown,
+    color: unknown,
+): RouteAlternatives | null {
+    if (!Array.isArray(latLonsList) || latLonsList.length === 0 || !isHexColor(color)) return null;
+    const lists: unknown[] = latLonsList;
+    const lines = lists.map(decodeLatLons);
+    const drawable = lines.filter((line): line is [number, number][] => line !== null);
+    return drawable.length === lines.length ? { lines: drawable, color } : null;
+}
+
+export function routeAlternativesSource(
+    alternatives: RouteAlternatives,
+): GeoJSONSourceSpecification {
+    return {
+        type: "geojson",
+        data: {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "MultiLineString", coordinates: alternatives.lines },
+        },
+    };
+}
+
+// Thinner than the route's main line, so the active route keeps the eye.
+export function routeAlternativesLayer(alternatives: RouteAlternatives): LineLayerSpecification {
+    return {
+        id: ROUTE_ALTERNATIVES_LAYER_ID,
+        type: "line",
+        source: ROUTE_ALTERNATIVES_SOURCE_ID,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-width": zoomWidth(3, 4, 6), "line-color": alternatives.color },
+    };
 }
 
 export function routeSource(route: RouteLine): GeoJSONSourceSpecification {
@@ -146,10 +205,32 @@ export function showRoute(map: RouteMap, route: RouteLine | null): void {
     }
     if (map.getSource(ROUTE_SOURCE_ID)) map.removeSource(ROUTE_SOURCE_ID);
     if (!route) return;
+    map.addSource(ROUTE_SOURCE_ID, routeSource(route));
+    // Past the alternatives' line, which is no symbol layer, so the route
+    // stays on top of them.
+    const beforeId = insertBeforeId(map);
+    for (const layer of routeLayers(route)) map.addLayer(layer, beforeId);
+}
+
+// Replace the alternatives on a loaded style, as showRoute does the route:
+// under the route's casing when a route is shown, else where the route would
+// go. Throws, before adding anything, while the style is still loading; the
+// next style push's injectFeatures puts them back.
+export function showRouteAlternatives(map: RouteMap, alternatives: RouteAlternatives | null): void {
+    if (map.getLayer(ROUTE_ALTERNATIVES_LAYER_ID)) map.removeLayer(ROUTE_ALTERNATIVES_LAYER_ID);
+    if (map.getSource(ROUTE_ALTERNATIVES_SOURCE_ID)) map.removeSource(ROUTE_ALTERNATIVES_SOURCE_ID);
+    if (!alternatives) return;
+    map.addSource(ROUTE_ALTERNATIVES_SOURCE_ID, routeAlternativesSource(alternatives));
+    const beforeId = map.getLayer(ROUTE_CASING_LAYER_ID)
+        ? ROUTE_CASING_LAYER_ID
+        : insertBeforeId(map);
+    map.addLayer(routeAlternativesLayer(alternatives), beforeId);
+}
+
+// The layer the page's lines go before: the one at routeInsertIndex, or none
+// (undefined, past the end), which adds on top.
+function insertBeforeId(map: RouteMap): string | undefined {
     const order = map.getLayersOrder();
     const types = order.map((id) => ({ type: map.getLayer(id)?.type ?? "" }));
-    // Undefined (the index past the end) adds on top.
-    const beforeId: string | undefined = order[routeInsertIndex(types)];
-    map.addSource(ROUTE_SOURCE_ID, routeSource(route));
-    for (const layer of routeLayers(route)) map.addLayer(layer, beforeId);
+    return order[routeInsertIndex(types)];
 }

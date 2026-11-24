@@ -24,7 +24,14 @@ import { createFollowEngine } from "../follow-camera";
 import { createNoTileWatchdog, createStyleLoadWatchdog } from "../load-outcome";
 import { createLongPressRecognizer, longPressDetail, touchPoints } from "../long-press";
 import { requestStatusOf } from "../request-status";
-import { decodeRoute, type RouteLine, showRoute } from "../route";
+import {
+    decodeRoute,
+    decodeRouteAlternatives,
+    type RouteAlternatives,
+    type RouteLine,
+    showRoute,
+    showRouteAlternatives,
+} from "../route";
 import {
     type AccentColors,
     injectFeatures,
@@ -102,6 +109,8 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
         buildingColor: "",
         // The host's route line (setRoute), or none.
         route: null as RouteLine | null,
+        // The other routes on the host's choice card (setRouteAlternatives), or none.
+        routeAlternatives: null as RouteAlternatives | null,
         styleFadeGen: 0,
     };
 
@@ -192,6 +201,7 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
                             buildingColor: state.buildingColor,
                             terrainUrl: terrainUrl,
                             route: state.route,
+                            routeAlternatives: state.routeAlternatives,
                         }),
                 });
                 // Only from here do tiles belong to the swapped-in style.
@@ -426,12 +436,36 @@ export function init(reporter: PageReporter, pending: PendingBridgeCalls): void 
             state.route = null;
             syncRoute();
         };
+        // Android -> JS: show or clear the other routes on the choice card,
+        // edited in place like the route and re-injected on a style swap.
+        function syncRouteAlternatives(): void {
+            try {
+                showRouteAlternatives(liveMap, state.routeAlternatives);
+            } catch (e) {
+                // As syncRoute: the next style push's transformStyle reads
+                // state.routeAlternatives.
+                log(
+                    `route alternatives deferred to the style load: ${e instanceof Error ? e.message : String(e)}`,
+                );
+            }
+        }
+        window.setRouteAlternatives = (latLonsList, color) => {
+            state.routeAlternatives = decodeRouteAlternatives(latLonsList, color);
+            if (!state.routeAlternatives) log("route alternatives payload rejected; cleared");
+            syncRouteAlternatives();
+        };
+        window.clearRouteAlternatives = () => {
+            state.routeAlternatives = null;
+            syncRouteAlternatives();
+        };
 
         // Replay any bridge calls the boot stubs recorded before this module
         // loaded. Order mirrors the host's push sequence.
         if (pending.setStyleUrl) window.setStyleUrl(...pending.setStyleUrl);
         if (pending.setFeatures) window.setFeatures(...pending.setFeatures);
         if (pending.setRoute) window.setRoute(...pending.setRoute);
+        if (pending.setRouteAlternatives)
+            window.setRouteAlternatives(...pending.setRouteAlternatives);
         if (pending.setNorthUp != null) window.setNorthUp(pending.setNorthUp);
         if (pending.setFollow != null) window.setFollow(pending.setFollow);
         if (pending.updateCamera) window.updateCamera(...pending.updateCamera);
