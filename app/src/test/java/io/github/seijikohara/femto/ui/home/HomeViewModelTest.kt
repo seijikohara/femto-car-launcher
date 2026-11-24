@@ -504,7 +504,11 @@ class HomeViewModelTest {
     fun `a tap on the last played track resumes it in its app`() =
         runTest {
             val resumed = mutableListOf<String>()
-            val viewModel = resumeViewModel { resumed += it }
+            val viewModel =
+                resumeViewModel {
+                    resumed += it
+                    false
+                }
 
             viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
             runCurrent()
@@ -540,9 +544,9 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `the card is usable again once the attempt ends`() =
+    fun `the card is usable again once an attempt ends without playback`() =
         runTest {
-            val attemptDone = CompletableDeferred<Unit>()
+            val attemptDone = CompletableDeferred<Boolean>()
             var attempts = 0
             val viewModel =
                 resumeViewModel {
@@ -552,7 +556,7 @@ class HomeViewModelTest {
             viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
             runCurrent()
 
-            attemptDone.complete(Unit)
+            attemptDone.complete(false)
             runCurrent()
             assertEquals(fakeLastPlayedState(), viewModel.uiState.value.musicState)
 
@@ -562,10 +566,57 @@ class HomeViewModelTest {
         }
 
     @Test
+    fun `after playback starts the button stays pending until the card leaves the track`() =
+        runTest {
+            // The attempt sees the app play before the card's own state arrives.
+            val music = MutableStateFlow<MusicCardState>(fakeLastPlayedState())
+            var attempts = 0
+            val viewModel =
+                resumeViewModel(musicStateFlow = music) {
+                    attempts++
+                    true
+                }
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+            assertEquals(fakeLastPlayedState(resuming = true), viewModel.uiState.value.musicState)
+            assertEquals(1, attempts)
+
+            music.value = MusicCardState.Playing(fakeNowPlaying())
+            runCurrent()
+            // The live session ends and the track is offered again: the button is free.
+            music.value = fakeLastPlayedState()
+            runCurrent()
+            assertEquals(fakeLastPlayedState(), viewModel.uiState.value.musicState)
+        }
+
+    @Test
+    fun `a card that never hears of the playback frees the button after the grace`() =
+        runTest {
+            val viewModel = resumeViewModel { true }
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            advanceTimeBy(RESUME_SETTLE_GRACE_MS - 1)
+            runCurrent()
+            assertEquals(fakeLastPlayedState(resuming = true), viewModel.uiState.value.musicState)
+
+            advanceTimeBy(2)
+            runCurrent()
+            assertEquals(fakeLastPlayedState(), viewModel.uiState.value.musicState)
+        }
+
+    @Test
     fun `a tap that lands after a live session took the card starts nothing`() =
         runTest {
             var attempts = 0
-            val viewModel = resumeViewModel(musicState = MusicCardState.Playing(fakeNowPlaying())) { attempts++ }
+            val viewModel =
+                resumeViewModel(musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying()))) {
+                    attempts++
+                    false
+                }
 
             viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
             runCurrent()
@@ -577,7 +628,11 @@ class HomeViewModelTest {
     fun `a tap naming an app the card does not offer starts nothing`() =
         runTest {
             var attempts = 0
-            val viewModel = resumeViewModel { attempts++ }
+            val viewModel =
+                resumeViewModel {
+                    attempts++
+                    false
+                }
 
             viewModel.onAction(HomeAction.ResumeLastPlayed("com.example.other"))
             runCurrent()
@@ -1162,14 +1217,14 @@ class HomeViewModelTest {
     // Every source emits, so the card holds [musicState]; subscribed the way the
     // dashboard is, so the action reads the card on screen.
     private fun TestScope.resumeViewModel(
-        musicState: MusicCardState = fakeLastPlayedState(),
-        resume: suspend (String) -> Unit,
+        musicStateFlow: Flow<MusicCardState> = flowOf(fakeLastPlayedState()),
+        resume: suspend (String) -> Boolean,
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = flowOf(fakeLocation()),
             addressFlow = flowOf(fakeAddress()),
             weatherFlow = flowOf(fakeWeatherSnapshot()),
-            musicStateFlow = flowOf(musicState),
+            musicStateFlow = musicStateFlow,
             calendarFlow = flowOf(fakeCalendarSnapshot()),
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(fakeTripState()),

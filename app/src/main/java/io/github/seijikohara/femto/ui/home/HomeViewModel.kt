@@ -44,6 +44,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import io.github.seijikohara.femto.data.music.PlatformResumePort
+import io.github.seijikohara.femto.data.music.ResumeOutcome
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.FollowEvent
@@ -80,6 +81,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -90,6 +92,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -128,9 +131,9 @@ internal class HomeViewModel(
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resumeLastMusicSession: () -> Unit = {},
     // The resume chain for the track that played last (MediaResumer.resume),
-    // run in viewModelScope so clearing the dashboard cancels it and its
-    // browser connection goes with it.
-    private val resumeLastPlayed: suspend (packageName: String) -> Unit = {},
+    // true when it started playback. Run in viewModelScope so clearing the
+    // dashboard cancels it and its browser connection goes with it.
+    private val resumeLastPlayed: suspend (packageName: String) -> Boolean = { false },
     private val resetTrip: () -> Unit = {},
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
@@ -584,15 +587,27 @@ internal class HomeViewModel(
     // The flag clears however the attempt ends, cancellation included, so the
     // button is usable again whenever the card still offers the track.
     private fun startResume(packageName: String) {
-        val offered = (uiState.value.musicState as? MusicCardState.LastPlayed)?.track?.packageName == packageName
+        val offered = uiState.value.musicState.offeredPackageOrNull() == packageName
         if (offered && resumingPackage.compareAndSet(null, packageName)) {
             viewModelScope.launch {
                 try {
-                    resumeLastPlayed(packageName)
+                    if (resumeLastPlayed(packageName)) awaitCardLeaves(packageName)
                 } finally {
                     resumingPackage.value = null
                 }
             }
+        }
+    }
+
+    // The attempt sees the app play before the card does: the card's state
+    // takes its own way (the session watch, the store, back to the main
+    // thread). Until the card stops offering the track the button stays
+    // pending, so a tap in between cannot send prepare() and play() again to
+    // an app already playing, which an older app answers by reloading the
+    // track. Bounded, in case the card never hears of the playback.
+    private suspend fun awaitCardLeaves(packageName: String) {
+        withTimeoutOrNull(RESUME_SETTLE_GRACE_MS) {
+            uiState.first { it.musicState.offeredPackageOrNull() != packageName }
         }
     }
 
@@ -603,6 +618,16 @@ internal class HomeViewModel(
         viewModelScope.launch { recordUpdatePrompted(versionCode) }
     }
 }
+
+/**
+ * How long, after an attempt started playback, the resume button stays pending at most while the card has not yet
+ * switched from the last played track to the live session. The switch normally takes well under a second; internal
+ * so tests probe both sides.
+ */
+internal const val RESUME_SETTLE_GRACE_MS = 3_000L
+
+// The app whose last played track the card offers, or null.
+private fun MusicCardState.offeredPackageOrNull(): String? = (this as? MusicCardState.LastPlayed)?.track?.packageName
 
 // The card's last played track from [packageName], marked as resuming while an attempt for it runs; any other state
 // passes unchanged.
@@ -801,7 +826,7 @@ internal class HomeViewModelFactory(
             recordUpdatePrompted = updatePreferences::recordPrompted,
             sendMusicCommand = music::send,
             resumeLastMusicSession = music::dispatchPlayMediaKey,
-            resumeLastPlayed = { packageName -> resumer.resume(packageName) },
+            resumeLastPlayed = { packageName -> resumer.resume(packageName) is ResumeOutcome.Started },
             resetTrip = locationGraph::resetTrip,
             resolveMusicSourceComponent = apps::launcherComponentFor,
             spectrumEnabledFlow =
