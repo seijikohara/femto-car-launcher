@@ -236,8 +236,9 @@ internal sealed interface DestinationAction {
     ) : DestinationAction
 
     /**
-     * Turn the row of the saved place [id] into a name field that starts with its current title; not while moving,
-     * and ignored for a place that is not there. Another row's open field closes without saving.
+     * Turn the row of the saved place [id] into a name field; not while moving, and ignored for a place that is not
+     * there. The field starts with the place's name, or empty for an unnamed place (the panel's placeholder shows
+     * what it was saved as). Another row's open field closes without saving.
      */
     data class StartRename(
         val id: Long,
@@ -250,7 +251,7 @@ internal sealed interface DestinationAction {
 
     /**
      * Store the typed name for the open field's place and close the field; not while moving. A blank name, or one
-     * equal to the place's label, removes the name.
+     * equal to the place's label, removes the name: an unnamed place stays as it was, a named one loses its name.
      */
     data object SaveRename : DestinationAction
 

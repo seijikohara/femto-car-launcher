@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -49,6 +50,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -607,9 +610,23 @@ private fun SavedPlaces(
     }
 }
 
+// The narrowest text column a saved place's row keeps beside its buttons. Below it the buttons move to a line of
+// their own, so a place can still be told from its neighbours: with route, rename and delete (64 dp each) the text
+// column is 142 dp at 800x480 and Display size MEDIUM, which stays on one line, and 42 dp at LARGE (600x360 dp
+// effective), where the title would shrink to a letter.
+private val SavedPlaceTextMinWidth = 100.dp
+
+// What the clickable part of the row spends besides the text: the pin icon, the gap after it and the side padding.
+private val SavedPlaceTextChrome = FemtoDimens.InlineIconSize + FemtoDimens.CardSectionGap * 3
+
+// The narrowest name field a rename row keeps beside its Save and Cancel buttons; below it the buttons drop under
+// the field. The field is 246 dp at 800x480 and MEDIUM and 146 dp at LARGE, which is the one that drops.
+private val RenameFieldMinWidth = 160.dp
+
 // The title line is the place's own name, else what it was saved as; the line under it says what it was saved as
-// when a name replaces it. Three trailing 64 dp buttons (route, rename, delete) leave the text the rest of the row,
-// which ellipsizes: the buttons never give way to the title.
+// when a name replaces it. The trailing 64 dp buttons (route, rename, delete) take what they need and the text gets
+// the rest, which ellipsizes; where that rest would be too narrow the buttons go to a second line (see
+// SavedPlaceDisplayRow).
 @Composable
 private fun SavedPlaceRow(
     place: SavedPlace,
@@ -648,9 +665,12 @@ private fun SavedPlaceRow(
     )
 }
 
-// The row turned into a field: Done on the keyboard saves, the two buttons save or give up. Its text sits in a
-// local field value so the cursor starts at the end of the current title; the ViewModel's draft is the one that
-// is saved, and the same cap cuts both.
+// The row turned into a field: Done on the keyboard saves, the two buttons save or give up. An unnamed place starts
+// with an empty field whose placeholder says what the place was saved as (clearing the field later returns the row
+// to that); a named place starts with its name selected, so typing replaces it and a tap places the cursor. The text
+// sits in a local field value for the selection; the ViewModel's draft is the one that is saved, and the same cap
+// cuts both. The field has no floating label: M3 would draw it in bodySmall, below the body floor, so the name for
+// screen readers is the field's content description, as the search field above gets by on its placeholder.
 @Composable
 private fun SavedPlaceRenameRow(
     text: String,
@@ -659,55 +679,71 @@ private fun SavedPlaceRenameRow(
     onSave: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
-) = Row(
-    modifier = modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-) {
-    var field by remember { mutableStateOf(TextFieldValue(text = text, selection = TextRange(text.length))) }
+) = BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    // Beside the field the two buttons take 128 dp; under it the field gets the whole row.
+    val stacked = maxWidth - FemtoDimens.MinTouchTarget * 2 < RenameFieldMinWidth
+    var field by remember { mutableStateOf(TextFieldValue(text = text, selection = TextRange(0, text.length))) }
     val focusRequester = remember { FocusRequester() }
-    // The keyboard comes up with the field: a rename is typing, and the tap on the pencil was the request.
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
-    OutlinedTextField(
-        value = field,
-        onValueChange = { value ->
-            val capped = capPlaceName(value.text)
-            field = if (capped == value.text) value else TextFieldValue(capped, TextRange(capped.length))
-            onTextChange(capped)
-        },
-        modifier =
-            Modifier
-                .weight(1f)
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .focusRequester(focusRequester)
-                .testTag(DESTINATION_RENAME_TEST_TAG),
-        textStyle = MaterialTheme.typography.drawerBody(),
-        label = { Text(text = stringResource(R.string.destination_rename_field), maxLines = 1) },
-        // An empty field says what clearing it returns the row to.
-        placeholder = {
-            Text(
-                text = savedAs,
-                style = MaterialTheme.typography.drawerBody(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        keyboardActions = KeyboardActions(onDone = { onSave() }),
-    )
-    PanelIconButton(
-        icon = Lucide.Check,
-        description = stringResource(R.string.destination_rename_save),
-        onClick = onSave,
-        tint = MaterialTheme.colorScheme.primary,
-    )
-    PanelIconButton(
-        icon = Lucide.X,
-        description = stringResource(R.string.destination_rename_cancel),
-        onClick = onCancel,
-    )
+    // The keyboard comes up with the field: a rename is typing, and the tap on the pencil was the request. The key
+    // brings it back when a change of layout rebuilds the field.
+    LaunchedEffect(stacked) { focusRequester.requestFocus() }
+    val nameField: @Composable (Modifier) -> Unit = { fieldModifier ->
+        val fieldName = stringResource(R.string.destination_rename_field)
+        OutlinedTextField(
+            value = field,
+            onValueChange = { value ->
+                val capped = capPlaceName(value.text)
+                field = if (capped == value.text) value else TextFieldValue(capped, TextRange(capped.length))
+                onTextChange(capped)
+            },
+            modifier =
+                fieldModifier
+                    .heightIn(min = FemtoDimens.MinTouchTarget)
+                    .focusRequester(focusRequester)
+                    .semantics { contentDescription = fieldName }
+                    .testTag(DESTINATION_RENAME_TEST_TAG),
+            textStyle = MaterialTheme.typography.drawerBody(),
+            placeholder = {
+                Text(
+                    text = savedAs,
+                    style = MaterialTheme.typography.drawerBody(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onSave() }),
+        )
+    }
+    val buttons: @Composable () -> Unit = {
+        PanelIconButton(
+            icon = Lucide.Check,
+            description = stringResource(R.string.destination_rename_save),
+            onClick = onSave,
+            tint = MaterialTheme.colorScheme.primary,
+        )
+        PanelIconButton(
+            icon = Lucide.X,
+            description = stringResource(R.string.destination_rename_cancel),
+            onClick = onCancel,
+        )
+    }
+    if (stacked) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            nameField(Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { buttons() }
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            nameField(Modifier.weight(1f))
+            buttons()
+        }
+    }
 }
 
+// Side by side: the place, then its buttons. When the buttons would leave the text column narrower than
+// SavedPlaceTextMinWidth they sit under the place instead, end-aligned, and the text takes the whole width.
 @Composable
 private fun SavedPlaceDisplayRow(
     place: SavedPlace,
@@ -719,69 +755,92 @@ private fun SavedPlaceDisplayRow(
     onRenameStart: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+) = BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    val buttonCount = (if (routable) 1 else 0) + (if (editable) 2 else 0)
+    val textWidth = maxWidth - FemtoDimens.MinTouchTarget * buttonCount - SavedPlaceTextChrome
+    val stacked = buttonCount > 0 && textWidth < SavedPlaceTextMinWidth
+    val info: @Composable (Modifier) -> Unit = { infoModifier ->
+        SavedPlaceInfo(place = place, navigable = navigable, onNavigate = onNavigate, modifier = infoModifier)
+    }
+    val buttons: @Composable () -> Unit = {
+        if (routable) {
+            PanelIconButton(
+                icon = Lucide.Route,
+                description = stringResource(R.string.destination_route_place, place.title),
+                onClick = onRoute,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (editable) {
+            PanelIconButton(
+                icon = Lucide.Pencil,
+                description = stringResource(R.string.destination_rename_place, place.title),
+                onClick = onRenameStart,
+            )
+            PanelIconButton(
+                icon = Lucide.Trash2,
+                description = stringResource(R.string.destination_delete_place, place.title),
+                onClick = onDelete,
+            )
+        }
+    }
+    if (stacked) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            info(Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { buttons() }
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            info(Modifier.weight(1f))
+            buttons()
+        }
+    }
+}
+
+// The pin, the title and the line under it: the part of the row a tap hands off.
+@Composable
+private fun SavedPlaceInfo(
+    place: SavedPlace,
+    navigable: Boolean,
+    onNavigate: () -> Unit,
+    modifier: Modifier = Modifier,
 ) = Row(
-    modifier = modifier.fillMaxWidth(),
+    modifier =
+        modifier
+            .heightIn(min = FemtoDimens.MinTouchTarget)
+            .clip(MaterialTheme.shapes.medium)
+            // The row reads as the place's name; the label says the tap leaves the launcher.
+            .clickable(
+                enabled = navigable,
+                onClickLabel = stringResource(R.string.destination_open_place, place.title),
+                onClick = onNavigate,
+            ).alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
+            .padding(horizontal = FemtoDimens.CardSectionGap),
     verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
 ) {
-    Row(
-        modifier =
-            Modifier
-                .weight(1f)
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .clip(MaterialTheme.shapes.medium)
-                // The row reads as the place's name; the label says the tap leaves the launcher.
-                .clickable(
-                    enabled = navigable,
-                    onClickLabel = stringResource(R.string.destination_open_place, place.title),
-                    onClick = onNavigate,
-                ).alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
-                .padding(horizontal = FemtoDimens.CardSectionGap),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.MapPin,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    FemtoIcon(
+        imageVector = Lucide.MapPin,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    )
+    Column(modifier = Modifier.weight(1f)) {
+        Text(
+            text = place.title,
+            style = MaterialTheme.typography.drawerBody(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
-        Column(modifier = Modifier.weight(1f)) {
+        place.detail?.let { detail ->
             Text(
-                text = place.title,
-                style = MaterialTheme.typography.drawerBody(),
+                text = detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            place.detail?.let { detail ->
-                Text(
-                    text = detail,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
-    }
-    if (routable) {
-        PanelIconButton(
-            icon = Lucide.Route,
-            description = stringResource(R.string.destination_route_place, place.title),
-            onClick = onRoute,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-    }
-    if (editable) {
-        PanelIconButton(
-            icon = Lucide.Pencil,
-            description = stringResource(R.string.destination_rename_place, place.title),
-            onClick = onRenameStart,
-        )
-        PanelIconButton(
-            icon = Lucide.Trash2,
-            description = stringResource(R.string.destination_delete_place, place.title),
-            onClick = onDelete,
-        )
     }
 }
 

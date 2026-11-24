@@ -208,7 +208,7 @@
     <string name="destination_delete_place">Delete %1$s</string>
     <!-- %1$s = the saved place's title (its own name, else its label) -->
     <string name="destination_rename_place">Rename %1$s</string>
-    <!-- The label of the name field a saved place's row turns into while it is renamed. -->
+    <!-- The accessibility label of the name field a saved place's row turns into while it is renamed; not drawn. -->
     <string name="destination_rename_field">Name</string>
     <string name="destination_rename_save">Save name</string>
     <string name="destination_rename_cancel">Cancel renaming</string>

@@ -320,17 +320,43 @@ class DestinationViewModelTest {
         }
 
     @Test
-    fun rename_starts_with_the_current_title() =
+    fun rename_of_an_unnamed_place_starts_empty_and_of_a_named_place_with_its_name() =
         runTest {
             val unnamed = fakeSavedPlace(id = 1L, label = "Office")
             val named = fakeSavedPlace(id = 2L, label = "1-9-1 Marunouchi", name = "Home")
             val viewModel = subscribedViewModel(saved = listOf(unnamed, named))
 
             viewModel.onAction(DestinationAction.StartRename(unnamed.id))
-            assertEquals(RenameDraft(unnamed.id, "Office"), viewModel.uiState.value.renaming)
+            assertEquals(RenameDraft(unnamed.id, ""), viewModel.uiState.value.renaming)
 
             viewModel.onAction(DestinationAction.StartRename(named.id))
             assertEquals(RenameDraft(named.id, "Home"), viewModel.uiState.value.renaming)
+        }
+
+    // The label is past the name cap: a draft made of it would be saved cut, as a name, by a Save with no edit.
+    @Test
+    fun saving_an_unnamed_place_with_a_long_label_without_typing_stores_no_name() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "a".repeat(MAX_PLACE_NAME_LENGTH + 40))
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+
+            viewModel.onAction(DestinationAction.SaveRename)
+
+            assertEquals(listOf(place), store.current)
+        }
+
+    @Test
+    fun saving_a_named_place_with_an_empty_field_takes_its_name_away() =
+        runTest {
+            val place = fakeSavedPlace(id = 1L, label = "Office", name = "Work")
+            val viewModel = subscribedViewModel(saved = listOf(place))
+            viewModel.onAction(DestinationAction.StartRename(place.id))
+            viewModel.onAction(DestinationAction.RenameChanged(""))
+
+            viewModel.onAction(DestinationAction.SaveRename)
+
+            assertNull(store.current.single().name)
         }
 
     @Test
@@ -461,9 +487,12 @@ class DestinationViewModelTest {
             viewModel.onAction(DestinationAction.StartRename(place.id))
             viewModel.onAction(DestinationAction.DeletePlace(place.id))
 
+            // Closed by the delete itself, before any Save: a Save of an open field for a gone place would
+            // otherwise be what clears it.
+            assertNull(viewModel.uiState.value.renaming)
+
             viewModel.onAction(DestinationAction.SaveRename)
 
-            assertNull(viewModel.uiState.value.renaming)
             assertEquals(emptyList(), store.current)
         }
 

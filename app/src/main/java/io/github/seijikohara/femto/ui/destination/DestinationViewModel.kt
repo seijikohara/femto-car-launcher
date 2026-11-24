@@ -260,7 +260,9 @@ internal class DestinationViewModel(
                 if (typingAllowed) {
                     state.places
                         .firstOrNull { it.id == action.id }
-                        ?.let { place -> renaming.value = RenameDraft(place.id, capPlaceName(place.title)) }
+                        // Empty for an unnamed place, never its label: a label past the cap would be saved cut, as
+                        // a name, by a Save with no edit. The panel's placeholder shows the label instead.
+                        ?.let { place -> renaming.value = RenameDraft(place.id, place.name.orEmpty()) }
                 }
             }
 

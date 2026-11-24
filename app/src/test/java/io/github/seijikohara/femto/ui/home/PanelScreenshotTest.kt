@@ -198,19 +198,25 @@ class PanelScreenshotTest {
             DestinationPanelSample(RouteStep.Idle, places = NamedPlaces)
         }
 
-    // The row of the place being renamed turns into a name field with Save and Cancel; the other rows stay.
+    // The row of the place being renamed turns into a name field with Save and Cancel; the other rows stay. A named
+    // place starts with its name selected; an unnamed one (the dark capture) with an empty field that shows what it
+    // was saved as.
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun destination_panel_rename_head_unit() =
         capture("destination-panel-head-unit-853x512-rename") {
-            DestinationPanelSample(RouteStep.Idle, places = NamedPlaces, renaming = RenameDraft(id = 1L, text = "Work"))
+            DestinationPanelSample(
+                RouteStep.Idle,
+                places = NamedPlaces,
+                renaming = RenameDraft(id = 1L, text = "Office"),
+            )
         }
 
     @Test
     @Config(qualifiers = "w853dp-h512dp-mdpi")
     fun destination_panel_rename_head_unit_dark() =
         capture("destination-panel-head-unit-853x512-rename-dark", darkTheme = true) {
-            DestinationPanelSample(RouteStep.Idle, places = NamedPlaces, renaming = RenameDraft(id = 1L, text = "Work"))
+            DestinationPanelSample(RouteStep.Idle, places = NamedPlaces, renaming = RenameDraft(id = 3L, text = ""))
         }
 
     @Composable
