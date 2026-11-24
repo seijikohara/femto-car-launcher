@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.icu.text.MeasureFormat
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -25,5 +26,11 @@ class TravelTimeTextTest {
     @Test
     fun `a travel time under half a minute still reads as a minute`() {
         assertEquals("1 min", travelTimeText(10, Locale.US))
+    }
+
+    // The tile's shorter form, where the short units do not fit it on one line.
+    @Test
+    fun `the narrow width reads in the narrow units`() {
+        assertEquals("1h 5m", travelTimeText(3_900, Locale.US, width = MeasureFormat.FormatWidth.NARROW))
     }
 }

@@ -1294,12 +1294,17 @@ private data class RouteChoicePlacement(
 )
 
 // The card starts past the compass and control column, as the video window
-// does. It takes the top row beside the clock when that row leaves it
-// RouteChoiceCardMinWidth, where it has the most height; otherwise it drops
-// below the clock and takes the map area's width. Either way it stops a gap
-// above the speed readout's top edge ([speedTop], from the top of the overlay
-// box), so the compass, the control column, the clock, the speed readout and
-// the cards all stay uncovered; rows that do not fit scroll inside the card.
+// does. It takes the top row beside the clock when that row leaves room for
+// its three tiles (RouteChoiceCardMinWidth), where it has the most height, as
+// on a phone in landscape; otherwise it drops below the clock and takes the
+// map area's width, up to RouteChoiceCardMaxWidth. Either way it stays above
+// the speed readout's top edge ([speedTop], from the top of the overlay box),
+// so the compass, the control column, the clock, the speed readout and the
+// cards all stay uncovered. Its own height, a header and one row of tiles,
+// also ends it above the vehicle's chevron, which the map drops below the
+// middle of the screen; RouteChoiceLayoutTest checks both on every geometry.
+// The tiles scroll inside the card only where the speed readout leaves less
+// room than that.
 private fun routeChoicePlacement(
     overlayWidth: Dp,
     mapAreaWidth: Dp,
@@ -1322,11 +1327,6 @@ private fun routeChoicePlacement(
         maxHeight = (speedTop - gap - top).coerceAtLeast(0.dp),
     )
 }
-
-// The route choice card's width bounds: the widest the plan allows, and the
-// narrowest that still holds a row's travel time and length on one line.
-private val RouteChoiceCardMaxWidth: Dp = 360.dp
-private val RouteChoiceCardMinWidth: Dp = 180.dp
 
 // Margins that float the dock off its free edges by [margin] (a vertical rail's
 // inner edge faces the dashboard, where the overlay inset already opens the gap).
