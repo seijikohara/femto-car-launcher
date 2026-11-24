@@ -2,7 +2,7 @@ package io.github.seijikohara.femto.data.routing
 
 import io.github.seijikohara.femto.data.common.ATOMIC_WRITE_TEMP_SUFFIX
 import io.github.seijikohara.femto.data.common.writeAtomically
-import io.github.seijikohara.femto.testfixtures.fakeEngineTrack
+import io.github.seijikohara.femto.testfixtures.fakeKeptRoute
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -44,7 +44,7 @@ class RouteSnapshotFilesTest {
         files.write(KEPT)
         File(dir, "route.json$ATOMIC_WRITE_TEMP_SUFFIX").apply { mkdirs() }.resolve("blocker").writeText("")
 
-        val replaced = files.write(KEPT.copy(conditions = RouteConditions()))
+        val replaced = files.write(KEPT.copy(conditions = RouteConditions(avoidMotorways = true)))
 
         assertFalse(replaced)
         assertEquals(KEPT, files.readOrNull())
@@ -111,12 +111,7 @@ class RouteSnapshotFilesTest {
     }
 
     private companion object {
-        val KEPT =
-            KeptRoute(
-                route = (fakeEngineTrack().toRouteResult() as RouteResult.Found).route,
-                destination = RoutePoint(latitude = 34.0712345678, longitude = 133.0098765432),
-                conditions = RouteConditions(avoidTolls = true),
-            )
+        val KEPT = fakeKeptRoute()
 
         // 2026-11-22T09:00:00Z.
         const val STAMP_MS = 1_795_338_000_000L

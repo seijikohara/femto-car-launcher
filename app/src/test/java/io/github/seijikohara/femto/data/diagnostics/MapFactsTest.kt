@@ -15,6 +15,7 @@ import io.github.seijikohara.femto.data.routing.CandidateSearchEnding
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
 import io.github.seijikohara.femto.data.routing.RerouteStats
 import io.github.seijikohara.femto.data.routing.RouteConditions
+import io.github.seijikohara.femto.data.routing.RouteRestoreDecision
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import org.junit.Test
@@ -534,9 +535,32 @@ class MapFactsTest {
                 DiagnosticFact("Route conditions", FactValue.Text("none")),
                 DiagnosticFact("Route candidates", FactValue.Text("none this session")),
                 DiagnosticFact("Last reroute", FactValue.Text("none this session")),
+                DiagnosticFact("Route restore", FactValue.Text("none this session")),
                 DiagnosticFact("Geocoder", FactValue.Text("absent")),
             ),
             facts,
+        )
+    }
+
+    @Test
+    fun `the route restore says what the start did with the kept route`() {
+        val texts =
+            RouteRestoreDecision.entries.map { decision ->
+                routingFacts(RoutingFacts(true, emptyList(), null, true, restore = decision))
+                    .single { it.label == "Route restore" }
+                    .value
+            }
+
+        assertEquals(
+            listOf(
+                "restored",
+                "parked too long, deleted",
+                "no route kept",
+                "waiting for a GPS fix",
+                "replaced by a new route",
+                "no time of the last drive, deleted",
+            ).map { FactValue.Text(it) },
+            texts,
         )
     }
 
@@ -640,6 +664,7 @@ class MapFactsTest {
                 "Route conditions",
                 "Route candidates",
                 "Last reroute",
+                "Route restore",
                 "Geocoder",
             )
         return facts(backend = backend, routing = routing).filter { it.label in label }

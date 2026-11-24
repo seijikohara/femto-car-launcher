@@ -33,6 +33,7 @@ import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.LocationGraph
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.location.arrivedStale
 import io.github.seijikohara.femto.data.location.isGpsFix
 import io.github.seijikohara.femto.data.location.vehicleMotionFlow
 import io.github.seijikohara.femto.data.location.withParkedDwell
@@ -46,6 +47,7 @@ import io.github.seijikohara.femto.data.routing.FollowEvent
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteFix
+import io.github.seijikohara.femto.data.routing.RoutePersistence
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.followFlow
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
@@ -143,6 +145,11 @@ internal class HomeViewModel(
     // Where the active route's progress is worked out; tests pin it to their
     // scheduler.
     routeDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    // The time of each live GPS fix, taken as the trip meter takes fixes, for
+    // the route kept across a restart (RoutePersistence): its last-driven
+    // stamp and its check at the first fix, which also runs with no route on
+    // the map. Defaults to nowhere, so previews and tests are unaffected.
+    private val onGpsFix: (timeEpochMs: Long) -> Unit = {},
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -186,9 +193,18 @@ internal class HomeViewModel(
     // (e.g. a SecurityException when a permission is revoked between check and
     // register) would otherwise cancel the shared combine and crash the HOME
     // process. Catching per source degrades only that card to its initial value.
+    //
+    // The fixes reach onGpsFix from this collection, the dashboard's own: the
+    // route keeper adds no location request and hears nothing once the
+    // dashboard stops collecting.
     private val coreSignals: Flow<CoreSignals> =
         combine(
-            locationFlow.catchAsDefault(TAG, "location", HomeUiState.Initial.location),
+            locationFlow
+                .onEach { fix ->
+                    fix
+                        ?.takeIf { it.isGpsFix() && !it.arrivedStale(nowElapsedRealtimeNanos()) }
+                        ?.let { onGpsFix(it.time) }
+                }.catchAsDefault(TAG, "location", HomeUiState.Initial.location),
             addressFlow.catchAsDefault(TAG, "address", HomeUiState.Initial.address),
             weatherFlow.catchAsDefault(TAG, "weather", HomeUiState.Initial.weather),
             musicStateFlow.catchAsDefault(TAG, "music", HomeUiState.Initial.musicState),
@@ -711,6 +727,12 @@ internal class HomeViewModelFactory(
         val apps = AppsRepository(application)
         val displayPreferences = DisplayPreferences(application)
         val updatePreferences = UpdatePreferences(application)
+        val routingEnabled = application.resources.getBoolean(R.bool.routing_enabled)
+        // Started here, beside the rerouter's wiring, once per process: the
+        // route the last process left on the map comes back, or its files go,
+        // off the main thread while the dashboard opens. A build without
+        // routing only deletes what an earlier build left.
+        val routeKeeper = RoutePersistence.get(application).apply { start(enabled = routingEnabled) }
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -741,7 +763,7 @@ internal class HomeViewModelFactory(
             activeRouteFlow = ActiveRouteStore.shared.active,
             routingAvailable =
                 routingAvailableFlow(
-                    enabled = application.resources.getBoolean(R.bool.routing_enabled),
+                    enabled = routingEnabled,
                     settings = displayPreferences.settings,
                 ),
             clearRoute = ActiveRouteStore.shared::clear,
@@ -752,6 +774,7 @@ internal class HomeViewModelFactory(
             onBackOnRoute = { session -> Rerouter.get(application).onBackOnRoute(session) },
             selectRouteCandidate = { session, index -> ActiveRouteStore.shared.select(session, index) },
             closeRouteChoice = { session -> ActiveRouteStore.shared.closeChoice(session) },
+            onGpsFix = routeKeeper::onGpsFix,
         ) as T
     }
 }

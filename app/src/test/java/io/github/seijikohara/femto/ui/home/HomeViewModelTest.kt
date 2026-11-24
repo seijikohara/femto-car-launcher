@@ -4,10 +4,12 @@ import android.content.ComponentName
 import android.content.Intent
 import android.location.Location
 import android.location.LocationManager
+import android.os.SystemClock
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.common.UI_SUBSCRIPTION_GRACE_MS
 import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
+import io.github.seijikohara.femto.data.location.MAX_GAP_SECONDS
 import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -1248,6 +1250,69 @@ class HomeViewModelTest {
             assertEquals(emptyList(), left)
         }
 
+    // --- The route kept across a restart ---------------------------------------
+
+    // The keeper's first-fix decision must run with nothing on the map too.
+    @Test
+    fun `each live GPS fix's time reaches the route keeper, with no route on the map`() =
+        runTest {
+            val times = mutableListOf<Long>()
+            val viewModel =
+                routeViewModel(
+                    location =
+                        fakeLocation(
+                            provider = LocationManager.GPS_PROVIDER,
+                            timeMs = GPS_TIME_MS,
+                            elapsedRealtimeNanos = BADGE_NOW,
+                        ),
+                    available = true,
+                    activeRouteFlow = flowOf(null),
+                    onGpsFix = { times += it },
+                    nowElapsedRealtimeNanos = { BADGE_NOW },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(listOf(GPS_TIME_MS), times)
+        }
+
+    // As the trip meter takes fixes: a network position, or the cached seed a subscription replays, says nothing about
+    // when the vehicle was last driven.
+    @Test
+    fun `a network fix and a stale seed never reach the route keeper`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val times = mutableListOf<Long>()
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    onGpsFix = { times += it },
+                    nowElapsedRealtimeNanos = { BADGE_NOW },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            location.value =
+                fakeLocation(
+                    provider = LocationManager.NETWORK_PROVIDER,
+                    timeMs = GPS_TIME_MS,
+                    elapsedRealtimeNanos = BADGE_NOW,
+                )
+            location.value =
+                fakeLocation(
+                    provider = LocationManager.GPS_PROVIDER,
+                    timeMs = GPS_TIME_MS + 1,
+                    elapsedRealtimeNanos = BADGE_NOW - STALE_SEED_AGE_NANOS,
+                )
+            location.value =
+                fakeLocation(
+                    provider = LocationManager.GPS_PROVIDER,
+                    timeMs = GPS_TIME_MS + 2,
+                    elapsedRealtimeNanos = BADGE_NOW,
+                )
+
+            assertEquals(listOf(GPS_TIME_MS + 2), times)
+        }
+
     // --- Route choice card (issue #389 phase 3) -------------------------------
 
     @Test
@@ -1456,6 +1521,8 @@ class HomeViewModelTest {
         tripStateFlow: Flow<TripState> = flowOf(tripState),
         selectRouteCandidate: (Long, Int) -> Unit = { _, _ -> },
         closeRouteChoice: (Long) -> Unit = {},
+        onGpsFix: (Long) -> Unit = {},
+        nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1473,6 +1540,8 @@ class HomeViewModelTest {
             selectRouteCandidate = selectRouteCandidate,
             closeRouteChoice = closeRouteChoice,
             routeDispatcher = UnconfinedTestDispatcher(testScheduler),
+            onGpsFix = onGpsFix,
+            nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
         )
 
     private fun stubViewModel(
@@ -1523,5 +1592,11 @@ class HomeViewModelTest {
 
         // A minute old: a cached seed from before this subscription.
         const val STALE_FIX_AGE_NANOS = 60_000_000_000L
+
+        // Past the trip meter's gap window: a seed the trip meter, and so the route keeper, never takes.
+        val STALE_SEED_AGE_NANOS = ((MAX_GAP_SECONDS + 1) * 1_000_000_000).toLong()
+
+        // A GPS fix's own time: 2026-11-22T09:00:00Z.
+        const val GPS_TIME_MS = 1_795_338_000_000L
     }
 }

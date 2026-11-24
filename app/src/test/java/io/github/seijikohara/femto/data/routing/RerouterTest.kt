@@ -16,6 +16,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -101,6 +102,25 @@ class RerouterTest {
                 store.active.value?.withoutChoice(),
             )
             assertEquals(listOf<Collection<File>>(setOf(NEW_REFERENCE)), pruned)
+        }
+
+    // The reference lived in the old process's cache, so the first reroute after a restart searches in full, and the
+    // reference it writes serves the next one.
+    @Test
+    fun `the first reroute after a restore runs without a reference`() =
+        runTest {
+            val rerouter = rerouter()
+            val session = assertNotNull(store.restore(ROUTE, DESTINATION, NO_CONDITIONS))
+            planner.answer.complete(RouteResult.Found(REROUTED, NEW_REFERENCE))
+
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertEquals(listOf<File?>(null), planner.calls.map { it.reference })
+            assertEquals(
+                ActiveRoute(session, REROUTED, DESTINATION, NEW_REFERENCE),
+                store.active.value?.withoutChoice(),
+            )
         }
 
     // BRouter writes no reference for a route it merged onto the one it was given.

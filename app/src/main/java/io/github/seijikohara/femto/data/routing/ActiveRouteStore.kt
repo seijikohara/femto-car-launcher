@@ -59,13 +59,12 @@ internal data class ActiveRoute(
  * The route the dashboard follows: the destination panel starts a session with it, a reroute replaces it within that
  * session, and the map line and the speed readout's route row read it.
  *
- * Every change but [start] and [clear] names its session and is dropped once that session has ended, so a reroute
- * that finishes after the driver cleared the route or set a new one changes nothing. Each change is one atomic update
- * of the state, so a replace racing a clear cannot bring the old session back.
+ * Every change but [start], [restore] and [clear] names its session and is dropped once that session has ended, so a
+ * reroute that finishes after the driver cleared the route or set a new one changes nothing. Each change is one atomic
+ * update of the state, so a replace racing a clear cannot bring the old session back.
  *
- * In memory only: a process restart forgets the route. A route is a preview the driver set up for this drive, and
- * one that came back after a restart could point somewhere the car has long since been. The constructor stays open for
- * JVM tests; production code shares [shared].
+ * The store holds the route in memory; [RoutePersistence] keeps it in files across a restart of the process and brings
+ * it back through [restore]. The constructor stays open for JVM tests; production code shares [shared].
  */
 internal class ActiveRouteStore {
     private val mutableActive = MutableStateFlow<ActiveRoute?>(null)
@@ -96,6 +95,33 @@ internal class ActiveRouteStore {
                     candidates = listOf(RouteCandidate(route, reference, computingMs)),
                     choosing = true,
                 )
+        }
+
+    /**
+     * Make [route] to [destination], found under [conditions], the active route in a new session, as a route kept by
+     * an earlier process comes back, and return the session; null, changing nothing, while a session is active: a
+     * route the driver has set since the start stands. The route comes back alone, with no choice open and no search
+     * for more: the other candidates were not kept. It has no reference either, which lived in the old process's
+     * cache, so its first reroute is a full search.
+     */
+    fun restore(
+        route: Route,
+        destination: RoutePoint,
+        conditions: RouteConditions,
+    ): Long? =
+        sessions.incrementAndGet().takeIf { session ->
+            mutableActive.compareAndSet(
+                expect = null,
+                update =
+                    ActiveRoute(
+                        session = session,
+                        route = route,
+                        destination = destination,
+                        reference = null,
+                        conditions = conditions,
+                        candidates = listOf(RouteCandidate(route, reference = null, computingMs = 0L)),
+                    ),
+            )
         }
 
     /**
@@ -182,6 +208,16 @@ internal class ActiveRouteStore {
     /** End the session: no route is active until the next [start]. */
     fun clear() {
         mutableActive.value = null
+    }
+
+    /** End [session] alone; false, changing nothing, once another session or none is active. */
+    fun clear(session: Long): Boolean {
+        var cleared = false
+        mutableActive.update { current ->
+            cleared = current?.session == session
+            if (cleared) null else current
+        }
+        return cleared
     }
 
     // Applies [change] to [session] in one step, when [applies] holds for it; whether it did.
