@@ -406,20 +406,26 @@ private fun PickedPointEntry(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(FemtoDimens.InlineIconSize),
         )
-        Text(
-            text = uiState.pickedLabel.ifEmpty { point.coordinateLabel() },
-            style = MaterialTheme.typography.drawerBody(),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-    // A named point keeps its coordinates in view, so the driver can tell where the name points.
-    if (uiState.pickedLabel.isNotEmpty()) {
-        Text(
-            text = point.coordinateLabel(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = uiState.pickedLabel.ifEmpty { point.coordinateLabel() },
+                style = MaterialTheme.typography.drawerBody(),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // A named point keeps its coordinates in view, so the driver can tell where the name points. They sit
+            // under the name inside the row, as a saved place's detail does: a line of their own below the row would
+            // push the last row of actions past the bottom of the panel on the head-unit geometry.
+            if (uiState.pickedLabel.isNotEmpty()) {
+                Text(
+                    text = point.coordinateLabel(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
     if (!uiState.handOffAvailable) {
         Text(
