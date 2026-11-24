@@ -10,8 +10,8 @@ import java.util.Locale
 /**
  * State for the destination panel. [motion] is the shared vehicle-motion
  * verdict (`LocationGraph.vehicleMotion()`); [typingAllowed] derives from it
- * the gate on every edit that involves typing — the text field, saving and
- * deleting places — while voice and a tap on a saved place work in every
+ * the gate on every edit that involves typing — the text field, saving,
+ * renaming and deleting places — while voice and a tap on a saved place work in every
  * motion state (issue #389, Safety).
  *
  * [handOffAvailable] is false when no installed app takes a destination; the
@@ -28,6 +28,10 @@ import java.util.Locale
  * [pickedPoint] is a point picked with a long press on the map, which the
  * panel offers in place of the text entry until the driver goes back to the
  * search or the panel closes. It is not saved unless the driver saves it.
+ *
+ * [renaming] is the name being typed for one saved place, or null. Renaming is typing, so it follows
+ * [typingAllowed]: it never starts while moving, and a rename open when the vehicle starts to move closes without
+ * saving, as the panel's own field would have stopped taking text.
  */
 internal data class DestinationUiState(
     val query: String,
@@ -40,6 +44,7 @@ internal data class DestinationUiState(
     val route: RouteStep = RouteStep.Idle,
     val pickedPoint: PlaceTarget.Point? = null,
     val conditions: RouteConditions = RouteConditions(),
+    val renaming: RenameDraft? = null,
 ) {
     /**
      * Whether [target] can be routed to: a point always, text only through a
@@ -72,6 +77,12 @@ internal data class DestinationUiState(
             )
     }
 }
+
+/** The name typed so far ([text]) for the saved place [id], while its row is a field. */
+internal data class RenameDraft(
+    val id: Long,
+    val text: String,
+)
 
 /**
  * Where a route the panel asked for stands. Every step but [Idle] takes the
@@ -223,6 +234,29 @@ internal sealed interface DestinationAction {
     data class DeletePlace(
         val id: Long,
     ) : DestinationAction
+
+    /**
+     * Turn the row of the saved place [id] into a name field; not while moving, and ignored for a place that is not
+     * there. The field starts with the place's name, or empty for an unnamed place (the panel's placeholder shows
+     * what it was saved as). Another row's open field closes without saving.
+     */
+    data class StartRename(
+        val id: Long,
+    ) : DestinationAction
+
+    /** The name field changed; cut to the name cap, and ignored while moving or with no field open. */
+    data class RenameChanged(
+        val text: String,
+    ) : DestinationAction
+
+    /**
+     * Store the typed name for the open field's place and close the field; not while moving. A blank name, or one
+     * equal to the place's label, removes the name: an unnamed place stays as it was, a named one loses its name.
+     */
+    data object SaveRename : DestinationAction
+
+    /** Close the name field without saving. Allowed in every motion state: it types nothing. */
+    data object CancelRename : DestinationAction
 
     /**
      * Empty the query after a hand-off, so the next open starts fresh. Allowed

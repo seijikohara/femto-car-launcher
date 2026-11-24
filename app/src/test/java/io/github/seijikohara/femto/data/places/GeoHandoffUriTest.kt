@@ -54,6 +54,15 @@ class GeoHandoffUriTest {
             geoHandoffUri(PlaceTarget.Point(1.0, 2.0), label = "Home (new)"),
         )
 
+    // A name the user typed is the label: spaces, quotes, `&`, `#`, both parentheses and non-ASCII all stay inside it.
+    @Test
+    fun point_label_of_a_typed_name_keeps_every_special_character_inside_the_parentheses() =
+        assertEquals(
+            "geo:1.000000,2.000000?q=1.000000,2.000000" +
+                "(Mom%27s%20%26%20Dad%27s%20%231%20%28home%29%20%E6%9D%B1%E4%BA%AC)",
+            geoHandoffUri(PlaceTarget.Point(1.0, 2.0), label = "Mom's & Dad's #1 (home) 東京"),
+        )
+
     @Test
     fun point_without_a_label_omits_the_parentheses() =
         assertEquals(

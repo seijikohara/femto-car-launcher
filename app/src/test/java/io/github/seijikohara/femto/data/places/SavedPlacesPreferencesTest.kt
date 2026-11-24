@@ -12,6 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 // The savedPlacesDataStore delegate is a process-wide singleton bound to the
 // first Application's filesDir, while Robolectric hands each test method a
@@ -88,6 +89,227 @@ class SavedPlacesPreferencesTest {
 
             assertEquals(unreadable, storedJson())
         }
+
+    @Test
+    fun rename_sets_a_name_and_keeps_the_label() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("1st & Pike, Seattle"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+
+            store.rename(id, "Work")
+
+            val place = store.places.first().single()
+            assertEquals("Work", place.name)
+            assertEquals("Office", place.label)
+            assertEquals(PlaceTarget.Query("1st & Pike, Seattle"), place.target)
+        }
+
+    @Test
+    fun rename_trims_the_name_and_persists_it() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+
+            store.rename(id, "  Work  ")
+
+            // A fresh instance reads the same file: the name outlives the process.
+            assertEquals(
+                "Work",
+                SavedPlacesPreferences(context)
+                    .places
+                    .first()
+                    .single()
+                    .name,
+            )
+        }
+
+    @Test
+    fun a_blank_name_clears_it() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+            store.rename(id, "Work")
+
+            store.rename(id, "  \t ")
+
+            assertNull(
+                store.places
+                    .first()
+                    .single()
+                    .name,
+            )
+        }
+
+    @Test
+    fun a_null_name_clears_it() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+            store.rename(id, "Work")
+
+            store.rename(id, null)
+
+            assertNull(
+                store.places
+                    .first()
+                    .single()
+                    .name,
+            )
+        }
+
+    @Test
+    fun a_name_equal_to_the_label_is_not_stored() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+            store.rename(id, "Work")
+
+            // The label already says it: renaming back to it returns the row to how it was.
+            store.rename(id, " Office ")
+
+            assertNull(
+                store.places
+                    .first()
+                    .single()
+                    .name,
+            )
+        }
+
+    @Test
+    fun a_name_is_cut_to_the_cap_without_splitting_a_surrogate_pair() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+            // 59 letters, then a character outside the BMP (two UTF-16 units) that straddles the cap.
+            val name = "a".repeat(MAX_PLACE_NAME_LENGTH - 1) + "🏠" + "tail"
+
+            store.rename(id, name)
+
+            assertEquals(
+                "a".repeat(MAX_PLACE_NAME_LENGTH - 1),
+                store.places
+                    .first()
+                    .single()
+                    .name,
+            )
+        }
+
+    @Test
+    fun rename_of_a_missing_id_changes_nothing() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val before = storedJson()
+
+            store.rename(99L, "Work")
+
+            assertEquals(before, storedJson())
+        }
+
+    @Test
+    fun rename_after_a_delete_does_not_bring_the_place_back() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+            val id = store.places
+                .first()
+                .single()
+                .id
+            store.delete(id)
+
+            store.rename(id, "Work")
+
+            assertEquals(emptyList(), store.places.first())
+        }
+
+    @Test
+    fun rename_leaves_an_unreadable_list_alone() =
+        runTest {
+            val store = clearedStore()
+            val unreadable = """[{"id":1,"label":"Ferry","target":{"type":"ferry","route":"7"}}]"""
+            context.savedPlacesDataStore.edit { it[PlacesKey] = unreadable }
+
+            store.rename(1L, "Crossing")
+
+            assertEquals(unreadable, storedJson())
+        }
+
+    @Test
+    fun a_stored_place_without_a_name_still_reads() =
+        runTest {
+            val store = clearedStore()
+            context.savedPlacesDataStore.edit {
+                it[PlacesKey] = """[{"id":1,"label":"Office","target":{"type":"query","text":"Office"}}]"""
+            }
+
+            assertEquals(SavedPlace(1L, "Office", PlaceTarget.Query("Office")), store.places.first().single())
+        }
+
+    @Test
+    fun a_place_without_a_name_stores_no_name_key() =
+        runTest {
+            val store = clearedStore()
+            store.add("Office", PlaceTarget.Query("Office"))
+
+            // An older build must read the list as it always did.
+            assertFalse(storedJson().orEmpty().contains("name"), storedJson())
+        }
+
+    @Test
+    fun the_title_is_the_name_else_the_label() {
+        val place = SavedPlace(1L, "Office", PlaceTarget.Query("Office"))
+
+        assertEquals("Office", place.title)
+        assertEquals("Work", place.copy(name = "Work").title)
+    }
+
+    @Test
+    fun an_unnamed_query_place_shows_a_line_only_when_its_text_differs_from_the_label() {
+        assertNull(SavedPlace(1L, "Office", PlaceTarget.Query("Office")).detail)
+        assertEquals("1st & Pike", SavedPlace(1L, "Office", PlaceTarget.Query("1st & Pike")).detail)
+    }
+
+    @Test
+    fun an_unnamed_point_place_shows_no_line() =
+        assertNull(SavedPlace(1L, "35.68124, 139.76713", PlaceTarget.Point(35.68124, 139.76713)).detail)
+
+    @Test
+    fun a_named_query_place_says_its_text_underneath() =
+        assertEquals(
+            "1st & Pike, Seattle",
+            SavedPlace(1L, "1st & Pike, Seattle", PlaceTarget.Query("1st & Pike, Seattle"), name = "Work").detail,
+        )
+
+    @Test
+    fun a_named_point_place_says_its_label_underneath() =
+        assertEquals(
+            "1-9-1 Marunouchi",
+            SavedPlace(1L, "1-9-1 Marunouchi", PlaceTarget.Point(35.68, 139.76), name = "Home").detail,
+        )
 
     private companion object {
         val PlacesKey = stringPreferencesKey("saved_places")

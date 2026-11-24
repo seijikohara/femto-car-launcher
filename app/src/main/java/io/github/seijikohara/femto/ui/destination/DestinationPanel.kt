@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -35,16 +36,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -58,9 +67,11 @@ import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Mic
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Route
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.X
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -68,6 +79,7 @@ import io.github.seijikohara.femto.data.common.hasRecordAudioPermission
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
+import io.github.seijikohara.femto.data.places.capPlaceName
 import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.ui.common.fileSize
@@ -84,6 +96,7 @@ import io.github.seijikohara.femto.ui.theme.drawerBody
 import io.github.seijikohara.femto.ui.theme.eyebrow
 
 internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
+internal const val DESTINATION_RENAME_TEST_TAG = "destination-rename"
 
 /**
  * The destination panel (issue #389 phase 1), opened by the dock's Navigation
@@ -92,9 +105,9 @@ internal const val DESTINATION_QUERY_TEST_TAG = "destination-query"
  * ([onOpenMaps]); the body sets a destination and hands it to whichever app
  * handles `geo:` ([onNavigate]).
  *
- * Text entry, saving and deleting are off while moving ([DestinationUiState.typingAllowed]):
- * while moving the field and those controls disable, and a line says typing
- * waits for a stop. The mic and the saved places work in every motion state,
+ * Text entry, saving, renaming and deleting are off while moving ([DestinationUiState.typingAllowed]):
+ * while moving the field disables, the save, rename and delete controls go, an open rename field closes
+ * without saving, and a line says typing waits for a stop. The mic and the saved places work in every motion state,
  * so a driver can still set a destination without typing.
  *
  * With no app to take a destination ([DestinationUiState.handOffAvailable]),
@@ -162,9 +175,11 @@ internal fun DestinationPanel(
     val currentOnAction by rememberUpdatedState(onAction)
     val currentRoute by rememberUpdatedState(uiState.route)
     val currentPickedPoint by rememberUpdatedState(uiState.pickedPoint)
+    val currentRenaming by rememberUpdatedState(uiState.renaming)
     //
     // A point picked on the map goes with the panel too, so the next open from
-    // the dock starts on the search.
+    // the dock starts on the search, and so does a name half typed: the next open
+    // shows no field the driver forgot.
     if (visible) {
         DisposableEffect(Unit) {
             onDispose {
@@ -172,6 +187,7 @@ internal fun DestinationPanel(
                 val closing = activity?.isChangingConfigurations != true
                 if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
                 if (closing && currentPickedPoint != null) currentOnAction(DestinationAction.ClearPickedPoint)
+                if (closing && currentRenaming != null) currentOnAction(DestinationAction.CancelRename)
             }
         }
     }
@@ -212,12 +228,13 @@ internal fun DestinationPanel(
     val places: @Composable (Modifier) -> Unit = { placesModifier ->
         SavedPlaces(
             places = uiState.places,
+            renaming = uiState.renaming,
             typingAllowed = uiState.typingAllowed,
             handOffAvailable = uiState.handOffAvailable,
             canRoute = uiState::canRoute,
             onNavigate = handOff,
             onRoute = route,
-            onDelete = { onAction(DestinationAction.DeletePlace(it)) },
+            onAction = onAction,
             modifier = placesModifier,
         )
     }
@@ -541,16 +558,18 @@ private fun MicButton(
 // The saved places in insertion order (newest last). A row tap hands the
 // place off in any motion state while an app can take it; a trailing Show route
 // shows on each place that can be routed to, in any motion state; the
-// trailing delete shows only while stopped.
+// trailing rename and delete show only while stopped, and the row being renamed
+// is a name field in place of the place.
 @Composable
 private fun SavedPlaces(
     places: List<SavedPlace>,
+    renaming: RenameDraft?,
     typingAllowed: Boolean,
     handOffAvailable: Boolean,
     canRoute: (PlaceTarget) -> Boolean,
     onNavigate: (target: PlaceTarget, label: String) -> Unit,
     onRoute: (PlaceTarget) -> Unit,
-    onDelete: (Long) -> Unit,
+    onAction: (DestinationAction) -> Unit,
     modifier: Modifier = Modifier,
 ) = Column(
     modifier = modifier,
@@ -572,88 +591,266 @@ private fun SavedPlaces(
             items(places, key = { it.id }) { place ->
                 SavedPlaceRow(
                     place = place,
-                    showDelete = typingAllowed,
+                    renameText = renaming?.takeIf { it.id == place.id }?.text,
+                    editable = typingAllowed,
                     navigable = handOffAvailable,
                     routable = canRoute(place.target),
-                    onNavigate = { onNavigate(place.target, place.label) },
+                    // The title is the pin's label for a point: the name the driver gave, else what it was saved as.
+                    onNavigate = { onNavigate(place.target, place.title) },
                     onRoute = { onRoute(place.target) },
-                    onDelete = { onDelete(place.id) },
+                    onRenameStart = { onAction(DestinationAction.StartRename(place.id)) },
+                    onRenameChange = { onAction(DestinationAction.RenameChanged(it)) },
+                    onRenameSave = { onAction(DestinationAction.SaveRename) },
+                    onRenameCancel = { onAction(DestinationAction.CancelRename) },
+                    onDelete = { onAction(DestinationAction.DeletePlace(place.id)) },
                 )
             }
         }
     }
 }
 
+// The narrowest text column a saved place's row keeps beside its buttons. Below it the buttons move to a line of
+// their own, so a place can still be told from its neighbours: with route, rename and delete (64 dp each) the text
+// column is 142 dp at 800x480 and Display size MEDIUM, which stays on one line, and 42 dp at LARGE (600x360 dp
+// effective), where the title would shrink to a letter.
+private val SavedPlaceTextMinWidth = 100.dp
+
+// What the clickable part of the row spends besides the text: the pin icon, the gap after it and the side padding.
+private val SavedPlaceTextChrome = FemtoDimens.InlineIconSize + FemtoDimens.CardSectionGap * 3
+
+// The narrowest name field a rename row keeps beside its Save and Cancel buttons; below it the buttons drop under
+// the field. The field is 246 dp at 800x480 and MEDIUM and 146 dp at LARGE, which is the one that drops.
+private val RenameFieldMinWidth = 160.dp
+
+// The title line is the place's own name, else what it was saved as; the line under it says what it was saved as
+// when a name replaces it. The trailing 64 dp buttons (route, rename, delete) take what they need and the text gets
+// the rest, which ellipsizes; where that rest would be too narrow the buttons go to a second line (see
+// SavedPlaceDisplayRow).
 @Composable
 private fun SavedPlaceRow(
     place: SavedPlace,
-    showDelete: Boolean,
+    renameText: String?,
+    editable: Boolean,
     navigable: Boolean,
     routable: Boolean,
     onNavigate: () -> Unit,
     onRoute: () -> Unit,
+    onRenameStart: () -> Unit,
+    onRenameChange: (String) -> Unit,
+    onRenameSave: () -> Unit,
+    onRenameCancel: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-) = Row(
-    modifier = modifier.fillMaxWidth(),
-    verticalAlignment = Alignment.CenterVertically,
-) {
-    Row(
-        modifier =
-            Modifier
-                .weight(1f)
-                .heightIn(min = FemtoDimens.MinTouchTarget)
-                .clip(MaterialTheme.shapes.medium)
-                // The row reads as the place's name; the label says the tap leaves the launcher.
-                .clickable(
-                    enabled = navigable,
-                    onClickLabel = stringResource(R.string.destination_open_place, place.label),
-                    onClick = onNavigate,
-                ).alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
-                .padding(horizontal = FemtoDimens.CardSectionGap),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
-    ) {
-        FemtoIcon(
-            imageVector = Lucide.MapPin,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(FemtoDimens.InlineIconSize),
+) = if (renameText != null) {
+    SavedPlaceRenameRow(
+        text = renameText,
+        storedName = place.name,
+        savedAs = place.label,
+        onTextChange = onRenameChange,
+        onSave = onRenameSave,
+        onCancel = onRenameCancel,
+        modifier = modifier,
+    )
+} else {
+    SavedPlaceDisplayRow(
+        place = place,
+        editable = editable,
+        navigable = navigable,
+        routable = routable,
+        onNavigate = onNavigate,
+        onRoute = onRoute,
+        onRenameStart = onRenameStart,
+        onDelete = onDelete,
+        modifier = modifier,
+    )
+}
+
+// The row turned into a field: Done on the keyboard saves, the two buttons save or give up. An unnamed place starts
+// with an empty field whose placeholder says what the place was saved as (clearing the field later returns the row
+// to that); a named place starts with its name selected, so typing replaces it and a tap places the cursor. The text
+// sits in a local field value for the selection; the ViewModel's draft is the one that is saved, and the same cap
+// cuts both. The field value is saved across the row leaving composition (scrolled out of the list, or the activity
+// recreated), and only an untouched draft (still the stored name) gets the select-all: a rebuilt draft that holds
+// what the driver typed keeps the cursor at its end, so the next key does not replace it. The field has no floating
+// label: M3 would draw it in bodySmall, below the body floor. Its purpose is the placeholder's, as the search
+// field's is; a content description would be announced in place of the typed text.
+@Composable
+private fun SavedPlaceRenameRow(
+    text: String,
+    storedName: String?,
+    savedAs: String,
+    onTextChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) = BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    // Beside the field the two buttons take 128 dp; under it the field gets the whole row.
+    val stacked = maxWidth - FemtoDimens.MinTouchTarget * 2 < RenameFieldMinWidth
+    var field by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        val untouched = text == storedName.orEmpty()
+        mutableStateOf(
+            TextFieldValue(
+                text = text,
+                selection = if (untouched) TextRange(0, text.length) else TextRange(text.length),
+            ),
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = place.label,
-                style = MaterialTheme.typography.drawerBody(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            // A query place whose label differs from its query shows the
-            // query, so "Office" still says where it goes.
-            (place.target as? PlaceTarget.Query)?.text?.takeIf { it != place.label }?.let { query ->
+    }
+    val focusRequester = remember { FocusRequester() }
+    // The keyboard comes up with the field: a rename is typing, and the tap on the pencil was the request. The key
+    // brings it back when a change of layout rebuilds the field.
+    LaunchedEffect(stacked) { focusRequester.requestFocus() }
+    val nameField: @Composable (Modifier) -> Unit = { fieldModifier ->
+        OutlinedTextField(
+            value = field,
+            onValueChange = { value ->
+                val capped = capPlaceName(value.text)
+                field = if (capped == value.text) value else TextFieldValue(capped, TextRange(capped.length))
+                onTextChange(capped)
+            },
+            modifier =
+                fieldModifier
+                    .heightIn(min = FemtoDimens.MinTouchTarget)
+                    .focusRequester(focusRequester)
+                    .testTag(DESTINATION_RENAME_TEST_TAG),
+            textStyle = MaterialTheme.typography.drawerBody(),
+            placeholder = {
                 Text(
-                    text = query,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = stringResource(R.string.destination_rename_placeholder, savedAs),
+                    style = MaterialTheme.typography.drawerBody(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-        }
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { onSave() }),
+        )
     }
-    if (routable) {
+    val buttons: @Composable () -> Unit = {
         PanelIconButton(
-            icon = Lucide.Route,
-            description = stringResource(R.string.destination_route_place, place.label),
-            onClick = onRoute,
+            icon = Lucide.Check,
+            description = stringResource(R.string.destination_rename_save),
+            onClick = onSave,
             tint = MaterialTheme.colorScheme.primary,
         )
-    }
-    if (showDelete) {
         PanelIconButton(
-            icon = Lucide.Trash2,
-            description = stringResource(R.string.destination_delete_place, place.label),
-            onClick = onDelete,
+            icon = Lucide.X,
+            description = stringResource(R.string.destination_rename_cancel),
+            onClick = onCancel,
         )
+    }
+    if (stacked) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            nameField(Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { buttons() }
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            nameField(Modifier.weight(1f))
+            buttons()
+        }
+    }
+}
+
+// Side by side: the place, then its buttons. When the buttons would leave the text column narrower than
+// SavedPlaceTextMinWidth they sit under the place instead, end-aligned, and the text takes the whole width.
+@Composable
+private fun SavedPlaceDisplayRow(
+    place: SavedPlace,
+    editable: Boolean,
+    navigable: Boolean,
+    routable: Boolean,
+    onNavigate: () -> Unit,
+    onRoute: () -> Unit,
+    onRenameStart: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) = BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    val buttonCount = (if (routable) 1 else 0) + (if (editable) 2 else 0)
+    val textWidth = maxWidth - FemtoDimens.MinTouchTarget * buttonCount - SavedPlaceTextChrome
+    val stacked = buttonCount > 0 && textWidth < SavedPlaceTextMinWidth
+    val info: @Composable (Modifier) -> Unit = { infoModifier ->
+        SavedPlaceInfo(place = place, navigable = navigable, onNavigate = onNavigate, modifier = infoModifier)
+    }
+    val buttons: @Composable () -> Unit = {
+        if (routable) {
+            PanelIconButton(
+                icon = Lucide.Route,
+                description = stringResource(R.string.destination_route_place, place.title),
+                onClick = onRoute,
+                tint = MaterialTheme.colorScheme.primary,
+            )
+        }
+        if (editable) {
+            PanelIconButton(
+                icon = Lucide.Pencil,
+                description = stringResource(R.string.destination_rename_place, place.title),
+                onClick = onRenameStart,
+            )
+            PanelIconButton(
+                icon = Lucide.Trash2,
+                description = stringResource(R.string.destination_delete_place, place.title),
+                onClick = onDelete,
+            )
+        }
+    }
+    if (stacked) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            info(Modifier.fillMaxWidth())
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { buttons() }
+        }
+    } else {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            info(Modifier.weight(1f))
+            buttons()
+        }
+    }
+}
+
+// The pin, the title and the line under it: the part of the row a tap hands off.
+@Composable
+private fun SavedPlaceInfo(
+    place: SavedPlace,
+    navigable: Boolean,
+    onNavigate: () -> Unit,
+    modifier: Modifier = Modifier,
+) = Row(
+    modifier =
+        modifier
+            .heightIn(min = FemtoDimens.MinTouchTarget)
+            .clip(MaterialTheme.shapes.medium)
+            // The row reads as the place's name; the label says the tap leaves the launcher.
+            .clickable(
+                enabled = navigable,
+                onClickLabel = stringResource(R.string.destination_open_place, place.title),
+                onClick = onNavigate,
+            ).alpha(if (navigable) 1f else FemtoDimens.DisabledContentAlpha)
+            .padding(horizontal = FemtoDimens.CardSectionGap),
+    verticalAlignment = Alignment.CenterVertically,
+    horizontalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGap),
+) {
+    FemtoIcon(
+        imageVector = Lucide.MapPin,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(FemtoDimens.InlineIconSize),
+    )
+    Column(modifier = Modifier.weight(1f)) {
+        Text(
+            text = place.title,
+            style = MaterialTheme.typography.drawerBody(),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        place.detail?.let { detail ->
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -988,6 +1185,65 @@ private fun DestinationPanelRoutePreview() {
                     query = "Central Station",
                     routeAvailable = true,
                     geocoderAvailable = true,
+                ),
+            lastFix = PreviewFix,
+            currentAddress = "1-9-1 Marunouchi",
+            visible = true,
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Composable
+private fun DestinationPanelNamedPlacesPreview() {
+    FemtoTheme {
+        DestinationPanel(
+            uiState =
+                PreviewState.copy(
+                    motion = VehicleMotion.PARKED,
+                    routeAvailable = true,
+                    places =
+                        listOf(
+                            SavedPlace(
+                                1L,
+                                "1st & Pike, Seattle",
+                                PlaceTarget.Query("1st & Pike, Seattle"),
+                                name = "Work",
+                            ),
+                            SavedPlace(2L, "Home", PlaceTarget.Point(35.681236, 139.767125)),
+                        ),
+                ),
+            lastFix = PreviewFix,
+            currentAddress = "1-9-1 Marunouchi",
+            visible = true,
+            onAction = {},
+            onMicTap = {},
+            onNavigate = { _, _ -> },
+            onOpenMaps = {},
+            onClose = {},
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Composable
+private fun DestinationPanelRenamePreview() {
+    FemtoTheme {
+        DestinationPanel(
+            uiState =
+                PreviewState.copy(
+                    motion = VehicleMotion.PARKED,
+                    routeAvailable = true,
+                    renaming = RenameDraft(id = 1L, text = "Office"),
                 ),
             lastFix = PreviewFix,
             currentAddress = "1-9-1 Marunouchi",

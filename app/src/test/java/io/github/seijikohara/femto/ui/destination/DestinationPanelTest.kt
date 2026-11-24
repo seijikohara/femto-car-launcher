@@ -1,15 +1,19 @@
 package io.github.seijikohara.femto.ui.destination
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -18,8 +22,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.places.MAX_PLACE_NAME_LENGTH
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.voice.VoiceState
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -30,6 +39,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * The destination panel's two motion states (issue #389, Safety): stopped,
@@ -63,6 +73,8 @@ class DestinationPanelTest {
         geocoderAvailable: Boolean = true,
         route: RouteStep = RouteStep.Idle,
         pickedPoint: PlaceTarget.Point? = null,
+        places: List<SavedPlace> = listOf(office, home),
+        renaming: RenameDraft? = null,
     ) = rule.setContent {
         FemtoTheme {
             DestinationPanel(
@@ -70,13 +82,14 @@ class DestinationPanelTest {
                     DestinationUiState(
                         query = query,
                         voice = VoiceState.Idle,
-                        places = listOf(office, home),
+                        places = places,
                         motion = if (stationary) VehicleMotion.PARKED else VehicleMotion.MOVING,
                         handOffAvailable = handOffAvailable,
                         routeAvailable = routeAvailable,
                         geocoderAvailable = geocoderAvailable,
                         route = route,
                         pickedPoint = pickedPoint,
+                        renaming = renaming,
                     ),
                 lastFix = lastFix,
                 currentAddress = "1-9-1 Marunouchi",
@@ -185,6 +198,278 @@ class DestinationPanelTest {
     fun moving_a_saved_place_offers_no_delete() {
         setPanel(stationary = false)
         rule.onNodeWithContentDescription("Delete Office").assertDoesNotExist()
+    }
+
+    @Test
+    fun stopped_a_saved_place_offers_rename() {
+        setPanel(stationary = true)
+        rule.onNodeWithContentDescription("Rename Office").performClick()
+        assertEquals(listOf<DestinationAction>(DestinationAction.StartRename(office.id)), actions)
+    }
+
+    @Test
+    fun moving_a_saved_place_offers_no_rename() {
+        setPanel(stationary = false)
+        rule.onNodeWithContentDescription("Rename Office").assertDoesNotExist()
+    }
+
+    // The title is the name; the line under it is what the place was saved as, and the buttons use the name too.
+    @Test
+    fun a_named_place_shows_its_name_with_what_it_was_saved_as_underneath() {
+        setPanel(stationary = true, routeAvailable = true, places = listOf(office.copy(name = "Work")))
+
+        rule.onNodeWithText("Work").assertIsDisplayed()
+        rule.onNodeWithText("1st & Pike, Seattle").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Rename Work").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Delete Work").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Show route to Work").assertIsDisplayed()
+        assertEquals(
+            "Open Work in maps app",
+            rule
+                .onNodeWithText("Work")
+                .fetchSemanticsNode()
+                .config[SemanticsActions.OnClick]
+                .label,
+        )
+    }
+
+    @Test
+    fun a_named_point_is_handed_off_with_its_name_as_the_pin_label() {
+        setPanel(stationary = false, places = listOf(home.copy(name = "Mum's (new) place")))
+
+        rule.onNodeWithText("Mum's (new) place").performClick()
+
+        assertEquals(listOf(home.target to "Mum's (new) place"), handoffs)
+    }
+
+    @Test
+    fun a_row_in_rename_mode_is_a_named_field_holding_the_draft_with_save_and_cancel() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).assertIsDisplayed()
+        rule.onNodeWithText("Work").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Save name").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Cancel renaming").assertIsDisplayed()
+        // The row is the field: no hand-off, rename or delete for that place, while the other row is unchanged.
+        rule.onNodeWithContentDescription("Rename Office").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Delete Office").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Rename Home").assertIsDisplayed()
+    }
+
+    // No floating label (M3 would draw it in bodySmall); the placeholder carries what the place was saved as.
+    @Test
+    fun an_unnamed_place_starts_with_an_empty_field_and_what_it_was_saved_as_as_the_placeholder() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+
+        assertEquals("", renameFieldText())
+        rule.onNodeWithText("Name for Office").assertIsDisplayed()
+    }
+
+    @Test
+    fun a_named_place_starts_with_its_whole_name_selected() {
+        setPanel(
+            stationary = true,
+            places = listOf(office.copy(name = "Work"), home),
+            renaming = RenameDraft(office.id, "Work"),
+        )
+
+        assertEquals(TextRange(0, "Work".length), renameFieldSelection())
+    }
+
+    // A draft that is not the stored name was typed by the driver; a rebuilt field must not select it for the next
+    // key to replace.
+    @Test
+    fun a_draft_that_differs_from_the_stored_name_starts_with_the_cursor_at_its_end() {
+        setPanel(
+            stationary = true,
+            places = listOf(office.copy(name = "Work"), home),
+            renaming = RenameDraft(office.id, "Wo"),
+        )
+
+        assertEquals(TextRange("Wo".length), renameFieldSelection())
+    }
+
+    @Test
+    fun a_draft_typed_for_an_unnamed_place_starts_with_the_cursor_at_its_end() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Wor"))
+
+        assertEquals(TextRange("Wor".length), renameFieldSelection())
+    }
+
+    // The activity is recreated (a rotation) and the field is rebuilt from the ViewModel's draft, which here has not
+    // caught up: the text the driver typed comes back from the saved field value.
+    @Test
+    fun a_recreated_activity_keeps_what_was_typed_in_the_rename_field() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("Work")
+
+        rule.activityRule.scenario.recreate()
+        // The rule does not set the content again for the new activity; the host would.
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+
+        assertEquals("Work", renameFieldText())
+    }
+
+    // Typed text and focus survive the row going from beside-the-field buttons to buttons under it (Display size
+    // LARGE, or a rotation to a narrower panel), which rebuilds the field in another place in the tree.
+    @Test
+    fun typed_text_and_focus_survive_the_rename_row_switching_arrangement() {
+        var width by mutableStateOf(800.dp)
+        rule.setContent {
+            FemtoTheme {
+                Box(Modifier.requiredSize(width, 480.dp)) {
+                    DestinationPanel(
+                        uiState =
+                            DestinationUiState(
+                                query = "",
+                                voice = VoiceState.Idle,
+                                places = listOf(office, home),
+                                motion = VehicleMotion.PARKED,
+                                renaming = RenameDraft(office.id, ""),
+                            ),
+                        lastFix = FIX,
+                        currentAddress = "",
+                        visible = true,
+                        onAction = { actions += it },
+                        onMicTap = {},
+                        onNavigate = { _, _ -> },
+                        onOpenMaps = {},
+                        onClose = {},
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("Work")
+        val besideTop = boundsOfDescription("Save name").top
+        val besideFieldBottom = boundsOfTag(DESTINATION_RENAME_TEST_TAG).bottom
+        assertTrue(besideTop < besideFieldBottom, "wide: Save is beside the field")
+
+        width = 600.dp
+        rule.waitForIdle()
+
+        assertTrue(
+            boundsOfDescription("Save name").top >= boundsOfTag(DESTINATION_RENAME_TEST_TAG).bottom - 1f,
+            "narrow: Save is under the field",
+        )
+        assertEquals("Work", renameFieldText())
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).assertIsFocused()
+    }
+
+    // The ViewModel cuts the draft too, but this panel's field keeps its own text, so it must show the cut.
+    @Test
+    fun typing_past_the_cap_reports_and_shows_the_cut_name() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+        val capped = "a".repeat(MAX_PLACE_NAME_LENGTH)
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("a".repeat(MAX_PLACE_NAME_LENGTH + 10))
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.RenameChanged(capped)), actions)
+        assertEquals(capped, renameFieldText())
+    }
+
+    // The buttons beside the place at 800x480 and Display size MEDIUM, the narrowest geometry the app supports.
+    @Test
+    @Config(qualifiers = "w800dp-h480dp-mdpi")
+    fun at_800x480_a_row_keeps_route_rename_and_delete_beside_the_text() {
+        setPanel(stationary = true, routeAvailable = true)
+
+        val row = boundsOfText("Office")
+        listOf("Show route to Office", "Rename Office", "Delete Office").forEach { description ->
+            val button = boundsOfDescription(description)
+            assertTrue(button.top < row.bottom, "$description sits under the row: $button vs $row")
+            assertTrue(button.left >= row.right - 1f, "$description overlaps the text: $button vs $row")
+        }
+    }
+
+    // Display size LARGE on 800x480 is 600x360 dp: the text column would be too narrow, so the buttons go under it.
+    @Test
+    @Config(qualifiers = "w600dp-h360dp-mdpi")
+    fun when_the_text_column_would_be_too_narrow_the_buttons_move_under_the_place_end_aligned() {
+        setPanel(stationary = true, routeAvailable = true)
+
+        val row = boundsOfText("Office")
+        val route = boundsOfDescription("Show route to Office")
+        val rename = boundsOfDescription("Rename Office")
+        val delete = boundsOfDescription("Delete Office")
+        listOf(route, rename, delete).forEach { assertTrue(it.top >= row.bottom - 1f, "$it is not under $row") }
+        assertTrue(route.right <= rename.left + 1f && rename.right <= delete.left + 1f, "order: $route $rename $delete")
+        assertEquals(row.right, delete.right, 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w800dp-h480dp-mdpi")
+    fun at_800x480_the_rename_field_keeps_save_and_cancel_beside_it() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        val field = boundsOfTag(DESTINATION_RENAME_TEST_TAG)
+        listOf("Save name", "Cancel renaming").forEach { description ->
+            val button = boundsOfDescription(description)
+            assertTrue(button.top < field.bottom, "$description sits under the field: $button vs $field")
+            assertTrue(button.left >= field.right - 1f, "$description overlaps the field: $button vs $field")
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w600dp-h360dp-mdpi")
+    fun when_the_name_field_would_be_too_narrow_save_and_cancel_move_under_it_end_aligned() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        val field = boundsOfTag(DESTINATION_RENAME_TEST_TAG)
+        val save = boundsOfDescription("Save name")
+        val cancel = boundsOfDescription("Cancel renaming")
+        listOf(save, cancel).forEach { assertTrue(it.top >= field.bottom - 1f, "$it is not under $field") }
+        assertTrue(save.right <= cancel.left + 1f, "order: $save $cancel")
+        assertEquals(field.right, cancel.right, 1f)
+    }
+
+    // What the rename field holds, not what its placeholder would show.
+    private fun renameFieldText() =
+        rule
+            .onNodeWithTag(DESTINATION_RENAME_TEST_TAG)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.EditableText]
+            .text
+
+    private fun renameFieldSelection() =
+        rule
+            .onNodeWithTag(DESTINATION_RENAME_TEST_TAG)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.TextSelectionRange]
+
+    private fun boundsOfText(text: String) = rule.onNodeWithText(text).fetchSemanticsNode().boundsInRoot
+
+    private fun boundsOfDescription(description: String) =
+        rule.onNodeWithContentDescription(description).fetchSemanticsNode().boundsInRoot
+
+    private fun boundsOfTag(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
+
+    @Test
+    fun typing_in_the_rename_field_reports_the_text() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("Work")
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.RenameChanged("Work")), actions)
+    }
+
+    @Test
+    fun the_keyboards_done_key_saves_the_rename() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performImeAction()
+
+        assertEquals(listOf<DestinationAction>(DestinationAction.SaveRename), actions)
+    }
+
+    @Test
+    fun the_save_and_cancel_buttons_report_their_actions() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+
+        rule.onNodeWithContentDescription("Save name").performClick()
+        rule.onNodeWithContentDescription("Cancel renaming").performClick()
+
+        assertEquals(listOf(DestinationAction.SaveRename, DestinationAction.CancelRename), actions)
     }
 
     @Test
