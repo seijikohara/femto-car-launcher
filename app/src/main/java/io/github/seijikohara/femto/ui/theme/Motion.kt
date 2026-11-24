@@ -26,6 +26,11 @@ internal object Motion {
     private const val REDUCED_MS = 120
     private const val ENTER_SCALE = 0.92f
 
+    // Held as vals so [tier] can recognise a scheme by identity: the two Material
+    // schemes are not guaranteed to be singletons across releases.
+    private val ExpressiveScheme = MotionScheme.expressive()
+    private val StandardScheme = MotionScheme.standard()
+
     /**
      * Return the Material motion scheme [FemtoTheme] installs for [tier], so the
      * Material components follow the same setting as the dashboard. REDUCED takes
@@ -35,9 +40,23 @@ internal object Motion {
      */
     fun scheme(tier: MotionTier): MotionScheme =
         when (tier) {
-            MotionTier.STANDARD -> MotionScheme.expressive()
-            MotionTier.REDUCED -> MotionScheme.standard()
+            MotionTier.STANDARD -> ExpressiveScheme
+            MotionTier.REDUCED -> StandardScheme
             MotionTier.OFF -> NoMotionScheme
+        }
+
+    /**
+     * Return the tier whose [scheme] [FemtoTheme] installed, the inverse of [scheme].
+     * Lets a shared component follow the user's setting from `MaterialTheme.motionScheme`
+     * instead of a parameter threaded through every screen. Outside [FemtoTheme] a plain
+     * `MaterialTheme` carries Material's own default, the standard scheme, which reads as
+     * REDUCED; a scheme this object never handed out reads as STANDARD, the default tier.
+     */
+    fun tier(scheme: MotionScheme): MotionTier =
+        when {
+            scheme === StandardScheme -> MotionTier.REDUCED
+            scheme === NoMotionScheme -> MotionTier.OFF
+            else -> MotionTier.STANDARD
         }
 
     /**

@@ -38,6 +38,19 @@ class MotionTest {
         assertSame(MotionScheme.standard(), Motion.scheme(MotionTier.REDUCED))
     }
 
+    // Outside FemtoTheme a plain MaterialTheme carries material3's default scheme, the
+    // standard() singleton, which is the one REDUCED installs: it reads as REDUCED.
+    @Test
+    fun `tier reads the Material default scheme as REDUCED`() {
+        assertEquals(MotionTier.REDUCED, Motion.tier(MotionScheme.standard()))
+    }
+
+    // A scheme this object never handed out falls back to the default tier.
+    @Test
+    fun `tier reads a foreign scheme as STANDARD`() {
+        assertEquals(MotionTier.STANDARD, Motion.tier(object : MotionScheme by MotionScheme.expressive() {}))
+    }
+
     // The accessibility invariant for Material components: a MotionTier.OFF
     // user must never see one animate, so every spec the OFF scheme hands out
     // is the zero-duration snap(). A regression that fell back to a built-in

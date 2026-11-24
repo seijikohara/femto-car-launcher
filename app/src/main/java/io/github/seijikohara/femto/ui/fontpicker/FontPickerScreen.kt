@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.rememberTextFieldState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,6 +38,7 @@ import io.github.seijikohara.femto.data.fonts.GoogleFontFamily
 import io.github.seijikohara.femto.data.fonts.SystemFontFamily
 import io.github.seijikohara.femto.ui.common.ExpandedSearch
 import io.github.seijikohara.femto.ui.settings.components.BackButton
+import io.github.seijikohara.femto.ui.theme.FemtoCircularProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -305,10 +305,9 @@ private fun PickerRow(
     }
     when {
         downloading -> {
-            CircularProgressIndicator(
+            FemtoCircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 strokeWidth = 2.dp,
-                color = MaterialTheme.colorScheme.primary,
             )
         }
 
@@ -338,7 +337,7 @@ private fun StatusLine(
 ) {
     when (status) {
         PickerStatus.LOADING -> {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            FemtoCircularProgressIndicator()
             Text(
                 text = stringResource(R.string.font_picker_loading),
                 style = MaterialTheme.typography.bodyMedium,

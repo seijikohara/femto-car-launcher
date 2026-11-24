@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,6 +29,7 @@ import io.github.seijikohara.femto.ui.offlinemap.OfflineRegionsAction
 import io.github.seijikohara.femto.ui.settings.components.SettingRowHorizontalInset
 import io.github.seijikohara.femto.ui.settings.components.SettingRowVerticalInset
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoLinearProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 
@@ -61,7 +61,7 @@ internal fun RegionDownloadRow(
         RegionDownloadPhase.RUNNING -> {
             // Not announced byte by byte: the bar reports the progress to accessibility services itself.
             Line(text = progressText(download))
-            LinearProgressIndicator(
+            FemtoLinearProgressIndicator(
                 progress = { download.fraction() },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
             )

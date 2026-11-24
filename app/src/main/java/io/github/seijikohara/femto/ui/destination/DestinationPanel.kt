@@ -28,7 +28,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -77,6 +76,7 @@ import io.github.seijikohara.femto.ui.home.components.MaximizePanel
 import io.github.seijikohara.femto.ui.home.components.PanelIconButton
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
+import io.github.seijikohara.femto.ui.theme.FemtoLinearProgressIndicator
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
@@ -707,14 +707,14 @@ private fun RouteStatus(
     )
     when (step) {
         is RouteStep.Downloading -> {
-            LinearProgressIndicator(
+            FemtoLinearProgressIndicator(
                 progress = { if (step.totalBytes > 0) step.receivedBytes.toFloat() / step.totalBytes else 0f },
                 modifier = widthModifier,
             )
         }
 
         RouteStep.FindingPosition, RouteStep.Locating, RouteStep.CheckingData, RouteStep.Computing -> {
-            LinearProgressIndicator(modifier = widthModifier)
+            FemtoLinearProgressIndicator(modifier = widthModifier)
         }
 
         else -> {}
