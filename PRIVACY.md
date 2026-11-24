@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-11-24**
+**Effective date: 2026-11-25**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains what data the app accesses, why, and who receives it. The app does **not** contain advertising or analytics software development kits (SDKs), and does **not** sell personal data.
 
