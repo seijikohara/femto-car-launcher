@@ -29,6 +29,17 @@ private const val TAG = "RoutePersistence"
  */
 internal const val LAST_DRIVEN_STAMP_INTERVAL_MS = 60_000L
 
+/**
+ * How far a clock may read behind the last-driven stamp and still measure the park: a span down to minus this counts as
+ * no park at all. The stamp is GPS time, and a device clock that runs a little behind it (one that drifts between
+ * network time syncs, at a few seconds a day) would otherwise make every quick restart wait for a fix, and in a car
+ * park none may come. Five minutes covers weeks of such drift and stays well under the shortest "Start a new trip
+ * automatically" time of 30 minutes, while an unset clock, off by days or years, still waits for the first fix. A span
+ * in it takes the same path as a small positive span from a clock stuck at the shutdown time: the route comes back,
+ * and the first fix checks the park again.
+ */
+internal const val CLOCK_ALLOWANCE_MS = 5L * 60 * 1_000
+
 /** What this process did with the route the last one kept, for the diagnostics report. */
 internal enum class RouteRestoreDecision {
     /** The route is back on the map. */
@@ -40,7 +51,10 @@ internal enum class RouteRestoreDecision {
     /** No route was kept, or its file could not be read. */
     NO_SNAPSHOT,
 
-    /** The wall clock reads earlier than the last drive, or no time was kept: the first GPS fix decides. */
+    /**
+     * The wall clock reads more than [CLOCK_ALLOWANCE_MS] earlier than the last drive, or no time was kept: the first
+     * GPS fix decides.
+     */
     WAITING_FOR_FIX,
 
     /** The driver set a route before the kept one could come back; the kept one went. */
@@ -48,6 +62,12 @@ internal enum class RouteRestoreDecision {
 
     /** No time of the last drive was kept, so the first GPS fix could not tell how long the vehicle was parked. */
     UNDATED,
+
+    /**
+     * The first GPS fix read more than [CLOCK_ALLOWANCE_MS] earlier than the last drive, so its clock could not tell
+     * how long the vehicle was parked either; the files went.
+     */
+    FIX_BEFORE_LAST_DRIVE,
 }
 
 /**
@@ -58,20 +78,24 @@ internal enum class RouteRestoreDecision {
  *
  * Two files hold the route ([RouteSnapshotFiles]): the snapshot of the session, and the last-driven stamp, the time of
  * the last GPS fix the dashboard received while the route was on ([onGpsFix], written at most once per
- * [LAST_DRIVEN_STAMP_INTERVAL_MS]), or the wall clock when the session's snapshot was first written.
+ * [LAST_DRIVEN_STAMP_INTERVAL_MS]), or the wall clock when a session the keeper has no time for was first written. A
+ * session keeps its stamp through every rewrite of its snapshot, a reroute or a choice of candidate included.
  *
  * [start] runs one sequence: decide, restore or delete, and only then mirror the store into the files. A mirror that
  * ran from the start would see the empty store of a new process and delete the snapshot before the decision. The
  * decision measures the park from the stamp to now on the wall clock:
  * - with "Never", the route comes back;
  * - a park shorter than the setting brings the route back, and the first GPS fix of the process checks it again on GPS
- *   time: a unit whose clock starts at its last saved time would otherwise show a route days old;
+ *   time: a unit whose clock starts at its last saved time would otherwise show a route days old; a wall clock up to
+ *   [CLOCK_ALLOWANCE_MS] behind the stamp counts as no park and takes this path;
  * - a longer park deletes the files;
- * - a wall clock behind the stamp (a unit that boots with an unset clock), or a snapshot without a stamp, shows nothing
- *   and keeps the files until the first GPS fix decides on GPS time.
+ * - a wall clock further behind the stamp (a unit that boots with an unset clock), or a snapshot without a stamp, shows
+ *   nothing and keeps the files until the first GPS fix decides on GPS time; a fix that reads more than the allowance
+ *   before the stamp cannot measure the park either, and the files go.
  *
  * A restore never replaces a session the driver has started since, and a restored session is the store's own entry
- * ([ActiveRouteStore.restore]): one candidate, no choice, no reference.
+ * ([ActiveRouteStore.restore]): one candidate, no choice, no reference. A route the driver sets before the kept one
+ * comes back deletes the kept one's files at once, even if it is cleared again before its own write.
  *
  * Everything after the start runs in one coroutine, one event at a time: each state of the store and each fix. So a
  * write never lands after the delete that follows it, and a write first checks that its session is still the store's,
@@ -100,10 +124,13 @@ internal class RoutePersistence(
     // Read and written only by the one coroutine [start] launches.
     private var phase = Phase.SETTLED
     private var pending: KeptRoute? = null
-    private var stampMs: Long? = null
     private var restoredSession: Long? = null
     private var mirrored: MirroredRoute? = null
+
+    // The last-driven time of [stampedSession] (the kept route's while it waits), and whether the stamp file holds it.
+    private var stampMs: Long? = null
     private var stampedSession: Long? = null
+    private var stampOnDisk = false
     private var lastFixStampElapsedMs: Long? = null
 
     /**
@@ -142,14 +169,16 @@ internal class RoutePersistence(
         }
     }
 
+    // A span down to minus the allowance counts as no park: it takes the path of a small positive span.
     private suspend fun decideAtStart() {
         val kept = files.readOrNull() ?: return discard(RouteRestoreDecision.NO_SNAPSHOT)
         stampMs = files.readStampOrNull()
+        stampOnDisk = stampMs != null
         val limitMs = parkedGapMs()
         val parkedMs = stampMs?.let { nowEpochMs() - it }
         when {
             limitMs == null -> restore(kept, checkAtFirstFix = false)
-            parkedMs == null || parkedMs < 0 -> waitForFix(kept)
+            parkedMs == null || parkedMs < -CLOCK_ALLOWANCE_MS -> waitForFix(kept)
             parkedMs < limitMs -> restore(kept, checkAtFirstFix = true)
             else -> discard(RouteRestoreDecision.PARKED_TOO_LONG)
         }
@@ -162,9 +191,7 @@ internal class RoutePersistence(
         pending = null
         val session = store.restore(kept.route, kept.destination, kept.conditions)
         if (session == null) {
-            // The driver's route stands; the mirror writes it over the kept one.
-            phase = Phase.SETTLED
-            mutableDecision.value = RouteRestoreDecision.REPLACED
+            replaceKept()
         } else {
             restoredSession = session
             mirrored = MirroredRoute(session, kept.route, kept.destination, kept.conditions)
@@ -184,8 +211,13 @@ internal class RoutePersistence(
         pending = null
         phase = Phase.SETTLED
         deleteFiles()
+        stampMs = null
         mutableDecision.value = decision
     }
+
+    // The driver set a route before the kept one came back. The kept route's files go at once rather than with the
+    // driver route's write: that route may be cleared again before its write, which then never comes.
+    private fun replaceKept() = discard(RouteRestoreDecision.REPLACED)
 
     private fun onSession(route: MirroredRoute?) {
         // The check at the first fix concerns the restored session only; once the driver clears it or sets another
@@ -201,31 +233,37 @@ internal class RoutePersistence(
     }
 
     private fun mirror(route: MirroredRoute) {
+        // A route the driver set replaces a kept one still waiting for its fix, even one that is gone again by now.
+        if (phase == Phase.WAITING_FOR_FIX) replaceKept()
         // A later state of the store follows this one; writing this one would only put an older session on the disk.
         if (store.active.value?.mirrored() != route) return
-        // A route the driver set replaces a kept one still waiting for its fix, whether or not the write below works.
-        if (phase == Phase.WAITING_FOR_FIX) {
-            pending = null
-            phase = Phase.SETTLED
-            mutableDecision.value = RouteRestoreDecision.REPLACED
-        }
         if (!files.write(KeptRoute(route.route, route.destination, route.conditions))) {
             // The file left is another session's or an older line of this one: better none than one the driver left.
             Log.w(TAG, "route snapshot not written; files deleted")
             return deleteFiles()
         }
         mirrored = route
-        if (stampedSession != route.session) {
-            // A new session has not been driven yet: the wall clock stands in, and the next fix replaces it at once.
-            val nowMs = nowEpochMs()
-            if (!files.writeStamp(nowMs)) {
-                Log.w(TAG, "last-driven stamp not written; files deleted")
-                return deleteFiles()
-            }
-            stampMs = nowMs
-            stampedSession = route.session
+        if (!stampSession(route.session)) {
+            Log.w(TAG, "last-driven stamp not written; files deleted")
+            deleteFiles()
+        }
+    }
+
+    // Leave the stamp of [session] on the disk; whether it is there. A session keeps its time through every rewrite of
+    // its snapshot: the time a restored route was last driven, or the time of the session's last fix, is what the next
+    // check of a park measures from, and the clock's time would hide the park. Only a session the keeper has no time
+    // for yet, one not driven since it was set, takes the wall clock, and its next fix replaces that at once.
+    private fun stampSession(session: Long): Boolean {
+        if (stampedSession != session) {
+            stampedSession = session
+            stampMs = nowEpochMs()
+            stampOnDisk = false
             lastFixStampElapsedMs = null
         }
+        // A restored session with no time kept ("Never" and no stamp) stays without one.
+        val stamp = stampMs ?: return true
+        if (!stampOnDisk) stampOnDisk = files.writeStamp(stamp)
+        return stampOnDisk
     }
 
     private suspend fun onFix(timeEpochMs: Long) {
@@ -238,15 +276,18 @@ internal class RoutePersistence(
     }
 
     // GPS time on both sides for a route that was driven, whose stamp came from fixes too: the wall clock that read
-    // earlier than the stamp plays no part.
+    // earlier than the stamp plays no part. A fix that reads earlier than the stamp by more than the allowance says its
+    // clock is no better (a bridged or mock provider can stamp fixes with the device's clock), so it cannot measure the
+    // park either, and the route goes rather than come back whatever the park was. With "Never", no time rule applies.
     private suspend fun decideAtFirstFix(timeEpochMs: Long) {
         val kept = pending ?: return
+        val limitMs = parkedGapMs() ?: return restore(kept, checkAtFirstFix = false)
         val stamp = stampMs ?: return discard(RouteRestoreDecision.UNDATED)
-        val limitMs = parkedGapMs()
-        if (limitMs == null || timeEpochMs - stamp < limitMs) {
-            restore(kept, checkAtFirstFix = false)
-        } else {
-            discard(RouteRestoreDecision.PARKED_TOO_LONG)
+        val parkedMs = timeEpochMs - stamp
+        when {
+            parkedMs < -CLOCK_ALLOWANCE_MS -> discard(RouteRestoreDecision.FIX_BEFORE_LAST_DRIVE)
+            parkedMs < limitMs -> restore(kept, checkAtFirstFix = false)
+            else -> discard(RouteRestoreDecision.PARKED_TOO_LONG)
         }
     }
 
@@ -270,15 +311,18 @@ internal class RoutePersistence(
         val nowMs = nowElapsedMs()
         if (lastFixStampElapsedMs?.let { nowMs - it < LAST_DRIVEN_STAMP_INTERVAL_MS } == true) return
         // A failed write leaves the older stamp, which can only make the next start judge the park longer.
-        if (files.writeStamp(timeEpochMs)) stampMs = timeEpochMs
+        if (files.writeStamp(timeEpochMs)) {
+            stampMs = timeEpochMs
+            stampOnDisk = true
+        }
         lastFixStampElapsedMs = nowMs
     }
 
+    // The session's time stays in memory, so a later write of the same session puts it back (stampSession).
     private fun deleteFiles() {
         files.delete()
         mirrored = null
-        stampedSession = null
-        stampMs = null
+        stampOnDisk = false
     }
 
     private enum class Phase {

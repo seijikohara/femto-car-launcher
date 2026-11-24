@@ -559,6 +559,7 @@ class MapFactsTest {
                 "waiting for a GPS fix",
                 "replaced by a new route",
                 "no time of the last drive, deleted",
+                "GPS time before the last drive, deleted",
             ).map { FactValue.Text(it) },
             texts,
         )

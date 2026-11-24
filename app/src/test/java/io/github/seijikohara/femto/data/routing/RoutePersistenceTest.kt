@@ -9,6 +9,7 @@ import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
 import io.github.seijikohara.femto.testfixtures.fakeParallelRoadsRoute
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -18,6 +19,7 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -220,6 +222,90 @@ class RoutePersistenceTest {
             assertEquals(RouteRestoreDecision.UNDATED, keeper.decision.value)
         }
 
+    // A unit last driven with a good clock boots 38 hours later with its clock back at an old date, and its first fix
+    // carries that clock too, as a bridged or mock provider's can: the fix reads years before the last drive.
+    @Test
+    fun `a first fix earlier than the stamp cannot measure the park, so nothing is restored`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - 38 * ONE_HOUR_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keeper = started()
+
+            keeper.gpsFix(UNSET_CLOCK_MS + 60_000L, this)
+
+            assertNull(store.active.value)
+            assertFalse(dir.exists())
+            assertEquals(RouteRestoreDecision.FIX_BEFORE_LAST_DRIVE, keeper.decision.value)
+        }
+
+    // No time rule applies with "Never", here chosen while the route waited.
+    @Test
+    fun `with Never a first fix earlier than the stamp still restores`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keeper = started()
+            parkedGapMs = { null }
+
+            keeper.gpsFix(UNSET_CLOCK_MS + 60_000L, this)
+
+            assertEquals(KEPT, store.keptRouteOrNull())
+        }
+
+    @Test
+    fun `a first fix up to the clock allowance before the stamp restores`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keeper = started()
+
+            keeper.gpsFix(NOW_MS - CLOCK_ALLOWANCE_MS, this)
+
+            assertEquals(KEPT, store.keptRouteOrNull())
+        }
+
+    @Test
+    fun `a first fix more than the clock allowance before the stamp restores nothing`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keeper = started()
+
+            keeper.gpsFix(NOW_MS - CLOCK_ALLOWANCE_MS - 1, this)
+
+            assertNull(store.active.value)
+            assertFalse(dir.exists())
+        }
+
+    // A clock that runs a little behind GPS time, restarted within a minute of the last stamp: the route comes back at
+    // once, and the first fix still checks the park.
+    @Test
+    fun `a wall clock up to the allowance behind the stamp restores and checks at the first fix`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = NOW_MS - CLOCK_ALLOWANCE_MS
+            val keeper = started()
+            val restored = store.keptRouteOrNull()
+
+            keeper.gpsFix(NOW_MS + 3 * ONE_DAY_MS, this)
+
+            assertEquals(KEPT, restored)
+            assertNull(store.active.value)
+        }
+
+    @Test
+    fun `a wall clock more than the allowance behind the stamp waits for a fix`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = NOW_MS - CLOCK_ALLOWANCE_MS - 1
+
+            val keeper = started()
+
+            assertNull(store.active.value)
+            assertEquals(KEPT, files.readOrNull())
+            assertEquals(RouteRestoreDecision.WAITING_FOR_FIX, keeper.decision.value)
+        }
+
     // --- The start-up order -------------------------------------------------------------------------------------------
 
     // The settings store answers late, so the store's empty state reaches the keeper before its decision.
@@ -283,6 +369,65 @@ class RoutePersistenceTest {
             assertEquals(KeptRoute(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS), files.readOrNull())
         }
 
+    // The driver's route stands at the decision and is cleared before the keeper ever sees it: the clear, queued as the
+    // setting is read, runs before the keeper starts to follow the store.
+    @Test
+    fun `a route set and cleared during the start's decision leaves no kept route`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            parkedGapMs = {
+                backgroundScope.launch { store.clear() }
+                TWO_HOURS_MS
+            }
+
+            val keeper = started()
+
+            assertNull(store.active.value)
+            assertFalse(dir.exists())
+            assertEquals(RouteRestoreDecision.REPLACED, keeper.decision.value)
+        }
+
+    // The keeper hears of the driver's route only once the clear, queued right after it, has run: its write finds the
+    // route gone.
+    @Test
+    fun `a route set and cleared while the kept one waits for a fix ends the wait`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keeper = started()
+            store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            backgroundScope.launch { store.clear() }
+            runCurrent()
+            val afterTheClear = dir.exists() to keeper.decision.value
+
+            keeper.gpsFix(NOW_MS, this)
+
+            assertEquals(false to RouteRestoreDecision.REPLACED, afterTheClear)
+            assertNull(store.active.value)
+        }
+
+    // The driver sets a route while the first fix's check waits for the setting: the check must end the restored
+    // session only, never the route that replaced it.
+    @Test
+    fun `the first-fix check clears only the restored session, even one replaced while it runs`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = NOW_MS + 60_000L
+            val keeper = started()
+            val setting = CompletableDeferred<Long?>()
+            parkedGapMs = { setting.await() }
+            keeper.gpsFix(NOW_MS + 3 * ONE_DAY_MS, this)
+            val driven = store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+
+            setting.complete(TWO_HOURS_MS)
+            runCurrent()
+
+            assertEquals(driven, store.active.value?.session)
+            assertEquals(KeptRoute(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS), files.readOrNull())
+        }
+
     // --- The mirror ---------------------------------------------------------------------------------------------------
 
     @Test
@@ -323,6 +468,59 @@ class RoutePersistenceTest {
             runCurrent()
 
             assertEquals(CHOSEN_ROUTE to REROUTED, afterTheChoice to files.readOrNull()?.route)
+        }
+
+    // The wall clock moves on between the writes; only a new session takes it.
+    @Test
+    fun `a reroute and a candidate choice keep the stamp`() =
+        runTest {
+            started()
+            val session = store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            store.addCandidate(session, RouteCandidate(CHOSEN_ROUTE, reference = null, computingMs = 900L))
+            runCurrent()
+            nowEpochMs += TEN_MINUTES_MS
+
+            store.select(session, 1)
+            runCurrent()
+            store.replace(session, REROUTED, reference = null)
+            runCurrent()
+
+            assertEquals(NOW_MS, files.readStampOrNull())
+        }
+
+    // The stamp is the time the kept route was last driven; a stamp from the wall clock would defeat the next check of
+    // the park on a unit whose clock stopped.
+    @Test
+    fun `a reroute of a restored route keeps the stamp`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            started()
+            val restored = assertNotNull(store.active.value).session
+            nowEpochMs += TEN_MINUTES_MS
+
+            store.replace(restored, REROUTED, reference = null)
+            runCurrent()
+
+            assertEquals(REROUTED to NOW_MS - ONE_HOUR_MS, files.readOrNull()?.route to files.readStampOrNull())
+        }
+
+    // A write that failed deleted the files; the next one puts back the time the route was last driven, not the clock.
+    @Test
+    fun `a failed write keeps the restored route's last-driven time`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            started()
+            val restored = assertNotNull(store.active.value).session
+            failWrites = true
+            store.replace(restored, CHOSEN_ROUTE, reference = null)
+            runCurrent()
+            failWrites = false
+            nowEpochMs += TEN_MINUTES_MS
+
+            store.replace(restored, REROUTED, reference = null)
+            runCurrent()
+
+            assertEquals(REROUTED to NOW_MS - ONE_HOUR_MS, files.readOrNull()?.route to files.readStampOrNull())
         }
 
     @Test
@@ -484,6 +682,7 @@ class RoutePersistenceTest {
         const val ONE_HOUR_MS = 60L * 60 * 1_000
         const val TWO_HOURS_MS = 2 * ONE_HOUR_MS
         const val ONE_DAY_MS = 24 * ONE_HOUR_MS
+        const val TEN_MINUTES_MS = 10L * 60 * 1_000
 
         val NO_CONDITIONS = RouteConditions()
         val AVOID_TOLLS = RouteConditions(avoidTolls = true)
