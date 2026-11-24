@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.testfixtures
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
+import io.github.seijikohara.femto.data.places.placeNameOrNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -27,6 +28,13 @@ internal class FakeSavedPlacesStore(
     ) = state.update { it + SavedPlace(nextId++, label, target) }
 
     override suspend fun delete(id: Long) = state.update { places -> places.filterNot { it.id == id } }
+
+    override suspend fun rename(
+        id: Long,
+        name: String?,
+    ) = state.update { places ->
+        places.map { if (it.id == id) it.copy(name = placeNameOrNull(name, it.label)) else it }
+    }
 }
 
 /** A saved place with test defaults: a query place labelled after its query. */
@@ -34,4 +42,5 @@ internal fun fakeSavedPlace(
     id: Long = 1L,
     label: String = "Office",
     target: PlaceTarget = PlaceTarget.Query("1st & Pike, Seattle"),
-): SavedPlace = SavedPlace(id = id, label = label, target = target)
+    name: String? = null,
+): SavedPlace = SavedPlace(id = id, label = label, target = target, name = name)

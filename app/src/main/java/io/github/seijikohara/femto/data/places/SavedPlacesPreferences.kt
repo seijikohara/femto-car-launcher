@@ -16,13 +16,62 @@ import kotlinx.serialization.json.Json
 
 private const val TAG = "SavedPlacesPreferences"
 
-/** A destination the user kept: a [label] and the [target] it hands off. */
+/**
+ * A destination the user kept: a [label] and the [target] it hands off, and
+ * optionally a [name] of the user's own. [label] is what the place was saved as
+ * (the typed text, an address or coordinates) and never changes; [name] sits on
+ * top of it and is null until the user gives one. Absent from the stored JSON
+ * while null, so an older build reads the place unchanged.
+ */
 @Serializable
 internal data class SavedPlace(
     val id: Long,
     val label: String,
     val target: PlaceTarget,
-)
+    val name: String? = null,
+) {
+    /** What the row, the screen-reader labels and a point's pin call the place: the name, else the label. */
+    val title: String get() = name ?: label
+
+    /**
+     * The line under the [title], or null for none. A named place says what it was saved as (the typed text, else
+     * the label); an unnamed one repeats nothing, except that a typed text differing from its label still shows, so
+     * "Office" says where it goes.
+     */
+    val detail: String?
+        get() {
+            val text = (target as? PlaceTarget.Query)?.text
+            return if (name != null) text ?: label else text?.takeIf { it != label }
+        }
+}
+
+// A name is a row title and, for a point, the pin label inside a geo: URI, where
+// each non-ASCII character costs up to nine characters once percent-encoded (three
+// UTF-8 bytes). 60 characters keep even an all-CJK pin label near 540 characters,
+// well short of what a maps app or an intent takes without trouble, and are more
+// than a row shows before it ellipsizes.
+internal const val MAX_PLACE_NAME_LENGTH = 60
+
+/**
+ * Cut [text] to [MAX_PLACE_NAME_LENGTH] without leaving half a surrogate pair at the end. The panel's field and
+ * [placeNameOrNull] share it, so what the field lets through is what the store keeps.
+ */
+internal fun capPlaceName(text: String): String =
+    text.take(MAX_PLACE_NAME_LENGTH).let { if (it.lastOrNull()?.isHighSurrogate() == true) it.dropLast(1) else it }
+
+/**
+ * The name to store for a place saved as [label]: [name] trimmed and capped, or null when nothing is left or it
+ * equals the label (the label already says it, so the row is as it was before).
+ */
+internal fun placeNameOrNull(
+    name: String?,
+    label: String,
+): String? =
+    name
+        ?.trim()
+        ?.let(::capPlaceName)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() && it != label }
 
 /**
  * The DataStore file name. The backup and data-extraction rules exclude
@@ -42,7 +91,7 @@ private val PlacesJson = Json { ignoreUnknownKeys = true }
  * The destination panel's saved places, in insertion order (newest last, so a
  * place keeps its position as others are added). Location data: the store
  * stays on the device and out of backup and device transfer, and nothing here
- * logs a label, a query or a coordinate.
+ * logs a label, a name, a query or a coordinate.
  */
 internal interface SavedPlacesStore {
     val places: Flow<List<SavedPlace>>
@@ -53,6 +102,15 @@ internal interface SavedPlacesStore {
     )
 
     suspend fun delete(id: Long)
+
+    /**
+     * Give the place [id] the name [name], or take its name away with null; [placeNameOrNull] decides what is
+     * stored. A place that is no longer there stays gone: nothing is added.
+     */
+    suspend fun rename(
+        id: Long,
+        name: String?,
+    )
 }
 
 /**
@@ -89,6 +147,25 @@ internal class SavedPlacesPreferences(
             prefs.placesOrNull()?.let { current ->
                 prefs[PLACES_KEY] = PlacesJson.encodeToString(current.filterNot { it.id == id })
             }
+        }
+    }
+
+    // Maps over the stored list and never inserts, so a rename that lands after the
+    // place was deleted changes nothing instead of bringing it back. Like add and
+    // delete, it leaves an unreadable list alone.
+    override suspend fun rename(
+        id: Long,
+        name: String?,
+    ) {
+        context.savedPlacesDataStore.editOrLog(TAG) { prefs ->
+            prefs
+                .placesOrNull()
+                ?.takeIf { current -> current.any { it.id == id } }
+                ?.let { current ->
+                    prefs[PLACES_KEY] = PlacesJson.encodeToString(
+                        current.map { if (it.id == id) it.copy(name = placeNameOrNull(name, it.label)) else it },
+                    )
+                }
         }
     }
 
