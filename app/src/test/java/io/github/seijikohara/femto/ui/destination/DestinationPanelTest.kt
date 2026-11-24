@@ -1,7 +1,9 @@
 package io.github.seijikohara.femto.ui.destination
 
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,6 +13,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -21,6 +24,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.MAX_PLACE_NAME_LENGTH
 import io.github.seijikohara.femto.data.places.PlaceTarget
@@ -244,7 +248,6 @@ class DestinationPanelTest {
 
         rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).assertIsDisplayed()
         rule.onNodeWithText("Work").assertIsDisplayed()
-        rule.onNodeWithContentDescription("Name").assertIsDisplayed()
         rule.onNodeWithContentDescription("Save name").assertIsDisplayed()
         rule.onNodeWithContentDescription("Cancel renaming").assertIsDisplayed()
         // The row is the field: no hand-off, rename or delete for that place, while the other row is unchanged.
@@ -259,18 +262,98 @@ class DestinationPanelTest {
         setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
 
         assertEquals("", renameFieldText())
-        rule.onNodeWithText("Office").assertIsDisplayed()
+        rule.onNodeWithText("Name for Office").assertIsDisplayed()
     }
 
     @Test
     fun a_named_place_starts_with_its_whole_name_selected() {
-        setPanel(stationary = true, renaming = RenameDraft(office.id, "Work"))
+        setPanel(
+            stationary = true,
+            places = listOf(office.copy(name = "Work"), home),
+            renaming = RenameDraft(office.id, "Work"),
+        )
 
-        val selection = rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).fetchSemanticsNode().config[
-            SemanticsProperties.TextSelectionRange,
-        ]
+        assertEquals(TextRange(0, "Work".length), renameFieldSelection())
+    }
 
-        assertEquals(TextRange(0, "Work".length), selection)
+    // A draft that is not the stored name was typed by the driver; a rebuilt field must not select it for the next
+    // key to replace.
+    @Test
+    fun a_draft_that_differs_from_the_stored_name_starts_with_the_cursor_at_its_end() {
+        setPanel(
+            stationary = true,
+            places = listOf(office.copy(name = "Work"), home),
+            renaming = RenameDraft(office.id, "Wo"),
+        )
+
+        assertEquals(TextRange("Wo".length), renameFieldSelection())
+    }
+
+    @Test
+    fun a_draft_typed_for_an_unnamed_place_starts_with_the_cursor_at_its_end() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, "Wor"))
+
+        assertEquals(TextRange("Wor".length), renameFieldSelection())
+    }
+
+    // The activity is recreated (a rotation) and the field is rebuilt from the ViewModel's draft, which here has not
+    // caught up: the text the driver typed comes back from the saved field value.
+    @Test
+    fun a_recreated_activity_keeps_what_was_typed_in_the_rename_field() {
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("Work")
+
+        rule.activityRule.scenario.recreate()
+        // The rule does not set the content again for the new activity; the host would.
+        setPanel(stationary = true, renaming = RenameDraft(office.id, ""))
+
+        assertEquals("Work", renameFieldText())
+    }
+
+    // Typed text and focus survive the row going from beside-the-field buttons to buttons under it (Display size
+    // LARGE, or a rotation to a narrower panel), which rebuilds the field in another place in the tree.
+    @Test
+    fun typed_text_and_focus_survive_the_rename_row_switching_arrangement() {
+        var width by mutableStateOf(800.dp)
+        rule.setContent {
+            FemtoTheme {
+                Box(Modifier.requiredSize(width, 480.dp)) {
+                    DestinationPanel(
+                        uiState =
+                            DestinationUiState(
+                                query = "",
+                                voice = VoiceState.Idle,
+                                places = listOf(office, home),
+                                motion = VehicleMotion.PARKED,
+                                renaming = RenameDraft(office.id, ""),
+                            ),
+                        lastFix = FIX,
+                        currentAddress = "",
+                        visible = true,
+                        onAction = { actions += it },
+                        onMicTap = {},
+                        onNavigate = { _, _ -> },
+                        onOpenMaps = {},
+                        onClose = {},
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).performTextInput("Work")
+        val besideTop = boundsOfDescription("Save name").top
+        val besideFieldBottom = boundsOfTag(DESTINATION_RENAME_TEST_TAG).bottom
+        assertTrue(besideTop < besideFieldBottom, "wide: Save is beside the field")
+
+        width = 600.dp
+        rule.waitForIdle()
+
+        assertTrue(
+            boundsOfDescription("Save name").top >= boundsOfTag(DESTINATION_RENAME_TEST_TAG).bottom - 1f,
+            "narrow: Save is under the field",
+        )
+        assertEquals("Work", renameFieldText())
+        rule.onNodeWithTag(DESTINATION_RENAME_TEST_TAG).assertIsFocused()
     }
 
     // The ViewModel cuts the draft too, but this panel's field keeps its own text, so it must show the cut.
@@ -347,6 +430,12 @@ class DestinationPanelTest {
             .fetchSemanticsNode()
             .config[SemanticsProperties.EditableText]
             .text
+
+    private fun renameFieldSelection() =
+        rule
+            .onNodeWithTag(DESTINATION_RENAME_TEST_TAG)
+            .fetchSemanticsNode()
+            .config[SemanticsProperties.TextSelectionRange]
 
     private fun boundsOfText(text: String) = rule.onNodeWithText(text).fetchSemanticsNode().boundsInRoot
 

@@ -39,6 +39,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,8 +51,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -645,6 +644,7 @@ private fun SavedPlaceRow(
 ) = if (renameText != null) {
     SavedPlaceRenameRow(
         text = renameText,
+        storedName = place.name,
         savedAs = place.label,
         onTextChange = onRenameChange,
         onSave = onRenameSave,
@@ -669,11 +669,15 @@ private fun SavedPlaceRow(
 // with an empty field whose placeholder says what the place was saved as (clearing the field later returns the row
 // to that); a named place starts with its name selected, so typing replaces it and a tap places the cursor. The text
 // sits in a local field value for the selection; the ViewModel's draft is the one that is saved, and the same cap
-// cuts both. The field has no floating label: M3 would draw it in bodySmall, below the body floor, so the name for
-// screen readers is the field's content description, as the search field above gets by on its placeholder.
+// cuts both. The field value is saved across the row leaving composition (scrolled out of the list, or the activity
+// recreated), and only an untouched draft (still the stored name) gets the select-all: a rebuilt draft that holds
+// what the driver typed keeps the cursor at its end, so the next key does not replace it. The field has no floating
+// label: M3 would draw it in bodySmall, below the body floor. Its purpose is the placeholder's, as the search
+// field's is; a content description would be announced in place of the typed text.
 @Composable
 private fun SavedPlaceRenameRow(
     text: String,
+    storedName: String?,
     savedAs: String,
     onTextChange: (String) -> Unit,
     onSave: () -> Unit,
@@ -682,13 +686,20 @@ private fun SavedPlaceRenameRow(
 ) = BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
     // Beside the field the two buttons take 128 dp; under it the field gets the whole row.
     val stacked = maxWidth - FemtoDimens.MinTouchTarget * 2 < RenameFieldMinWidth
-    var field by remember { mutableStateOf(TextFieldValue(text = text, selection = TextRange(0, text.length))) }
+    var field by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        val untouched = text == storedName.orEmpty()
+        mutableStateOf(
+            TextFieldValue(
+                text = text,
+                selection = if (untouched) TextRange(0, text.length) else TextRange(text.length),
+            ),
+        )
+    }
     val focusRequester = remember { FocusRequester() }
     // The keyboard comes up with the field: a rename is typing, and the tap on the pencil was the request. The key
     // brings it back when a change of layout rebuilds the field.
     LaunchedEffect(stacked) { focusRequester.requestFocus() }
     val nameField: @Composable (Modifier) -> Unit = { fieldModifier ->
-        val fieldName = stringResource(R.string.destination_rename_field)
         OutlinedTextField(
             value = field,
             onValueChange = { value ->
@@ -700,12 +711,11 @@ private fun SavedPlaceRenameRow(
                 fieldModifier
                     .heightIn(min = FemtoDimens.MinTouchTarget)
                     .focusRequester(focusRequester)
-                    .semantics { contentDescription = fieldName }
                     .testTag(DESTINATION_RENAME_TEST_TAG),
             textStyle = MaterialTheme.typography.drawerBody(),
             placeholder = {
                 Text(
-                    text = savedAs,
+                    text = stringResource(R.string.destination_rename_placeholder, savedAs),
                     style = MaterialTheme.typography.drawerBody(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
