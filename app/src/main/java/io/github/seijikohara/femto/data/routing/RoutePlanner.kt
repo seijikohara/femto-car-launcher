@@ -39,8 +39,6 @@ private const val NANOS_PER_MILLI = 1_000_000L
 internal data class RouteRun(
     val outcome: RouteRunOutcome,
     val computingMs: Long,
-    /** Which of BRouter's routes the search asked for; a later one takes longer, as it computes the earlier ones too. */
-    val alternativeIndex: Int = 0,
 )
 
 internal enum class RouteRunOutcome {
@@ -126,16 +124,22 @@ internal class RoutePlanner(
                         timeLimitMs = timeLimitMs,
                     ).withoutNoDataTiles()
             ).also { result ->
-                lastRun =
-                    RouteRun(
-                        outcome = result.runOutcome(),
-                        computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI,
-                        alternativeIndex = alternativeIndex,
-                    )
+                // The driver's route or a reroute, never a search for a candidate on the choice card: the candidate
+                // finder reports those, and the report's "Last route" says how the route being followed came about.
+                if (alternativeIndex == 0) {
+                    lastRun =
+                        RouteRun(
+                            outcome = result.runOutcome(),
+                            computingMs = (nanoTime() - startNanos) / NANOS_PER_MILLI,
+                        )
+                }
             }
         }
 
-    /** How the last route this process computed ended, and how long it took; null before the first one. */
+    /**
+     * How the last route this process computed ended, and how long it took; null before the first one. A search for
+     * one of BRouter's later routes does not count.
+     */
     fun lastRunOrNull(): RouteRun? = lastRun
 
     /**
