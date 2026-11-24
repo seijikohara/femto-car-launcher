@@ -36,7 +36,7 @@ class MediaResumerTest {
         }.also { runCurrent() }
 
     private fun TestScope.play(state: SessionPlayback) {
-        port.playback.value = state
+        port.play(state)
         runCurrent()
     }
 
@@ -239,6 +239,88 @@ class MediaResumerTest {
             assertEquals(1, disconnects)
         }
 
+    // -- the driver left the dashboard -------------------------------------------
+
+    @Test
+    fun `a launcher no longer in front does not open the app`() =
+        runTest {
+            port.hasBrowser = false
+            port.foreground = false
+            val attempt = start()
+            advanceUntilIdle()
+
+            assertEquals(notStarted(NotStartedReason.LEFT_DASHBOARD), attempt.await())
+            assertFalse("open app" in port.calls)
+        }
+
+    @Test
+    fun `leaving the dashboard keeps a buffering browser until the app plays`() =
+        runTest {
+            // Only the last step asks whether the launcher is in front: dropping
+            // the browser mid-buffer would stop a service that is only bound.
+            port.foreground = false
+            val attempt = start()
+            play(SessionPlayback.BUFFERING)
+            advanceTimeBy(RESUME_BROWSER_WINDOW_MS * 2)
+            runCurrent()
+            assertTrue(port.connected)
+
+            play(SessionPlayback.PLAYING)
+            assertEquals(started(ResumeStep.BROWSER), attempt.await())
+        }
+
+    // -- another app starts playing ----------------------------------------------
+
+    @Test
+    fun `another app playing after the media key ends the attempt without opening the remembered app`() =
+        runTest {
+            // The media key reached the platform's last media button receiver, not the remembered app.
+            val attempt = start()
+            advanceTimeBy(RESUME_BROWSER_WINDOW_MS + 1_000)
+            port.otherAppPlays()
+            runCurrent()
+
+            assertEquals(notStarted(NotStartedReason.OTHER_APP_PLAYING), attempt.await())
+            assertEquals(listOf("browser", "media key", "disconnect"), port.calls)
+        }
+
+    @Test
+    fun `another app playing during the browser step ends the attempt before the media key`() =
+        runTest {
+            val attempt = start()
+            advanceTimeBy(1_000)
+            port.otherAppPlays()
+            runCurrent()
+
+            assertEquals(notStarted(NotStartedReason.OTHER_APP_PLAYING), attempt.await())
+            assertFalse("media key" in port.calls)
+        }
+
+    @Test
+    fun `the remembered app pausing after the browser's prepare does not end the attempt`() =
+        runTest {
+            // Prepared, then paused: the media key is what starts it, so the
+            // attempt goes on to it instead of ending.
+            val attempt = start()
+            play(SessionPlayback.BUFFERING)
+            play(SessionPlayback.IDLE)
+            assertFalse(attempt.isCompleted)
+            assertTrue("media key" in port.calls)
+
+            play(SessionPlayback.PLAYING)
+            assertEquals(started(ResumeStep.MEDIA_KEY), attempt.await())
+        }
+
+    @Test
+    fun `the remembered app playing outranks another app playing in the same reading`() =
+        runTest {
+            val attempt = start()
+            port.otherAppPlays()
+            play(SessionPlayback.PLAYING)
+
+            assertEquals(started(ResumeStep.BROWSER), attempt.await())
+        }
+
     // -- a gone app -------------------------------------------------------------
 
     @Test
@@ -323,4 +405,31 @@ class MediaResumerTest {
 
     @Test
     fun `no session reads as idle`() = assertEquals(SessionPlayback.IDLE, sessionPlaybackOf(emptyList()))
+
+    @Test
+    fun `another app's playing session is seen apart from the remembered app's`() =
+        assertEquals(
+            ResumeWatch(target = SessionPlayback.BUFFERING, otherPlaying = true),
+            resumeWatchOf(
+                FAKE_MUSIC_PACKAGE,
+                listOf(
+                    FAKE_MUSIC_PACKAGE to PlaybackState.STATE_BUFFERING,
+                    OTHER_PACKAGE to PlaybackState.STATE_PLAYING,
+                ),
+            ),
+        )
+
+    @Test
+    fun `another app's paused or buffering session does not count as playing`() =
+        assertEquals(
+            ResumeWatch(),
+            resumeWatchOf(
+                FAKE_MUSIC_PACKAGE,
+                listOf(OTHER_PACKAGE to PlaybackState.STATE_PAUSED, OTHER_PACKAGE to PlaybackState.STATE_BUFFERING),
+            ),
+        )
+
+    private companion object {
+        const val OTHER_PACKAGE = "com.example.radio"
+    }
 }

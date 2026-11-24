@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.data.music
 
+import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -42,17 +43,23 @@ internal class PlatformResumePort(
     override fun isLaunchable(packageName: String): Boolean = apps.isLaunchable(packageName)
 
     /**
-     * Watch [packageName]'s active sessions through the notification-listener grant, as the music card does, with a
-     * callback on each so a state change inside a session is heard as well as a session joining or leaving. The flow
-     * fails when the sessions cannot be read, and when the grant is revoked while it runs: the platform then stops
-     * telling the launcher about sessions, so PLAYING could never be seen.
+     * Watch every active session through the notification-listener grant, as the music card does, with a callback on
+     * each so a state change inside a session is heard as well as a session joining or leaving: the remembered app's
+     * sessions for its progress, the others for another app starting to play. The flow fails when the sessions cannot
+     * be read, and when the grant is revoked while it runs: the platform then stops telling the launcher about
+     * sessions, so PLAYING could never be seen.
      */
-    override fun playback(packageName: String): Flow<SessionPlayback> =
+    override fun sessions(packageName: String): Flow<ResumeWatch> =
         callbackFlow {
             var watched: Map<MediaSession.Token, MediaController> = emptyMap()
 
             fun publish() {
-                trySend(sessionPlaybackOf(watched.values.map { runCatching { it.playbackState?.state }.getOrNull() }))
+                trySend(
+                    resumeWatchOf(
+                        packageName,
+                        watched.values.map { it.packageName to runCatching { it.playbackState?.state }.getOrNull() },
+                    ),
+                )
             }
 
             val callback =
@@ -61,8 +68,7 @@ internal class PlatformResumePort(
                 }
 
             fun rewatch(sessions: List<MediaController>) {
-                val update =
-                    reconcileWatchSet(watched, sessions.filter { it.packageName == packageName }) { it.sessionToken }
+                val update = reconcileWatchSet(watched, sessions) { it.sessionToken }
                 update.removed.forEach { runCatching { it.unregisterCallback(callback) } }
                 update.added.forEach { runCatching { it.registerCallback(callback) } }
                 watched = update.watched
@@ -73,12 +79,9 @@ internal class PlatformResumePort(
             val accessObserver =
                 object : ContentObserver(Handler(Looper.getMainLooper())) {
                     override fun onChange(selfChange: Boolean) {
-                        if (!hasNotificationListenerAccess(
-                                context,
-                            )
-                        ) {
-                            close(SecurityException("notification access revoked"))
-                        }
+                        context
+                            .takeUnless(::hasNotificationListenerAccess)
+                            ?.let { close(SecurityException("notification access revoked")) }
                     }
                 }
 
@@ -128,9 +131,18 @@ internal class PlatformResumePort(
         runCatching { audioManager.dispatchPlayMediaKey() }.onFailure { Log.w(TAG, "play media key failed", it) }
     }
 
-    // An app without a launch intent is the one "false"; a start the platform
-    // refuses (the launcher left the foreground meanwhile) still counts as
-    // opened, so the attempt ends without forgetting a track the app can play.
+    // In front means the top importance: a launcher kept alive only by its trip
+    // foreground service, or visible behind another app, is not in front.
+    override fun isForeground(): Boolean =
+        ActivityManager
+            .RunningAppProcessInfo()
+            .also(ActivityManager::getMyMemoryState)
+            .importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+
+    // An app without a launch intent is the one "false". A start that fails
+    // otherwise still counts as opened, so the attempt ends without forgetting
+    // a track the app can play. The chain asks isForeground() first: the
+    // launcher, as the home app, may start activities from the background.
     override fun openApp(packageName: String): Boolean =
         runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }
             .getOrNull()

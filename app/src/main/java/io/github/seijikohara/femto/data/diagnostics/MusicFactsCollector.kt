@@ -64,13 +64,17 @@ internal fun resumeFact(outcome: ResumeOutcome?): DiagnosticFact =
             is ResumeOutcome.NotStarted -> {
                 "${outcome.packageName}: ${outcome.reason.label}".let { value ->
                     when (outcome.reason) {
-                        // The steps ran and the app never played, or its sessions became unreadable: the
-                        // resume itself failed, the case the report exists to explain.
-                        NotStartedReason.NO_PLAYBACK, NotStartedReason.SESSIONS_UNREADABLE -> {
+                        // The steps ran and the app never played, another app played in its place (the media
+                        // key went elsewhere), or its sessions became unreadable: the resume itself failed, the
+                        // case the report exists to explain.
+                        NotStartedReason.NO_PLAYBACK,
+                        NotStartedReason.OTHER_APP_PLAYING,
+                        NotStartedReason.SESSIONS_UNREADABLE,
+                        -> {
                             FactValue.Status(value, FactHealth.WARNING)
                         }
 
-                        NotStartedReason.APP_GONE, NotStartedReason.INTERRUPTED -> {
+                        NotStartedReason.APP_GONE, NotStartedReason.LEFT_DASHBOARD, NotStartedReason.INTERRUPTED -> {
                             FactValue.Text(value)
                         }
                     }
@@ -92,6 +96,8 @@ private val NotStartedReason.label: String
         when (this) {
             NotStartedReason.NO_PLAYBACK -> "no step started playback"
             NotStartedReason.APP_GONE -> "app not installed or not launchable"
+            NotStartedReason.OTHER_APP_PLAYING -> "another app started playing"
+            NotStartedReason.LEFT_DASHBOARD -> "dashboard left before the app would have opened"
             NotStartedReason.SESSIONS_UNREADABLE -> "sessions unreadable (notification access lost)"
             NotStartedReason.INTERRUPTED -> "interrupted"
         }

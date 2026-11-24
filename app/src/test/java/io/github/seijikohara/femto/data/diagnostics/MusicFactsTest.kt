@@ -134,6 +134,28 @@ class MusicFactsTest {
     }
 
     @Test
+    fun `resumeFact flags another app playing in the remembered app's place as a warning`() {
+        assertEquals(
+            DiagnosticFact(
+                "Last resume",
+                FactValue.Status("com.example.music: another app started playing", FactHealth.WARNING),
+            ),
+            resumeFact(ResumeOutcome.NotStarted("com.example.music", NotStartedReason.OTHER_APP_PLAYING)),
+        )
+    }
+
+    @Test
+    fun `resumeFact reports a left dashboard as plain info`() {
+        assertEquals(
+            DiagnosticFact(
+                "Last resume",
+                FactValue.Text("com.example.music: dashboard left before the app would have opened"),
+            ),
+            resumeFact(ResumeOutcome.NotStarted("com.example.music", NotStartedReason.LEFT_DASHBOARD)),
+        )
+    }
+
+    @Test
     fun `resumeFact reports no attempt yet`() {
         assertEquals(
             DiagnosticFact("Last resume", FactValue.Text("none since the launcher started")),

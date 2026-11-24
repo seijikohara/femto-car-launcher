@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.data.music
 
 import android.media.session.PlaybackState
+import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -54,6 +55,30 @@ internal fun sessionPlaybackOf(states: List<Int?>): SessionPlayback =
         }
     } ?: SessionPlayback.IDLE
 
+/**
+ * What a resume attempt sees of the active sessions: how far the remembered app's own have got ([target]), and
+ * whether a session of another app is PLAYING ([otherPlaying]).
+ */
+internal data class ResumeWatch(
+    val target: SessionPlayback = SessionPlayback.IDLE,
+    val otherPlaying: Boolean = false,
+)
+
+/**
+ * Read the active [sessions] (package name to [PlaybackState] code) as a resume attempt for [packageName] sees them.
+ * Another app's session counts only once it plays: an idle or paused one is no reason to stop the attempt.
+ */
+internal fun resumeWatchOf(
+    packageName: String,
+    sessions: List<Pair<String, Int?>>,
+): ResumeWatch =
+    sessions.partition { (sessionPackage, _) -> sessionPackage == packageName }.let { (own, others) ->
+        ResumeWatch(
+            target = sessionPlaybackOf(own.map { (_, state) -> state }),
+            otherPlaying = others.any { (_, state) -> state == PlaybackState.STATE_PLAYING },
+        )
+    }
+
 /** The step of the resume chain that started playback. */
 internal enum class ResumeStep { BROWSER, MEDIA_KEY, OPEN_APP }
 
@@ -64,6 +89,15 @@ internal enum class NotStartedReason {
 
     /** The app is uninstalled or has no launch intent; the remembered track is forgotten. */
     APP_GONE,
+
+    /**
+     * Another app started playing during the attempt (the media key can reach whichever app the platform routes it
+     * to). The attempt stops there, so the remembered app is not opened over it.
+     */
+    OTHER_APP_PLAYING,
+
+    /** The dashboard was no longer in front when the last step would have opened the app, so it was not opened. */
+    LEFT_DASHBOARD,
 
     /** The app's sessions could no longer be read (notification access revoked), so playback could not be seen. */
     SESSIONS_UNREADABLE,
@@ -101,10 +135,10 @@ internal interface ResumePort {
     fun isLaunchable(packageName: String): Boolean
 
     /**
-     * Follow how far [packageName]'s active sessions have got. The flow fails once they can no longer be read, as
-     * when notification access is revoked.
+     * Follow the active sessions as an attempt for [packageName] reads them (see [resumeWatchOf]). The flow fails once
+     * they can no longer be read, as when notification access is revoked.
      */
-    fun playback(packageName: String): Flow<SessionPlayback>
+    fun sessions(packageName: String): Flow<ResumeWatch>
 
     /**
      * Connect to [packageName]'s media browser service and, once connected, ask its session to prepare and play its
@@ -118,6 +152,9 @@ internal interface ResumePort {
 
     /** Press the play media key. */
     fun dispatchPlayMediaKey()
+
+    /** Return whether the launcher is in front, so opening another app over the screen is the driver's own doing. */
+    fun isForeground(): Boolean
 
     /** Start [packageName]'s launch activity; return false when the app has none. */
     fun openApp(packageName: String): Boolean
@@ -142,53 +179,72 @@ internal object ResumeAttempts {
  *     prepare and play ([ResumePort.connectBrowser]).
  *  2. Media key: when the app has no browser service, the connection fails or is suspended, or step 1 shows no
  *     progress within [RESUME_BROWSER_WINDOW_MS].
- *  3. Open the app: when step 2 shows no progress within [RESUME_MEDIA_KEY_WINDOW_MS].
+ *  3. Open the app: when step 2 shows no progress within [RESUME_MEDIA_KEY_WINDOW_MS], and only while the launcher is
+ *     still in front. The chain outlives the dashboard (a bound-only service dies with its binding, so leaving must
+ *     not drop it mid-buffer), and the launcher as the home app may start activities from the background: without
+ *     this check, the app would open over whatever the driver went to meanwhile.
  *
  * Success is the app's own session reporting PLAYING, never merely a session existing: binding a browser service
  * usually creates an idle session at once. A session that buffers keeps its step waiting, up to
- * [RESUME_BUFFERING_LIMIT_MS].
+ * [RESUME_BUFFERING_LIMIT_MS]. Another app starting to play ends the attempt at any step: music is playing, and the
+ * remembered app must not be woken or opened over it.
  *
  * The browser connection stays up until the app plays or the chain ends, on every path including cancellation: a
  * service that is only bound is destroyed when it is unbound, and playback started through it would die with it.
  *
- * The caller runs one attempt at a time. Each outcome goes to [record]; an app found gone is passed to [forget].
+ * The caller runs one attempt at a time. Each outcome goes to [record]; an app found gone is passed to [forget]. Each
+ * step is logged with the app's package and the time since the tap, never the track, so a log excerpt shows the path.
  */
 internal class MediaResumer(
     private val port: ResumePort,
     private val forget: suspend (packageName: String) -> Unit,
     private val record: (ResumeOutcome) -> Unit = ResumeAttempts::record,
+    private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime,
 ) {
     /** Try to resume [packageName]'s recent track and return how the attempt ended. Call on the main thread. */
-    suspend fun resume(packageName: String): ResumeOutcome =
-        try {
-            attempt(packageName)
+    suspend fun resume(packageName: String): ResumeOutcome {
+        val startedAtMs = elapsedRealtimeMs()
+        return try {
+            attempt(packageName, startedAtMs)
         } catch (e: CancellationException) {
-            record(ResumeOutcome.NotStarted(packageName, NotStartedReason.INTERRUPTED))
+            finish(ResumeOutcome.NotStarted(packageName, NotStartedReason.INTERRUPTED), startedAtMs)
             throw e
         }.also { outcome ->
-            record(outcome)
+            finish(outcome, startedAtMs)
             if ((outcome as? ResumeOutcome.NotStarted)?.reason == NotStartedReason.APP_GONE) forget(packageName)
         }
+    }
 
-    private suspend fun attempt(packageName: String): ResumeOutcome =
+    private fun finish(
+        outcome: ResumeOutcome,
+        startedAtMs: Long,
+    ) {
+        Log.i(TAG, "resume ${outcome.packageName}: $outcome after ${elapsedRealtimeMs() - startedAtMs} ms")
+        record(outcome)
+    }
+
+    private suspend fun attempt(
+        packageName: String,
+        startedAtMs: Long,
+    ): ResumeOutcome =
         if (port.isLaunchable(packageName)) {
-            watching(packageName) { progress -> steps(packageName, progress) }
+            watching(packageName) { progress -> Attempt(packageName, progress, startedAtMs).run() }
         } else {
             ResumeOutcome.NotStarted(packageName, NotStartedReason.APP_GONE)
         }
 
     /**
-     * Run [steps] while a child coroutine follows the app's sessions into the progress they read. A watch that fails
-     * ends the attempt: success could no longer be seen.
+     * Run [steps] while a child coroutine follows the sessions into the reading they see. A watch that fails ends the
+     * attempt: success could no longer be seen.
      */
     private suspend fun watching(
         packageName: String,
-        steps: suspend (StateFlow<SessionPlayback>) -> ResumeOutcome,
+        steps: suspend (StateFlow<ResumeWatch>) -> ResumeOutcome,
     ): ResumeOutcome {
-        val progress = MutableStateFlow(SessionPlayback.IDLE)
+        val progress = MutableStateFlow(ResumeWatch())
         return try {
             coroutineScope {
-                val watch = launch { port.playback(packageName).collect { progress.value = it } }
+                val watch = launch { port.sessions(packageName).collect { progress.value = it } }
                 steps(progress).also { watch.cancel() }
             }
         } catch (e: CancellationException) {
@@ -199,80 +255,140 @@ internal class MediaResumer(
         }
     }
 
-    private suspend fun steps(
-        packageName: String,
-        progress: StateFlow<SessionPlayback>,
-    ): ResumeOutcome {
-        val browserLost = MutableStateFlow(false)
-        val browser = port.connectBrowser(packageName) { browserLost.value = true }
-        var bound = browser != null
+    /** One attempt's steps, holding its browser connection until [run] returns or is cancelled. */
+    private inner class Attempt(
+        private val packageName: String,
+        private val progress: StateFlow<ResumeWatch>,
+        private val startedAtMs: Long,
+    ) {
+        private val browserLost = MutableStateFlow(false)
+        private var browser: BrowserConnection? = null
 
-        // Disconnects exactly once, whichever path gets here first.
-        fun release() {
-            if (bound) {
-                bound = false
-                browser?.disconnect()
+        suspend fun run(): ResumeOutcome =
+            try {
+                browserStep()
+            } finally {
+                release()
+            }
+
+        private suspend fun browserStep(): ResumeOutcome {
+            browser = port.connectBrowser(packageName) { browserLost.value = true }
+            logStep(if (browser != null) "media browser" else "no media browser service")
+            return when (browser?.let { progress.stepEnd(RESUME_BROWSER_WINDOW_MS, abandon = browserLost) }) {
+                StepEnd.PLAYED -> {
+                    started(ResumeStep.BROWSER)
+                }
+
+                StepEnd.OTHER_PLAYING -> {
+                    notStarted(NotStartedReason.OTHER_APP_PLAYING)
+                }
+
+                StepEnd.NO_PROGRESS, null -> {
+                    // A failed or suspended connection is dropped at once, as Android's own controls drop it. A silent
+                    // one stays bound: the session it created may still answer the media key, and unbinding would
+                    // destroy it.
+                    if (browserLost.value) release()
+                    mediaKeyStep()
+                }
             }
         }
 
-        return try {
-            if (browser != null && progress.playsWithin(RESUME_BROWSER_WINDOW_MS, abandon = browserLost)) {
-                ResumeOutcome.Started(packageName, ResumeStep.BROWSER)
-            } else {
-                // A failed or suspended connection is dropped at once, as Android's own controls drop it. A silent one
-                // stays bound: the session it created may still answer the media key, and unbinding would destroy it.
-                if (browserLost.value) release()
-                port.dispatchPlayMediaKey()
-                when {
-                    progress.playsWithin(RESUME_MEDIA_KEY_WINDOW_MS) -> {
-                        ResumeOutcome.Started(packageName, ResumeStep.MEDIA_KEY)
-                    }
+        private suspend fun mediaKeyStep(): ResumeOutcome {
+            logStep("play media key")
+            port.dispatchPlayMediaKey()
+            return when (progress.stepEnd(RESUME_MEDIA_KEY_WINDOW_MS)) {
+                StepEnd.PLAYED -> started(ResumeStep.MEDIA_KEY)
+                StepEnd.OTHER_PLAYING -> notStarted(NotStartedReason.OTHER_APP_PLAYING)
+                StepEnd.NO_PROGRESS -> openAppStep()
+            }
+        }
 
-                    !port.openApp(packageName) -> {
-                        ResumeOutcome.NotStarted(packageName, NotStartedReason.APP_GONE)
-                    }
+        private suspend fun openAppStep(): ResumeOutcome =
+            when {
+                !port.isForeground() -> {
+                    logStep("dashboard left; not opening the app")
+                    notStarted(NotStartedReason.LEFT_DASHBOARD)
+                }
 
-                    progress.playsWithin(RESUME_OPEN_APP_WINDOW_MS) -> {
-                        ResumeOutcome.Started(packageName, ResumeStep.OPEN_APP)
-                    }
+                !port.openApp(packageName) -> {
+                    notStarted(NotStartedReason.APP_GONE)
+                }
 
-                    else -> {
-                        ResumeOutcome.NotStarted(packageName, NotStartedReason.NO_PLAYBACK)
+                else -> {
+                    logStep("app opened")
+                    when (progress.stepEnd(RESUME_OPEN_APP_WINDOW_MS)) {
+                        StepEnd.PLAYED -> started(ResumeStep.OPEN_APP)
+                        StepEnd.OTHER_PLAYING -> notStarted(NotStartedReason.OTHER_APP_PLAYING)
+                        StepEnd.NO_PROGRESS -> notStarted(NotStartedReason.NO_PLAYBACK)
                     }
                 }
             }
-        } finally {
-            release()
+
+        // Disconnects at most once, whichever path gets here first.
+        private fun release() {
+            browser?.disconnect()
+            browser = null
         }
+
+        private fun started(step: ResumeStep) = ResumeOutcome.Started(packageName, step)
+
+        private fun notStarted(reason: NotStartedReason) = ResumeOutcome.NotStarted(packageName, reason)
+
+        private fun logStep(step: String) =
+            Log.i(TAG, "resume $packageName: $step at ${elapsedRealtimeMs() - startedAtMs} ms")
     }
 }
+
+/** How one step's wait ended. */
+private enum class StepEnd { PLAYED, OTHER_PLAYING, NO_PROGRESS }
 
 // Never turns true: the abandon signal of a step with no connection to lose.
 private val NeverAbandoned: StateFlow<Boolean> = MutableStateFlow(false)
 
 /**
- * Wait up to [window] for the app to show progress and, once it buffers, up to [RESUME_BUFFERING_LIMIT_MS] for it to
- * play. Return true once it plays; false when it shows no progress in time, stops buffering without playing (a prepare
- * that ended paused wants the media key), or [abandon] turns true first.
+ * Wait up to [window] for the remembered app to show progress and, once it buffers, up to [RESUME_BUFFERING_LIMIT_MS]
+ * for it to play. [StepEnd.PLAYED] once it plays; [StepEnd.OTHER_PLAYING] once another app plays first; else
+ * [StepEnd.NO_PROGRESS]: no progress in time, buffering that stopped without playing (a prepare that ended paused
+ * wants the media key), or [abandon] turned true.
  */
-private suspend fun StateFlow<SessionPlayback>.playsWithin(
+private suspend fun StateFlow<ResumeWatch>.stepEnd(
     window: Long,
     abandon: StateFlow<Boolean> = NeverAbandoned,
-): Boolean {
-    // Null once abandoned, which no wait below accepts as progress.
-    val readings = combine(this, abandon) { playback, abandoned -> playback.takeUnless { abandoned } }
-    return when (withTimeoutOrNull(window) { readings.first { it != SessionPlayback.IDLE } }) {
-        SessionPlayback.PLAYING -> {
-            true
+): StepEnd {
+    // The remembered app playing outranks everything else in the same reading.
+    val ends =
+        combine(this, abandon) { watch, abandoned ->
+            when {
+                watch.target == SessionPlayback.PLAYING -> StepReading.Ended(StepEnd.PLAYED)
+                watch.otherPlaying -> StepReading.Ended(StepEnd.OTHER_PLAYING)
+                abandoned -> StepReading.Ended(StepEnd.NO_PROGRESS)
+                watch.target == SessionPlayback.BUFFERING -> StepReading.Buffering
+                else -> StepReading.Idle
+            }
+        }
+    return when (val first = withTimeoutOrNull(window) { ends.first { it != StepReading.Idle } }) {
+        is StepReading.Ended -> {
+            first.end
         }
 
-        SessionPlayback.BUFFERING -> {
-            withTimeoutOrNull(RESUME_BUFFERING_LIMIT_MS) { readings.first { it != SessionPlayback.BUFFERING } } ==
-                SessionPlayback.PLAYING
+        StepReading.Buffering -> {
+            val settled = withTimeoutOrNull(RESUME_BUFFERING_LIMIT_MS) { ends.first { it != StepReading.Buffering } }
+            (settled as? StepReading.Ended)?.end ?: StepEnd.NO_PROGRESS
         }
 
         else -> {
-            false
+            StepEnd.NO_PROGRESS
         }
     }
+}
+
+/** One reading during a step's wait. */
+private sealed interface StepReading {
+    data object Idle : StepReading
+
+    data object Buffering : StepReading
+
+    data class Ended(
+        val end: StepEnd,
+    ) : StepReading
 }
