@@ -99,6 +99,15 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="geo" />
         </intent>
+        <!--
+            Find the media browser service of the app that played last, so the
+            music card can ask it to resume the way Android's own media
+            controls do. Without this entry the service stays invisible on
+            Android 11+, and the resume falls back to the play media key.
+        -->
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
     </queries>
 
     <application

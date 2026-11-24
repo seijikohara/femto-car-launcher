@@ -5,6 +5,7 @@ import android.content.Intent
 import android.location.Location
 import android.location.LocationManager
 import android.os.SystemClock
+import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
 import io.github.seijikohara.femto.data.common.UI_SUBSCRIPTION_GRACE_MS
 import io.github.seijikohara.femto.data.dock.DockNavId
@@ -28,10 +29,12 @@ import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
+import io.github.seijikohara.femto.testfixtures.FAKE_MUSIC_PACKAGE
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.fakeAddress
 import io.github.seijikohara.femto.testfixtures.fakeCalendarSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
@@ -42,10 +45,12 @@ import io.github.seijikohara.femto.testfixtures.fakeTripState
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -491,6 +496,208 @@ class HomeViewModelTest {
             // tap — there is no callback confirming whether the media key alone
             // resumed a session, so the launch always happens too.
             assertEquals(1, resumeCount)
+        }
+
+    // --- The last played track ---------------------------------------------------
+
+    @Test
+    fun `a tap on the last played track resumes it in its app`() =
+        runTest {
+            val resumed = mutableListOf<String>()
+            val viewModel =
+                resumeViewModel {
+                    resumed += it
+                    false
+                }
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            assertEquals(listOf(FAKE_MUSIC_PACKAGE), resumed)
+        }
+
+    @Test
+    fun `a second tap while an attempt runs does nothing`() =
+        runTest {
+            var attempts = 0
+            val viewModel =
+                resumeViewModel {
+                    attempts++
+                    awaitCancellation()
+                }
+
+            repeat(2) { viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE)) }
+            runCurrent()
+
+            assertEquals(1, attempts)
+        }
+
+    @Test
+    fun `the card shows a running attempt as resuming`() =
+        runTest {
+            val viewModel = resumeViewModel { awaitCancellation() }
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            assertEquals(fakeLastPlayedState(resuming = true), viewModel.uiState.value.musicState)
+        }
+
+    @Test
+    fun `the card is usable again once an attempt ends without playback`() =
+        runTest {
+            val attemptDone = CompletableDeferred<Boolean>()
+            var attempts = 0
+            val viewModel =
+                resumeViewModel {
+                    attempts++
+                    attemptDone.await()
+                }
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            attemptDone.complete(false)
+            runCurrent()
+            assertEquals(fakeLastPlayedState(), viewModel.uiState.value.musicState)
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+            assertEquals(2, attempts)
+        }
+
+    @Test
+    fun `after playback starts the button stays pending until the card leaves the track`() =
+        runTest {
+            // The attempt sees the app play before the card's own state arrives.
+            val music = MutableStateFlow<MusicCardState>(fakeLastPlayedState())
+            var attempts = 0
+            val viewModel =
+                resumeViewModel(musicStateFlow = music) {
+                    attempts++
+                    true
+                }
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+            assertEquals(fakeLastPlayedState(resuming = true), viewModel.uiState.value.musicState)
+            assertEquals(1, attempts)
+
+            music.value = MusicCardState.Playing(fakeNowPlaying())
+            runCurrent()
+            // The live session ends and the track is offered again: the button is free.
+            music.value = fakeLastPlayedState()
+            runCurrent()
+            assertEquals(fakeLastPlayedState(), viewModel.uiState.value.musicState)
+        }
+
+    @Test
+    fun `a card that never hears of the playback frees the button after the grace`() =
+        runTest {
+            val viewModel = resumeViewModel { true }
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            advanceTimeBy(RESUME_SETTLE_GRACE_MS - 1)
+            runCurrent()
+            assertEquals(fakeLastPlayedState(resuming = true), viewModel.uiState.value.musicState)
+
+            advanceTimeBy(2)
+            runCurrent()
+            assertEquals(fakeLastPlayedState(), viewModel.uiState.value.musicState)
+        }
+
+    @Test
+    fun `waiting for the card after playback starts subscribes to no dashboard source`() =
+        runTest {
+            // The driver taps, then leaves the dashboard while the app buffers;
+            // the app plays once the dashboard's sources have stopped. Waiting
+            // on uiState would subscribe to it and start every source again.
+            var calendarCollections = 0
+            val attemptPlays = CompletableDeferred<Boolean>()
+            val viewModel =
+                HomeViewModel(
+                    locationFlow = flowOf(fakeLocation()),
+                    addressFlow = flowOf(fakeAddress()),
+                    weatherFlow = flowOf(fakeWeatherSnapshot()),
+                    musicStateFlow = flowOf(fakeLastPlayedState()),
+                    calendarFlow =
+                        flow {
+                            calendarCollections++
+                            emit(fakeCalendarSnapshot())
+                        },
+                    systemStatusFlow = flowOf(fakeSystemStatus()),
+                    tripStateFlow = flowOf(fakeTripState()),
+                    resumeLastPlayed = { attemptPlays.await() },
+                )
+            val dashboard = backgroundScope.launch { viewModel.uiState.collect { } }
+            runCurrent()
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            dashboard.cancel()
+            advanceTimeBy(UI_SUBSCRIPTION_GRACE_MS + 1)
+            attemptPlays.complete(true)
+            advanceTimeBy(RESUME_SETTLE_GRACE_MS + 1)
+            runCurrent()
+
+            assertEquals(1, calendarCollections)
+        }
+
+    @Test
+    fun `a tap that lands after a live session took the card starts nothing`() =
+        runTest {
+            var attempts = 0
+            val viewModel =
+                resumeViewModel(musicStateFlow = flowOf(MusicCardState.Playing(fakeNowPlaying()))) {
+                    attempts++
+                    false
+                }
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            assertEquals(0, attempts)
+        }
+
+    @Test
+    fun `a tap naming an app the card does not offer starts nothing`() =
+        runTest {
+            var attempts = 0
+            val viewModel =
+                resumeViewModel {
+                    attempts++
+                    false
+                }
+
+            viewModel.onAction(HomeAction.ResumeLastPlayed("com.example.other"))
+            runCurrent()
+
+            assertEquals(0, attempts)
+        }
+
+    @Test
+    fun `clearing the dashboard cancels a running attempt`() =
+        runTest {
+            var cancelled = false
+            val viewModel =
+                resumeViewModel {
+                    try {
+                        awaitCancellation()
+                    } finally {
+                        cancelled = true
+                    }
+                }
+            viewModel.onAction(HomeAction.ResumeLastPlayed(FAKE_MUSIC_PACKAGE))
+            runCurrent()
+
+            // What onCleared does: the attempt runs in viewModelScope, which
+            // closes with the ViewModel.
+            viewModel.viewModelScope.cancel()
+            runCurrent()
+
+            assertTrue(cancelled)
         }
 
     @Test
@@ -1043,6 +1250,23 @@ class HomeViewModelTest {
             spectrumEnabledFlow = flowOf(enabled),
             spectrumBandsFor = { active -> active.map { if (it) bands else null } },
         )
+
+    // Every source emits, so the card holds [musicState]; subscribed the way the
+    // dashboard is, so the action reads the card on screen.
+    private fun TestScope.resumeViewModel(
+        musicStateFlow: Flow<MusicCardState> = flowOf(fakeLastPlayedState()),
+        resume: suspend (String) -> Boolean,
+    ): HomeViewModel =
+        HomeViewModel(
+            locationFlow = flowOf(fakeLocation()),
+            addressFlow = flowOf(fakeAddress()),
+            weatherFlow = flowOf(fakeWeatherSnapshot()),
+            musicStateFlow = musicStateFlow,
+            calendarFlow = flowOf(fakeCalendarSnapshot()),
+            systemStatusFlow = flowOf(fakeSystemStatus()),
+            tripStateFlow = flowOf(fakeTripState()),
+            resumeLastPlayed = resume,
+        ).also { settledState(it) }
 
     private suspend fun HomeViewModel.assertEvent(
         action: HomeAction,

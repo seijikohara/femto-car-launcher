@@ -38,9 +38,13 @@ import io.github.seijikohara.femto.data.location.isGpsFix
 import io.github.seijikohara.femto.data.location.vehicleMotionFlow
 import io.github.seijikohara.femto.data.location.withParkedDwell
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
+import io.github.seijikohara.femto.data.music.LastPlayedKeeper
+import io.github.seijikohara.femto.data.music.MediaResumer
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
+import io.github.seijikohara.femto.data.music.PlatformResumePort
+import io.github.seijikohara.femto.data.music.ResumeOutcome
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.FollowEvent
@@ -77,6 +81,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -87,6 +92,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.Cache
 import okhttp3.OkHttpClient
 import java.io.File
@@ -124,6 +130,10 @@ internal class HomeViewModel(
     private val nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
     private val sendMusicCommand: (MusicCommand) -> Unit = {},
     private val resumeLastMusicSession: () -> Unit = {},
+    // The resume chain for the track that played last (MediaResumer.resume),
+    // true when it started playback. Run in viewModelScope so clearing the
+    // dashboard cancels it and its browser connection goes with it.
+    private val resumeLastPlayed: suspend (packageName: String) -> Boolean = { false },
     private val resetTrip: () -> Unit = {},
     private val resolveMusicSourceComponent: (String) -> ComponentName? = { null },
     private val spectrumEnabledFlow: Flow<Boolean> = flowOf(false),
@@ -157,6 +167,16 @@ internal class HomeViewModel(
     // close it (the updater keeps its daily gate in memory for the same
     // reason). The store carries the answers to later processes.
     private val answeredVersionCodes = MutableStateFlow(emptySet<Int>())
+
+    // The app whose last played track a resume attempt is bringing back, or
+    // null. One attempt at a time: a tap while one runs does nothing.
+    private val resumingPackage = MutableStateFlow<String?>(null)
+
+    // The music card's state as the dashboard last received it, mirrored as
+    // it passes into uiState. A resume attempt waits on this alone for the
+    // card to show the playback: a wait on uiState would subscribe to it and,
+    // with the dashboard left, restart every dashboard source for the wait.
+    private val cardMusic = MutableStateFlow(HomeUiState.Initial.musicState)
 
     // The motion verdict as each fix or trip update arrives (vehicleMotionFlow),
     // for the update dot and the route choice card; each reader collects it
@@ -207,7 +227,11 @@ internal class HomeViewModel(
                 }.catchAsDefault(TAG, "location", HomeUiState.Initial.location),
             addressFlow.catchAsDefault(TAG, "address", HomeUiState.Initial.address),
             weatherFlow.catchAsDefault(TAG, "weather", HomeUiState.Initial.weather),
-            musicStateFlow.catchAsDefault(TAG, "music", HomeUiState.Initial.musicState),
+            // The card's last played track shows its attempt as resuming.
+            musicStateFlow
+                .catchAsDefault(TAG, "music", HomeUiState.Initial.musicState)
+                .onEach { cardMusic.value = it }
+                .combine(resumingPackage) { music, resuming -> music.resumingIn(resuming) },
             updateBadge,
         ) { location, address, weather, music, badge ->
             CoreSignals(location, address, weather, music, badge)
@@ -468,6 +492,10 @@ internal class HomeViewModel(
                 mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MUSIC))
             }
 
+            is HomeAction.ResumeLastPlayed -> {
+                startResume(action.packageName)
+            }
+
             HomeAction.OpenBrowser -> {
                 mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_BROWSER))
             }
@@ -560,6 +588,38 @@ internal class HomeViewModel(
         }
     }
 
+    // Resume the track the card offers from [packageName], unless an attempt
+    // already runs. The card must still offer that app: a tap that lands after
+    // a live session took the card would otherwise wake a second app over it.
+    // The flag clears however the attempt ends, cancellation included, so the
+    // button is usable again whenever the card still offers the track.
+    private fun startResume(packageName: String) {
+        val offered = uiState.value.musicState.offeredPackageOrNull() == packageName
+        if (offered && resumingPackage.compareAndSet(null, packageName)) {
+            viewModelScope.launch {
+                try {
+                    if (resumeLastPlayed(packageName)) awaitCardLeaves(packageName)
+                } finally {
+                    resumingPackage.value = null
+                }
+            }
+        }
+    }
+
+    // The attempt sees the app play before the card does: the card's state
+    // takes its own way (the session watch, the store, back to the main
+    // thread). Until the card stops offering the track the button stays
+    // pending, so a tap in between cannot send prepare() and play() again to
+    // an app already playing, which an older app answers by reloading the
+    // track. Bounded, in case the card never hears of the playback, as when
+    // the dashboard is no longer collecting: the wait reads the card's mirror
+    // (cardMusic) and subscribes to nothing.
+    private suspend fun awaitCardLeaves(packageName: String) {
+        withTimeoutOrNull(RESUME_SETTLE_GRACE_MS) {
+            cardMusic.first { it.offeredPackageOrNull() != packageName }
+        }
+    }
+
     // Either answer settles the prompt for build [versionCode]: it closes at
     // once, and never asks about the build again, in this process or a later one.
     private fun answerUpdatePrompt(versionCode: Int) {
@@ -567,6 +627,24 @@ internal class HomeViewModel(
         viewModelScope.launch { recordUpdatePrompted(versionCode) }
     }
 }
+
+/**
+ * How long, after an attempt started playback, the resume button stays pending at most while the card has not yet
+ * switched from the last played track to the live session. The switch normally takes well under a second; internal
+ * so tests probe both sides.
+ */
+internal const val RESUME_SETTLE_GRACE_MS = 3_000L
+
+// The app whose last played track the card offers, or null.
+private fun MusicCardState.offeredPackageOrNull(): String? = (this as? MusicCardState.LastPlayed)?.track?.packageName
+
+// The card's last played track from [packageName], marked as resuming while an attempt for it runs; any other state
+// passes unchanged.
+private fun MusicCardState.resumingIn(packageName: String?): MusicCardState =
+    (this as? MusicCardState.LastPlayed)
+        ?.takeIf { it.track.packageName == packageName }
+        ?.copy(resuming = true)
+        ?: this
 
 // Each reading only when the fix carries it: a missing speed must read as unknown, not as standing still. A GPS fix
 // without one takes [tripSpeedMs], the trip's speed from the positions; a network fix's position is too coarse for it.
@@ -719,7 +797,11 @@ internal class HomeViewModelFactory(
                 userAgent = femtoUserAgent,
             )
         val weather = WeatherRepository(weatherApi, locationFlow, clockFlow)
-        val music = MusicSessionRepository(application)
+        // One keeper for the card's memory and the resume chain, so an app the
+        // chain finds gone is forgotten in the store the card reads.
+        val lastPlayed = LastPlayedKeeper.of(application)
+        val music = MusicSessionRepository(application, lastPlayed)
+        val resumer = MediaResumer(port = PlatformResumePort(application), forget = lastPlayed::forget)
         val audioSpectrum = AudioSpectrumRepository(application)
         val calendarPreferences = CalendarPreferences(application)
         val calendar = CalendarRepository(application, clockFlow, calendarPreferences.hiddenCalendarIds)
@@ -753,6 +835,7 @@ internal class HomeViewModelFactory(
             recordUpdatePrompted = updatePreferences::recordPrompted,
             sendMusicCommand = music::send,
             resumeLastMusicSession = music::dispatchPlayMediaKey,
+            resumeLastPlayed = { packageName -> resumer.resume(packageName) is ResumeOutcome.Started },
             resetTrip = locationGraph::resetTrip,
             resolveMusicSourceComponent = apps::launcherComponentFor,
             spectrumEnabledFlow =

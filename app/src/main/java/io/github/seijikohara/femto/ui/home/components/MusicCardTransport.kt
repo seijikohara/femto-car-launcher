@@ -251,6 +251,34 @@ private fun PlayPauseButton(
     )
 }
 
+/**
+ * The last played card's play button: the transport row's play button in size, shape, glyph and accent, so the
+ * button sits where the Playing card's play / pause does. Disabled while [resuming]: the M3 disabled colours are the
+ * card's flat pending state, as the music card keeps every progress indicator flat.
+ */
+@Composable
+internal fun ResumeButton(
+    resuming: Boolean,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) = IconButton(
+    onClick = onClick,
+    enabled = !resuming,
+    shapes = IconButtonDefaults.shapes(shape = PlayButtonShape),
+    modifier =
+        modifier
+            .size(width = FemtoDimens.MusicPlayButton, height = FemtoDimens.MusicTransportButton)
+            .semantics { contentDescription = description },
+    colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+) {
+    FemtoIcon(
+        imageVector = Lucide.Play,
+        contentDescription = null,
+        modifier = Modifier.size(PlayIconSize),
+    )
+}
+
 // One transport button in the group: [button] receives the interaction source
 // the group watches for the press widening, and the modifier that registers
 // it. The menu entry is required by the API but unreachable (see TransportRow).

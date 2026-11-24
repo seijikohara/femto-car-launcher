@@ -60,6 +60,15 @@ internal sealed interface HomeAction {
      */
     data object PlayDefaultMusic : HomeAction
 
+    /**
+     * The music card's play button on the track that played last (`MusicCardState.LastPlayed`): ask the app
+     * [packageName] to resume it. The button names the app the card shows, so a tap that lands after a live session
+     * took the card starts nothing.
+     */
+    data class ResumeLastPlayed(
+        val packageName: String,
+    ) : HomeAction
+
     data object OpenBrowser : HomeAction
 
     data object OpenCalendar : HomeAction

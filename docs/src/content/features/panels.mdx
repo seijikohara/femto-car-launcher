@@ -20,6 +20,8 @@ A multi-day strip plus upcoming events read from the device calendar, with per-c
 
 The active media session of any app that publishes one: title, artist, album, cover art and transport controls, including shuffle and repeat where the source app supports them. Cover art opens a full-screen player. Long titles scroll only while the vehicle is parked and truncate while it moves. A spectrum visualization renders on devices whose audio stack supports capture.
 
+While no app is playing or paused, for example after the head unit starts, the card shows the track that played last, with its app's name and a play button. The play button asks that app to resume the track; if it does not start, the launcher presses the play media key, and if still nothing plays and the dashboard is on screen, it opens the app. A tap elsewhere on the card opens the app. The launcher keeps the track's app, title and artist on the device only, outside backup. It forgets them when you turn off notification access, at the latest the next time the dashboard is shown, and drops a track whose app is uninstalled the next time the dashboard is opened, or when the play button is pressed.
+
 ## Video window
 
 An optional small 16:9 window over the map, on the side away from the cards, plays a video file you pick from the device or attached USB storage with the system file picker. A tap opens a full-screen player, which also picks another file or closes the window. Playing the video pauses other media, and the audio keeps playing while the launcher is off screen.

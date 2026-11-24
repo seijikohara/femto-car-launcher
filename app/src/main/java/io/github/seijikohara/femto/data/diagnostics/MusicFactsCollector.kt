@@ -6,6 +6,10 @@ import android.media.AudioManager
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.music.NotStartedReason
+import io.github.seijikohara.femto.data.music.ResumeAttempts
+import io.github.seijikohara.femto.data.music.ResumeOutcome
+import io.github.seijikohara.femto.data.music.ResumeStep
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,6 +45,64 @@ internal fun spectrumFacts(diagnosis: SpectrumDiagnosis?): List<DiagnosticFact> 
     )
 
 /**
+ * The last attempt to resume a remembered track, as a fact: the app and the step that started playback, or why none
+ * did. Names no track, so the report never carries a title or an artist. Pure so the wording and health are pinned by
+ * JVM tests.
+ */
+internal fun resumeFact(outcome: ResumeOutcome?): DiagnosticFact =
+    DiagnosticFact(
+        "Last resume",
+        when (outcome) {
+            null -> {
+                FactValue.Text("none since the launcher started")
+            }
+
+            is ResumeOutcome.Started -> {
+                FactValue.Text("${outcome.packageName}: started by ${outcome.step.label}")
+            }
+
+            is ResumeOutcome.NotStarted -> {
+                "${outcome.packageName}: ${outcome.reason.label}".let { value ->
+                    when (outcome.reason) {
+                        // The steps ran and the app never played, another app played in its place (the media
+                        // key went elsewhere), or its sessions became unreadable: the resume itself failed, the
+                        // case the report exists to explain.
+                        NotStartedReason.NO_PLAYBACK,
+                        NotStartedReason.OTHER_APP_PLAYING,
+                        NotStartedReason.SESSIONS_UNREADABLE,
+                        -> {
+                            FactValue.Status(value, FactHealth.WARNING)
+                        }
+
+                        NotStartedReason.APP_GONE, NotStartedReason.LEFT_DASHBOARD, NotStartedReason.INTERRUPTED -> {
+                            FactValue.Text(value)
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+private val ResumeStep.label: String
+    get() =
+        when (this) {
+            ResumeStep.BROWSER -> "the media browser"
+            ResumeStep.MEDIA_KEY -> "the play media key"
+            ResumeStep.OPEN_APP -> "opening the app"
+        }
+
+private val NotStartedReason.label: String
+    get() =
+        when (this) {
+            NotStartedReason.NO_PLAYBACK -> "no step started playback"
+            NotStartedReason.APP_GONE -> "app not installed or not launchable"
+            NotStartedReason.OTHER_APP_PLAYING -> "another app started playing"
+            NotStartedReason.LEFT_DASHBOARD -> "dashboard left before the app would have opened"
+            NotStartedReason.SESSIONS_UNREADABLE -> "sessions unreadable (notification access lost)"
+            NotStartedReason.INTERRUPTED -> "interrupted"
+        }
+
+/**
  * Prepend the live `Session` fact onto the collected MUSIC payload. Pure:
  * the session state streams from the ViewModel's music flow rather than the
  * one-shot collector, so the two halves stay independently testable. A
@@ -71,6 +133,11 @@ private fun sessionFact(musicState: MusicCardState?): DiagnosticFact =
                 FactValue.Text("no active session")
             }
 
+            // The app only: the remembered title and artist stay out of the report.
+            is MusicCardState.LastPlayed -> {
+                FactValue.Text("no active session (resume offered for ${musicState.track.packageName})")
+            }
+
             MusicCardState.NeedsPermission -> {
                 FactValue.Status("notification listener not granted", FactHealth.WARNING)
             }
@@ -83,7 +150,8 @@ private fun sessionFact(musicState: MusicCardState?): DiagnosticFact =
 
 /**
  * Collects the MUSIC diagnostics section's one-shot half: the spectrum-probe
- * verdict plus the audio-output state. The live `Session` fact is injected by
+ * verdict, the last resume attempt, and the audio-output state. The live
+ * `Session` fact is injected by
  * the ViewModel via [musicSectionWithSession].
  */
 internal class MusicFactsCollector(
@@ -100,6 +168,7 @@ internal class MusicFactsCollector(
             SectionPayload.Facts(
                 spectrumFacts(diagnosis) +
                     listOf(
+                        resumeFact(ResumeAttempts.latestOrNull()),
                         outputsFact(audioManager),
                         volumeFact(audioManager),
                         propertiesFact(audioManager),

@@ -1,7 +1,11 @@
 package io.github.seijikohara.femto.data.diagnostics
 
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.music.NotStartedReason
+import io.github.seijikohara.femto.data.music.ResumeOutcome
+import io.github.seijikohara.femto.data.music.ResumeStep
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import org.junit.Test
 import kotlin.test.assertEquals
@@ -88,6 +92,74 @@ class MusicFactsTest {
         assertEquals(
             DiagnosticFact("Session", FactValue.Text("no active session")),
             section.facts.first(),
+        )
+    }
+
+    @Test
+    fun `musicSectionWithSession names the app of a remembered track, never the track`() {
+        val section =
+            musicSectionWithSession(SectionPayload.Facts(emptyList()), fakeLastPlayedState()) as SectionPayload.Facts
+
+        assertEquals(
+            DiagnosticFact("Session", FactValue.Text("no active session (resume offered for com.example.music)")),
+            section.facts.first(),
+        )
+    }
+
+    @Test
+    fun `resumeFact names the app and the step that started playback`() {
+        assertEquals(
+            DiagnosticFact("Last resume", FactValue.Text("com.example.music: started by the play media key")),
+            resumeFact(ResumeOutcome.Started("com.example.music", ResumeStep.MEDIA_KEY)),
+        )
+    }
+
+    @Test
+    fun `resumeFact flags an attempt no step started as a warning`() {
+        assertEquals(
+            DiagnosticFact(
+                "Last resume",
+                FactValue.Status("com.example.music: no step started playback", FactHealth.WARNING),
+            ),
+            resumeFact(ResumeOutcome.NotStarted("com.example.music", NotStartedReason.NO_PLAYBACK)),
+        )
+    }
+
+    @Test
+    fun `resumeFact reports a gone app as plain info`() {
+        assertEquals(
+            DiagnosticFact("Last resume", FactValue.Text("com.example.music: app not installed or not launchable")),
+            resumeFact(ResumeOutcome.NotStarted("com.example.music", NotStartedReason.APP_GONE)),
+        )
+    }
+
+    @Test
+    fun `resumeFact flags another app playing in the remembered app's place as a warning`() {
+        assertEquals(
+            DiagnosticFact(
+                "Last resume",
+                FactValue.Status("com.example.music: another app started playing", FactHealth.WARNING),
+            ),
+            resumeFact(ResumeOutcome.NotStarted("com.example.music", NotStartedReason.OTHER_APP_PLAYING)),
+        )
+    }
+
+    @Test
+    fun `resumeFact reports a left dashboard as plain info`() {
+        assertEquals(
+            DiagnosticFact(
+                "Last resume",
+                FactValue.Text("com.example.music: dashboard left before the app would have opened"),
+            ),
+            resumeFact(ResumeOutcome.NotStarted("com.example.music", NotStartedReason.LEFT_DASHBOARD)),
+        )
+    }
+
+    @Test
+    fun `resumeFact reports no attempt yet`() {
+        assertEquals(
+            DiagnosticFact("Last resume", FactValue.Text("none since the launcher started")),
+            resumeFact(null),
         )
     }
 

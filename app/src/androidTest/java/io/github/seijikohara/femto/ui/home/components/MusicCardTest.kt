@@ -31,6 +31,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -50,6 +51,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -67,6 +69,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -86,6 +89,7 @@ class MusicCardTest {
                     onLaunchSource = { launched = it },
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -108,6 +112,7 @@ class MusicCardTest {
                     onLaunchSource = { launched = it },
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -136,6 +141,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                     spectrum = MutableStateFlow(FloatArray(SPECTRUM_BAND_COUNT) { 0.6f }),
                 )
             }
@@ -158,6 +164,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -176,6 +183,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -194,6 +202,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = { played = true },
+                    onResume = {},
                 )
             }
         }
@@ -213,6 +222,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = { expanded = true },
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }
@@ -231,6 +241,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                     showAlbum = false,
                 )
             }
@@ -250,6 +261,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = { expanded = true },
                     onPlay = {},
+                    onResume = {},
                     showArt = false,
                 )
             }
@@ -269,6 +281,7 @@ class MusicCardTest {
                     onLaunchSource = {},
                     onExpand = {},
                     onPlay = {},
+                    onResume = {},
                 )
             }
         }

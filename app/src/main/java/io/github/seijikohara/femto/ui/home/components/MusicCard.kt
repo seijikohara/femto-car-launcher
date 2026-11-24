@@ -29,6 +29,7 @@ import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.MotionTier
+import io.github.seijikohara.femto.data.music.LastPlayedTrack
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.music.NowPlaying
@@ -47,6 +48,10 @@ private val RowContentGap = 16.dp
 // sides; MusicCardArtHeightTest asserts it rather than leaving it to the eye.
 internal const val MUSIC_ART_TAG = "music-card-art"
 internal const val MUSIC_META_TAG = "music-card-meta"
+
+// The whole card, whatever its state: the layout tests compare its bounds as
+// the state changes on the dashboard.
+internal const val MUSIC_CARD_TAG = "music-card"
 
 /**
  * Music card. Vertical layout inherited from the `.music-card` rules of the
@@ -67,7 +72,9 @@ internal const val MUSIC_META_TAG = "music-card-meta"
  * `MusicCardStates.kt`): `NeedsPermission` is
  * the connect CTA; `NoActiveSession` is a "nothing is playing" Play
  * affordance (tap resumes the last session via a media key, falling back to
- * launching the user's music app — see [MusicEmptyState]).
+ * launching the user's music app — see [MusicEmptyState]); `LastPlayed` is the
+ * track that played last with a play button that resumes it in its app
+ * ([onResume] with the app's package — see [MusicLastPlayedState]).
  */
 @Composable
 internal fun MusicCard(
@@ -77,6 +84,7 @@ internal fun MusicCard(
     onLaunchSource: (String) -> Unit,
     onExpand: () -> Unit,
     onPlay: () -> Unit,
+    onResume: (String) -> Unit,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -92,7 +100,7 @@ internal fun MusicCard(
     // stationary; static ellipsis while moving (see MusicCardMeta.MetaLine).
     stationary: Boolean = false,
 ) = Surface(
-    modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
+    modifier = modifier.testTag(MUSIC_CARD_TAG).glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig),
     shape = MaterialTheme.shapes.large,
     color = Color.Transparent,
     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -104,6 +112,17 @@ internal fun MusicCard(
 
         MusicCardState.NoActiveSession -> {
             MusicEmptyState(onPlay = onPlay, showAlbum = showAlbum)
+        }
+
+        is MusicCardState.LastPlayed -> {
+            MusicLastPlayedState(
+                state = state,
+                onResume = onResume,
+                onLaunchSource = onLaunchSource,
+                showAlbum = showAlbum,
+                motionTier = motionTier,
+                stationary = stationary,
+            )
         }
 
         is MusicCardState.Playing -> {
@@ -273,6 +292,7 @@ private fun MusicCardPlayingPreview() {
             onLaunchSource = {},
             onExpand = {},
             onPlay = {},
+            onResume = {},
         )
     }
 }
@@ -290,6 +310,34 @@ private fun MusicCardEmptyPreview() {
             onLaunchSource = {},
             onExpand = {},
             onPlay = {},
+            onResume = {},
+        )
+    }
+}
+
+@PreviewLightDark
+@PreviewTextStress
+@Preview(name = "Music card · last played", widthDp = 360, heightDp = 360)
+@Composable
+private fun MusicCardLastPlayedPreview() {
+    FemtoTheme {
+        MusicCard(
+            state =
+                MusicCardState.LastPlayed(
+                    track =
+                        LastPlayedTrack(
+                            packageName = "com.example.music",
+                            title = "Midnight Drive",
+                            artist = "The Wayfinders",
+                        ),
+                    appName = "Example Music",
+                ),
+            onCommand = {},
+            onConnect = {},
+            onLaunchSource = {},
+            onExpand = {},
+            onPlay = {},
+            onResume = {},
         )
     }
 }

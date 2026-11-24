@@ -153,7 +153,7 @@ private const val PROGRESS_SLOT = 4
 
 // Gap between the source eyebrow / title / artist / album lines — a little air
 // between the lines so the metadata block reads cleanly rather than cramped.
-private val MetaLineGap: Dp = 4.dp
+internal val MetaLineGap: Dp = 4.dp
 
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
@@ -310,7 +310,7 @@ internal fun MusicMetaAndProgress(
 // to the whole meta block — so it stays distinct from the card-wide
 // "open the source app" tap the title / artist / album lines fall through to.
 @Composable
-private fun EyebrowLine(
+internal fun EyebrowLine(
     source: String,
     sourceIcon: ImageBitmap?,
     onExpand: (() -> Unit)?,
@@ -365,7 +365,7 @@ private fun EyebrowLine(
 // real track switch) rather than popping, matching the album art beside it
 // and the full-screen panel's metadata.
 @Composable
-private fun MetaLine(
+internal fun MetaLine(
     text: String,
     style: TextStyle,
     color: Color,

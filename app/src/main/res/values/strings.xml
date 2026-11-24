@@ -152,6 +152,10 @@
     <string name="music_connect_hint">Grant notification access and your music appears here, controllable from the dashboard.</string>
     <string name="music_nothing_playing">Nothing is playing</string>
     <string name="music_nothing_hint">Tap to resume playback, or open your music app.</string>
+    <!-- Eyebrow over the track that played last; %1$s is the app's name. Shown in capitals. -->
+    <string name="music_last_played">Last played · %1$s</string>
+    <!-- Play button on the track that played last; %1$s is the track's title. -->
+    <string name="music_resume">Resume %1$s</string>
     <string name="music_skip_previous">Skip previous</string>
     <string name="music_play_pause">Play / pause</string>
     <string name="music_skip_next">Skip next</string>
