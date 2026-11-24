@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -26,10 +28,14 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Music
 import com.composables.icons.lucide.Play
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.display.MotionTier
+import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.cardCtaHint
+import io.github.seijikohara.femto.ui.theme.cardMeta
+import io.github.seijikohara.femto.ui.theme.cardTitle
 
 @Composable
 internal fun MusicConnectState(
@@ -155,6 +161,79 @@ internal fun MusicEmptyState(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 280.dp),
+            )
+        }
+    }
+}
+
+/**
+ * The track that played last, offered for resuming while no session is live: the Playing card's eyebrow (here "Last
+ * played" with the app's name and icon), title and artist lines, and its play button where the transport row's
+ * play / pause sits. The button resumes the track ([onResume]); the rest of the card opens the app, as the Playing
+ * card does ([onLaunchSource]).
+ *
+ * Inside the same height reserve as the idle states, so the card keeps the Playing card's size: everything here is a
+ * subset of the Playing card's content (three of its meta lines, one button the transport row's height), so the
+ * reserve, not the content, sets the height. Meta at the top and the button at the bottom put both where the
+ * Playing card has them.
+ */
+@Composable
+internal fun MusicLastPlayedState(
+    state: MusicCardState.LastPlayed,
+    onResume: (String) -> Unit,
+    onLaunchSource: (String) -> Unit,
+    // Forwarded to the height sample: the album-line toggle changes the Playing
+    // card's height, and this card must match it either way.
+    showAlbum: Boolean,
+    motionTier: MotionTier,
+    // The marquee gate the Playing card's lines take: long lines scroll only
+    // while the vehicle is stationary.
+    stationary: Boolean,
+) = Box(
+    // The Playing card's card-wide tap, with the label that names the app.
+    modifier =
+        Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = stringResource(R.string.music_open_source, state.appName)) {
+                onLaunchSource(state.track.packageName)
+            },
+) {
+    val typography = MaterialTheme.typography
+    PlayingHeightReserve(showAlbum = showAlbum) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(FemtoDimens.CardPaddingCompact),
+            verticalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(MetaLineGap)) {
+                EyebrowLine(
+                    source = stringResource(R.string.music_last_played, state.appName),
+                    sourceIcon = state.appIcon,
+                    onExpand = null,
+                )
+                MetaLine(
+                    text = state.track.title,
+                    style = remember(typography) { typography.cardTitle() },
+                    color = MaterialTheme.colorScheme.onSurface,
+                    tier = motionTier,
+                    marquee = stationary,
+                )
+                MetaLine(
+                    // The Playing card's em dash for a track without an artist.
+                    text = state.track.artist ?: "—",
+                    style = remember(typography) { typography.cardMeta() },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    tier = motionTier,
+                    marquee = stationary,
+                )
+            }
+            ResumeButton(
+                resuming = state.resuming,
+                description = stringResource(R.string.music_resume, state.track.title),
+                onClick = { onResume(state.track.packageName) },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
             )
         }
     }

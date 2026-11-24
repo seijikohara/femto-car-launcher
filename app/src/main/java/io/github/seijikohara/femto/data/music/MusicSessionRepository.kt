@@ -158,13 +158,13 @@ internal class MusicSessionRepository(
         combine(permissionFlow(), activeControllersFlow()) { hasPermission, controllers ->
             if (hasPermission) controllers.toReading() else SessionsReading(hasPermission = false)
         }.flowOn(Dispatchers.Main.immediate)
-            // Off Main from here: the last played track's store write and its
-            // launch-intent lookup, and the PackageManager icon decode, are too
-            // heavy for the frame thread. The session logic stays on Main (where
+            // Off Main from here: the last played track's store read and write,
+            // its PackageManager lookups, and the icon decode are too heavy for
+            // the frame thread. The session logic stays on Main (where
             // MediaController callbacks arrive); the icon resolves on Default,
             // cached per package so it runs at most once per source.
-            .recordingLastPlayed(lastPlayed)
-            .map { reading -> musicCardStateOf(reading.hasPermission) { reading.nowPlaying }.withSourceIcon() }
+            .withLastPlayed(lastPlayed)
+            .map { it.withSourceIcon() }
             .flowOn(Dispatchers.Default)
 
     /**
@@ -239,12 +239,7 @@ internal class MusicSessionRepository(
      * empty-state Play tap, `HomeAction.PlayDefaultMusic`) also launches the
      * default music app as a visible fallback regardless of this call's outcome.
      */
-    fun dispatchPlayMediaKey() {
-        val eventTime = SystemClock.uptimeMillis()
-        listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP).forEach { action ->
-            audioManager.dispatchMediaKeyEvent(KeyEvent(eventTime, eventTime, action, KeyEvent.KEYCODE_MEDIA_PLAY, 0))
-        }
-    }
+    fun dispatchPlayMediaKey() = audioManager.dispatchPlayMediaKey()
 
     /**
      * Emit `true` while the user has enabled the launcher's notification-listener
@@ -432,8 +427,7 @@ internal class MusicSessionRepository(
             reenumerate()
     }
 
-    private fun hasPermission(): Boolean =
-        context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
+    private fun hasPermission(): Boolean = hasNotificationListenerAccess(context)
 
     // Only called with notification access: without it the card inspects no
     // session (see musicCardStateOf).
@@ -441,6 +435,7 @@ internal class MusicSessionRepository(
         SessionsReading(
             hasPermission = true,
             nowPlaying = toNowPlaying(),
+            sessionLive = selectPrimaryController(this) != null,
             playing =
                 firstOrNull { it.playbackState.isPlaying() }
                     ?.let { lastPlayedTrackOrNull(it.packageName, it.playbackState, it.metadata) },
@@ -487,13 +482,22 @@ internal class MusicSessionRepository(
                 )
             }
 
-    // Attach the source-app icon to a Playing state, leaving the other variants
-    // untouched. Runs on Default (see stateFlow) so the icon decode is off Main.
+    // Attach the source-app icon to a Playing or LastPlayed state, leaving the
+    // other variants untouched. Runs on Default (see stateFlow) so the icon
+    // decode is off Main.
     private fun MusicCardState.withSourceIcon(): MusicCardState =
-        if (this is MusicCardState.Playing) {
-            MusicCardState.Playing(nowPlaying.copy(sourceIcon = sourceIconOf(nowPlaying.packageName)))
-        } else {
-            this
+        when (this) {
+            is MusicCardState.Playing -> {
+                MusicCardState.Playing(nowPlaying.copy(sourceIcon = sourceIconOf(nowPlaying.packageName)))
+            }
+
+            is MusicCardState.LastPlayed -> {
+                copy(appIcon = sourceIconOf(track.packageName))
+            }
+
+            else -> {
+                this
+            }
         }
 
     /**
@@ -529,6 +533,25 @@ internal class MusicSessionRepository(
          */
         private fun selectPrimaryController(controllers: List<MediaController>): MediaController? =
             selectPrimarySession(controllers) { it.playbackState }
+    }
+}
+
+/**
+ * Return whether the user has enabled the launcher's notification listener, the grant every media-session read and
+ * control rests on. Shared by the card's session watch and the resume attempt's.
+ */
+internal fun hasNotificationListenerAccess(context: Context): Boolean =
+    context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
+
+/**
+ * Press and release KEYCODE_MEDIA_PLAY through [AudioManager.dispatchMediaKeyEvent], the path a physical or Bluetooth
+ * media button takes, so the session that last held playback (or the app whose media button receiver the platform
+ * remembers) resumes. Shared by the empty card's Play tap and the resume attempt's second step.
+ */
+internal fun AudioManager.dispatchPlayMediaKey() {
+    val eventTime = SystemClock.uptimeMillis()
+    listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP).forEach { action ->
+        dispatchMediaKeyEvent(KeyEvent(eventTime, eventTime, action, KeyEvent.KEYCODE_MEDIA_PLAY, 0))
     }
 }
 

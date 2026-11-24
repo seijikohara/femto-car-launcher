@@ -1,20 +1,16 @@
 package io.github.seijikohara.femto.data.music
 
 import android.app.Application
-import android.content.ComponentName
-import android.media.MediaMetadata
 import android.media.session.MediaController
-import android.media.session.MediaSession
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.os.Binder
-import android.provider.Settings
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
+import io.github.seijikohara.femto.testfixtures.addFakeSession
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedKeeper
-import io.github.seijikohara.femto.testfixtures.fakeMediaMetadata
-import io.github.seijikohara.femto.testfixtures.fakePlaybackState
+import io.github.seijikohara.femto.testfixtures.grantNotificationListenerAccess
+import io.github.seijikohara.femto.testfixtures.startPlaying
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
 import org.junit.Test
@@ -24,7 +20,6 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowMediaSessionManager
-import java.lang.reflect.Proxy
 import kotlin.test.assertEquals
 
 /**
@@ -46,16 +41,10 @@ class MusicSessionRepositoryTest {
     private val application: Application = ApplicationProvider.getApplicationContext()
     private val sessionManager: MediaSessionManager = checkNotNull(application.getSystemService())
 
+    // Without the grant the card short-circuits to NeedsPermission and never
+    // inspects a session.
     @Before
-    fun grantNotificationListenerAccess() {
-        // Without the grant the card short-circuits to NeedsPermission and
-        // never inspects a session.
-        Settings.Secure.putString(
-            application.contentResolver,
-            ENABLED_NOTIFICATION_LISTENERS,
-            ComponentName(application, MusicSessionListenerService::class.java).flattenToString(),
-        )
-    }
+    fun grantAccess() = grantNotificationListenerAccess(application)
 
     @Test
     fun `a session the card would not show still reports the moment it starts playing`() =
@@ -70,7 +59,7 @@ class MusicSessionRepositoryTest {
             repository().stateFlow().test {
                 assertEquals(MusicCardState.NoActiveSession, awaitItem())
 
-                startPlaying(resumed)
+                resumed.startPlaying()
 
                 assertEquals(RESUMED_PACKAGE, playingPackage(awaitItem()))
             }
@@ -91,7 +80,7 @@ class MusicSessionRepositoryTest {
                 // platform re-ranks it first but pushes no session-set change,
                 // so the launcher sees nothing except the playback state.
                 rerank(resumed, paused)
-                startPlaying(resumed)
+                resumed.startPlaying()
 
                 assertEquals(RESUMED_PACKAGE, playingPackage(awaitItem()))
             }
@@ -105,28 +94,13 @@ class MusicSessionRepositoryTest {
     private fun playingPackage(state: MusicCardState): String? =
         (state as? MusicCardState.Playing)?.nowPlaying?.packageName
 
-    /**
-     * Register an active session with the platform, appended to the priority
-     * order [MediaSessionManager.getActiveSessions] hands out.
-     */
+    // Every session here publishes the same track (toNowPlaying degrades a
+    // session with no metadata to NoActiveSession): these tests are about which
+    // session reaches the card, not about what it renders.
     private fun addSession(
         packageName: String,
         state: Int,
-    ): MediaController =
-        mediaController(packageName).also { controller ->
-            shadowOf(controller).setPackageName(packageName)
-            shadowOf(controller).setPlaybackState(fakePlaybackState(state))
-            shadowOf(controller).setMetadata(TRACK)
-            shadowOf(sessionManager).addController(controller)
-        }
-
-    /**
-     * Push a playing state from [controller]'s own app, the way a resume from
-     * outside the launcher arrives: the session's own callback fires and the
-     * session set does not change.
-     */
-    private fun startPlaying(controller: MediaController) =
-        shadowOf(controller).executeOnPlaybackStateChanged(fakePlaybackState(PlaybackState.STATE_PLAYING))
+    ): MediaController = sessionManager.addFakeSession(application, packageName, state)
 
     /**
      * Re-rank the active sessions without telling anyone. Adding a controller
@@ -140,52 +114,9 @@ class MusicSessionRepositoryTest {
         sessions.forEach { shadowOf(sessionManager).addController(it) }
     }
 
-    /**
-     * Build a platform [MediaController] over a stub session binder. A
-     * controller cannot be built here the way the platform builds one — it
-     * needs a [MediaSession.Token], and a token needs a session binder — so the
-     * binder is a proxy over the hidden `ISessionController` interface. It
-     * answers the two calls this path makes on it: `asBinder`, which the token
-     * hashes and compares by (the watch set is keyed by token), and
-     * `getPackageName`, which the media3 token lookup rejects when null.
-     */
-    private fun mediaController(packageName: String): MediaController =
-        Class.forName("android.media.session.ISessionController").let { sessionBinderType ->
-            val binder = Binder()
-            val sessionBinder =
-                Proxy.newProxyInstance(sessionBinderType.classLoader, arrayOf(sessionBinderType)) { _, method, _ ->
-                    when (method.name) {
-                        "asBinder" -> binder
-                        "getPackageName" -> packageName
-                        else -> unanswered(method.returnType)
-                    }
-                }
-            MediaController(
-                application,
-                MediaSession.Token::class.java
-                    .getDeclaredConstructor(Int::class.javaPrimitiveType, sessionBinderType)
-                    .newInstance(0, sessionBinder),
-            )
-        }
-
-    // An unanswered binder call still has to return something of the declared
-    // shape: handing null back for a primitive return type throws on unboxing.
-    private fun unanswered(returnType: Class<*>): Any? =
-        when (returnType) {
-            Boolean::class.javaPrimitiveType -> false
-            Int::class.javaPrimitiveType -> 0
-            Long::class.javaPrimitiveType -> 0L
-            else -> null
-        }
-
     private companion object {
         const val IDLE_PACKAGE = "com.example.idle"
         const val PAUSED_PACKAGE = "com.example.paused"
         const val RESUMED_PACKAGE = "com.example.resumed"
-
-        // toNowPlaying degrades a session with no metadata to NoActiveSession,
-        // so every session here publishes the same track: these tests are about
-        // which session reaches the card, not about what it renders.
-        val TRACK: MediaMetadata = fakeMediaMetadata(title = "Headlights")
     }
 }

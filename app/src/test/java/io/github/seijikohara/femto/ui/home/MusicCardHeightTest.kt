@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.home.components.MusicCard
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -29,7 +30,8 @@ import kotlin.test.assertTrue
 
 /**
  * Pins the music card's height across its states: the idle states (nothing
- * playing / connect CTA) must render at exactly the Playing card's height, so
+ * playing / connect CTA / last played track, idle or resuming) must render at
+ * exactly the Playing card's height, so
  * a playback start or stop never resizes the card and reflows the calendar /
  * weather row above it. The reserve is measured from an unplaced sample of the
  * Playing layout (`PlayingHeightReserve`), so the equality must hold under the
@@ -66,6 +68,7 @@ class MusicCardHeightTest {
                         onLaunchSource = {},
                         onExpand = {},
                         onPlay = {},
+                        onResume = {},
                         showAlbum = showAlbum,
                     )
                 }
@@ -94,6 +97,16 @@ class MusicCardHeightTest {
         Snapshot.sendApplyNotifications()
         composeTestRule.waitForIdle()
         assertEquals(playingHeight, cardHeight(), "NeedsPermission height differs from Playing")
+
+        cardState = fakeLastPlayedState()
+        Snapshot.sendApplyNotifications()
+        composeTestRule.waitForIdle()
+        assertEquals(playingHeight, cardHeight(), "LastPlayed height differs from Playing")
+
+        cardState = fakeLastPlayedState(resuming = true)
+        Snapshot.sendApplyNotifications()
+        composeTestRule.waitForIdle()
+        assertEquals(playingHeight, cardHeight(), "LastPlayed (resuming) height differs from Playing")
     }
 
     @Test

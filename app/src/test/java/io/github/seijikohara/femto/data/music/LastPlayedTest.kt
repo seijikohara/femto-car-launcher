@@ -2,15 +2,18 @@ package io.github.seijikohara.femto.data.music
 
 import android.media.MediaMetadata
 import android.media.session.PlaybackState
+import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.FAKE_MUSIC_PACKAGE
 import io.github.seijikohara.femto.testfixtures.FAKE_OWN_PACKAGE
 import io.github.seijikohara.femto.testfixtures.FakeLastPlayedStore
 import io.github.seijikohara.femto.testfixtures.FakeMediaApps
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedKeeper
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedTrack
 import io.github.seijikohara.femto.testfixtures.fakeMediaMetadata
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakePlaybackState
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -155,6 +158,85 @@ class LastPlayedTest {
                 fakeMediaMetadata(title = "Headlights", artist = " "),
             )?.artist,
         )
+
+    // -- what the card shows -----------------------------------------------------
+
+    private fun noSession() = SessionsReading(hasPermission = true)
+
+    private fun liveSession() = SessionsReading(hasPermission = true, nowPlaying = fakeNowPlaying(isPlaying = false))
+
+    @Test
+    fun `the remembered track shows while no session is live`() =
+        runTest {
+            store.save(fakeLastPlayedTrack())
+
+            assertEquals(fakeLastPlayedState(), flowOf(noSession()).withLastPlayed(keeper).first())
+        }
+
+    @Test
+    fun `a session live at the start never shows the remembered track first`() =
+        runTest {
+            store.save(fakeLastPlayedTrack())
+
+            flowOf(liveSession()).withLastPlayed(keeper).test {
+                assertEquals(MusicCardState.Playing(fakeNowPlaying(isPlaying = false)), awaitItem())
+                expectNoEvents()
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `the card takes a live session as soon as one appears`() =
+        runTest {
+            store.save(fakeLastPlayedTrack())
+            val readings = MutableStateFlow(noSession())
+
+            readings.withLastPlayed(keeper).test {
+                assertEquals(fakeLastPlayedState(), awaitItem())
+                readings.value = liveSession()
+                assertEquals(MusicCardState.Playing(fakeNowPlaying(isPlaying = false)), awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `a live session without metadata hides the remembered track`() =
+        runTest {
+            store.save(fakeLastPlayedTrack())
+            val metadataless = SessionsReading(hasPermission = true, sessionLive = true)
+
+            assertEquals(MusicCardState.NoActiveSession, flowOf(metadataless).withLastPlayed(keeper).first())
+        }
+
+    @Test
+    fun `without notification access the card asks for it instead`() =
+        runTest {
+            store.save(fakeLastPlayedTrack())
+
+            assertEquals(
+                MusicCardState.NeedsPermission,
+                flowOf(SessionsReading(hasPermission = false)).withLastPlayed(keeper).first(),
+            )
+        }
+
+    @Test
+    fun `a track that just played is offered once its session goes away`() =
+        runTest {
+            // Nothing is remembered at the start, so the offer can only be the
+            // track the playing reading recorded.
+            assertEquals(
+                fakeLastPlayedState(),
+                flowOf(reading(PlaybackState.STATE_PLAYING), noSession())
+                    .withLastPlayed(keeper)
+                    .first { it is MusicCardState.LastPlayed },
+            )
+        }
+
+    @Test
+    fun `nothing remembered leaves the card empty`() =
+        runTest {
+            assertEquals(MusicCardState.NoActiveSession, flowOf(noSession()).withLastPlayed(keeper).first())
+        }
 
     private companion object {
         const val HEADLESS_PACKAGE = "com.example.headless"

@@ -60,6 +60,7 @@ class MusicCardArtHeightTest {
                         onLaunchSource = {},
                         onExpand = {},
                         onPlay = {},
+                        onResume = {},
                         showAlbum = showAlbum,
                     )
                 }

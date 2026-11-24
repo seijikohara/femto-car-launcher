@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.data.music.LastPlayedKeeper
 import io.github.seijikohara.femto.data.music.LastPlayedStore
 import io.github.seijikohara.femto.data.music.LastPlayedTrack
 import io.github.seijikohara.femto.data.music.MediaApps
+import io.github.seijikohara.femto.data.music.MusicCardState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -45,6 +46,8 @@ internal class FakeMediaApps(
     var launchable: Map<String, String> = mapOf(FAKE_MUSIC_PACKAGE to FAKE_MUSIC_APP_NAME),
 ) : MediaApps {
     override fun isLaunchable(packageName: String): Boolean = packageName in launchable
+
+    override fun labelOrNull(packageName: String): String? = launchable[packageName]
 }
 
 /** The package and the app name of the fictional music app the music fixtures play from (see fakeNowPlaying). */
@@ -60,6 +63,13 @@ internal fun fakeLastPlayedTrack(
     title: String = "Headlights",
     artist: String? = "The Static Drive",
 ): LastPlayedTrack = LastPlayedTrack(packageName = packageName, title = title, artist = artist)
+
+/** The music card offering [track] from [FAKE_MUSIC_APP_NAME], idle or [resuming]. */
+internal fun fakeLastPlayedState(
+    track: LastPlayedTrack = fakeLastPlayedTrack(),
+    resuming: Boolean = false,
+): MusicCardState.LastPlayed =
+    MusicCardState.LastPlayed(track = track, appName = FAKE_MUSIC_APP_NAME, resuming = resuming)
 
 /** A [LastPlayedKeeper] over a fake store and fake apps, with the launcher's package [FAKE_OWN_PACKAGE]. */
 internal fun fakeLastPlayedKeeper(

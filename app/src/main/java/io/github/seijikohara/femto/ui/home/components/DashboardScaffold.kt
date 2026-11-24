@@ -1432,6 +1432,7 @@ private fun FloatingCardColumn(
             onLaunchSource = { packageName -> onAction(HomeAction.LaunchMusicSource(packageName)) },
             onExpand = onExpandNowPlaying,
             onPlay = { onAction(HomeAction.PlayDefaultMusic) },
+            onResume = { packageName -> onAction(HomeAction.ResumeLastPlayed(packageName)) },
             hazeState = hazeState,
             glassConfig = glassConfig,
             modifier = cardModifier,

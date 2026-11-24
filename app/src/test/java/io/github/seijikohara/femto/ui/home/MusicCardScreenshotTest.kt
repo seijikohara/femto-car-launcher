@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeOverflowingNowPlaying
 import io.github.seijikohara.femto.ui.home.components.MusicCard
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -30,6 +31,7 @@ import org.robolectric.annotation.GraphicsMode
  * meta column so the two branches actually differ.
  *
  * Captured through a paused clock (see [capture]) because the scroll never ends.
+ * Also holds the card offering the last played track, in light and dark.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -51,6 +53,7 @@ class MusicCardScreenshotTest {
                 onLaunchSource = {},
                 onExpand = {},
                 onPlay = {},
+                onResume = {},
                 stationary = true,
                 modifier = Modifier.width(320.dp),
             )
@@ -67,10 +70,35 @@ class MusicCardScreenshotTest {
                 onLaunchSource = {},
                 onExpand = {},
                 onPlay = {},
+                onResume = {},
                 stationary = false,
                 modifier = Modifier.width(320.dp),
             )
         }
+
+    // The track that played last, offered for resuming after a restart: the
+    // eyebrow with the app's name, the title and artist, and the play button
+    // where the Playing card's play / pause sits.
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-mdpi")
+    fun music_card_last_played() = capture("music-card-last-played") { LastPlayedCard() }
+
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-mdpi")
+    fun music_card_last_played_dark() = capture("music-card-last-played-dark", darkTheme = true) { LastPlayedCard() }
+
+    @Composable
+    private fun LastPlayedCard() =
+        MusicCard(
+            state = fakeLastPlayedState(),
+            onCommand = {},
+            onConnect = {},
+            onLaunchSource = {},
+            onExpand = {},
+            onPlay = {},
+            onResume = {},
+            modifier = Modifier.width(320.dp),
+        )
 
     // The card is a translucent glass sheet with a drop shadow; in the real
     // dashboard it floats over the map. Render it over a theme backdrop with an
@@ -85,11 +113,12 @@ class MusicCardScreenshotTest {
     // which is what makes the golden reproducible.
     private fun capture(
         name: String,
+        darkTheme: Boolean = false,
         content: @Composable () -> Unit,
     ) {
         rule.mainClock.autoAdvance = false
         rule.setContent {
-            FemtoTheme {
+            FemtoTheme(darkTheme = darkTheme) {
                 Box(
                     Modifier
                         .background(MaterialTheme.colorScheme.surfaceContainerHighest)
