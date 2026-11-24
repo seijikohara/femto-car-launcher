@@ -101,7 +101,8 @@ internal enum class RouteRestoreDecision {
  * write never lands after the delete that follows it, and a write first checks that its session is still the store's,
  * which leaves the files holding the store's session or nothing. Only a change of the session, its route, its
  * destination or its conditions rewrites the snapshot; a reroute status, the candidate search and the choice card do
- * not. The constructor stays injectable for JVM tests; production wiring goes through [get].
+ * not. A write that fails deletes the files, and the next GPS fixes write the session again, at most once per
+ * [LAST_DRIVEN_STAMP_INTERVAL_MS]. The constructor stays injectable for JVM tests; production wiring goes through [get].
  */
 internal class RoutePersistence(
     private val store: ActiveRouteStore,
@@ -132,6 +133,9 @@ internal class RoutePersistence(
     private var stampedSession: Long? = null
     private var stampOnDisk = false
     private var lastFixStampElapsedMs: Long? = null
+
+    // When, on the boot clock, the last write failed, which sets the pace of its retries.
+    private var lastFailedWriteElapsedMs: Long? = null
 
     /**
      * Run the start once per process: with [enabled] (the build offers routing), decide, restore or delete, then
@@ -237,16 +241,30 @@ internal class RoutePersistence(
         if (phase == Phase.WAITING_FOR_FIX) replaceKept()
         // A later state of the store follows this one; writing this one would only put an older session on the disk.
         if (store.active.value?.mirrored() != route) return
-        if (!files.write(KeptRoute(route.route, route.destination, route.conditions))) {
-            // The file left is another session's or an older line of this one: better none than one the driver left.
-            Log.w(TAG, "route snapshot not written; files deleted")
-            return deleteFiles()
-        }
+        // The file a failed write leaves is another session's or an older line of this one: better none than one the
+        // driver left. A later fix writes the route again (retryMirror).
+        val written = files.write(KeptRoute(route.route, route.destination, route.conditions))
+        if (!written) return writeFailed("route snapshot")
         mirrored = route
-        if (!stampSession(route.session)) {
-            Log.w(TAG, "last-driven stamp not written; files deleted")
-            deleteFiles()
-        }
+        if (!stampSession(route.session)) writeFailed("last-driven stamp")
+    }
+
+    private fun writeFailed(what: String) {
+        Log.w(TAG, "$what not written; files deleted")
+        deleteFiles()
+        lastFailedWriteElapsedMs = nowElapsedMs()
+    }
+
+    // A write that failed, on a disk full for a moment while a download runs, leaves the route on the map without files,
+    // and the store may not change again for an hour: a fix writes it again, at most once per
+    // [LAST_DRIVEN_STAMP_INTERVAL_MS], and the session's own time goes back with it (stampSession). Whether it did.
+    private fun retryMirror(): Boolean {
+        if (mirrored != null) return false
+        val route = store.active.value?.mirrored() ?: return false
+        val nowMs = nowElapsedMs()
+        if (lastFailedWriteElapsedMs?.let { nowMs - it < LAST_DRIVEN_STAMP_INTERVAL_MS } == true) return false
+        mirror(route)
+        return true
     }
 
     // Leave the stamp of [session] on the disk; whether it is there. A session keeps its time through every rewrite of
@@ -266,13 +284,15 @@ internal class RoutePersistence(
         return stampOnDisk
     }
 
+    // A fix that retried a write has written the stamp already. While the kept route waits, a fix only decides.
     private suspend fun onFix(timeEpochMs: Long) {
+        val retried = phase != Phase.WAITING_FOR_FIX && retryMirror()
         when (phase) {
             Phase.WAITING_FOR_FIX -> decideAtFirstFix(timeEpochMs)
             Phase.CHECK_AT_FIRST_FIX -> checkAtFirstFix(timeEpochMs)
             Phase.SETTLED -> Unit
         }
-        stampFix(timeEpochMs)
+        if (!retried) stampFix(timeEpochMs)
     }
 
     // GPS time on both sides for a route that was driven, whose stamp came from fixes too: the wall clock that read

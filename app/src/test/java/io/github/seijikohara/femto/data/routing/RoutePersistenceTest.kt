@@ -207,6 +207,21 @@ class RoutePersistenceTest {
             assertEquals(NOW_MS + 60_000L, files.readStampOrNull())
         }
 
+    // The wall clock agreed with the stamp at the start, so a fix far before the stamp has the odd clock: the route
+    // restored on the wall clock's word stays.
+    @Test
+    fun `a first fix far before the stamp leaves a route restored on the wall clock`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = NOW_MS + 60_000L
+            val keeper = started()
+
+            keeper.gpsFix(NOW_MS - CLOCK_ALLOWANCE_MS - 1, this)
+
+            assertEquals(KEPT, store.keptRouteOrNull())
+            assertEquals(RouteRestoreDecision.RESTORED, keeper.decision.value)
+        }
+
     @Test
     fun `a snapshot without a stamp waits for the first fix, which deletes it`() =
         runTest {
@@ -589,6 +604,69 @@ class RoutePersistenceTest {
             store.replace(session, REROUTED, reference = null)
             runCurrent()
 
+            assertFalse(dir.exists())
+        }
+
+    // The disk was full for a moment (a download running), and the driver stays on the new route for an hour, so the
+    // store does not change again: the fixes retry the write, at the stamp's pace, with the session's own time.
+    @Test
+    fun `a fix after the interval writes the files again after a failed write, with the same last-driven time`() =
+        runTest {
+            val keeper = started()
+            val session = store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            keeper.gpsFix(NOW_MS + 1_000L, this)
+            failWrites = true
+            store.replace(session, REROUTED, reference = null)
+            runCurrent()
+            failWrites = false
+            nowEpochMs += TEN_MINUTES_MS
+            nowElapsedMs += LAST_DRIVEN_STAMP_INTERVAL_MS - 1
+            keeper.gpsFix(NOW_MS + 2_000L, this)
+            val withinTheInterval = dir.exists()
+
+            nowElapsedMs += 1
+            keeper.gpsFix(NOW_MS + 3_000L, this)
+
+            assertFalse(withinTheInterval)
+            assertEquals(REROUTED to NOW_MS + 1_000L, files.readOrNull()?.route to files.readStampOrNull())
+        }
+
+    // A fix that finds no route on the map, after the driver cleared the one whose write failed, writes nothing.
+    @Test
+    fun `no retry without a session`() =
+        runTest {
+            val keeper = started()
+            val session = store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            failWrites = true
+            store.replace(session, REROUTED, reference = null)
+            runCurrent()
+            failWrites = false
+            store.clear()
+            runCurrent()
+            written.clear()
+
+            nowElapsedMs += LAST_DRIVEN_STAMP_INTERVAL_MS
+            keeper.gpsFix(NOW_MS + 1_000L, this)
+
+            assertEquals(emptyList(), written)
+            assertFalse(dir.exists())
+        }
+
+    // While the kept route waits, a fix only decides: the route it restores is mirrored already, and one it drops
+    // leaves nothing to write.
+    @Test
+    fun `no retry while waiting for a fix`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keeper = started()
+            nowElapsedMs += LAST_DRIVEN_STAMP_INTERVAL_MS
+
+            keeper.gpsFix(NOW_MS + ONE_DAY_MS, this)
+
+            assertEquals(emptyList(), written)
             assertFalse(dir.exists())
         }
 
