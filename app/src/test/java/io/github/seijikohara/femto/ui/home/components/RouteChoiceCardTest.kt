@@ -31,10 +31,13 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
+// Native graphics, so text measures with real font metrics: the travel time's units follow its measured width.
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [33], qualifiers = "w853dp-h512dp-mdpi")
 class RouteChoiceCardTest {
     @get:Rule
@@ -107,6 +110,31 @@ class RouteChoiceCardTest {
         choice = firstRouteAlone(finding = false, searchCompleted = true)
 
         assertEquals(0 to 1, afterAStop to rule.onAllNodesWithText("No other route found").fetchSemanticsNodes().size)
+    }
+
+    // The dashboard stays composed under the Settings sheet, so a text size picked there reaches an open card. At the
+    // default size "1 hr, 5 min" fits a tile on one line; at one and a half times it does not, and the tile takes the
+    // narrow units.
+    @Test
+    fun `a text size change on an open card picks the travel time's units again`() {
+        var baseSizeSp by mutableStateOf(FemtoDimens.BaseTextSize.value.toInt())
+        val choice = checkNotNull(DashboardFixtures.routeChoiceState.activeRoute?.choice)
+        rule.setContent {
+            FemtoTheme(fontBaseSizeSp = baseSizeSp) {
+                RouteChoiceCard(
+                    choice = choice,
+                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    onSelect = {},
+                    onClose = {},
+                    modifier = Modifier.width(360.dp),
+                )
+            }
+        }
+        val atDefault = rule.onAllNodesWithText("1 hr, 5 min").fetchSemanticsNodes().size
+
+        baseSizeSp = baseSizeSp * 3 / 2
+
+        assertEquals(1 to 1, atDefault to rule.onAllNodesWithText("1h 5m").fetchSemanticsNodes().size)
     }
 
     // "Done" alone is narrower than the floor; the button must not be.

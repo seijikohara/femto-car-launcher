@@ -45,6 +45,7 @@ import com.composables.icons.lucide.Lucide
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
+import io.github.seijikohara.femto.data.routing.CANDIDATE_COUNT
 import io.github.seijikohara.femto.ui.home.CandidateSummary
 import io.github.seijikohara.femto.ui.home.RouteChoiceState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
@@ -57,7 +58,7 @@ import java.util.Locale
 
 /**
  * The route choice card (issue #389 phase 3): the routes found to the destination, over the map while the driver may
- * still choose. A header with Done, then one row of up to [ROUTE_CHOICE_SLOTS] equal tiles, one per route: its number,
+ * still choose. A header with Done, then one row of up to [CANDIDATE_COUNT] equal tiles, one per route: its number,
  * travel time and length, the one being followed marked. A tap on a tile makes that route the one followed ([onSelect]
  * with its index), and Done closes the card keeping it ([onClose]). While another route is being searched for, the
  * next slot holds a placeholder saying so; once the search has ended with the first route alone, the space beside it
@@ -83,11 +84,13 @@ internal fun RouteChoiceCard(
             .padding(CardInset),
 ) {
     // The width a tile leaves its text, which picks the travel time's units. Worked out here, above the tiles: the
-    // tile row asks its tiles for their intrinsic height, which a layout reading its own constraints cannot give.
+    // tile row asks its tiles for their intrinsic height, which a layout reading its own constraints cannot give. In
+    // whole px rounded down, as the row's weight split can leave one tile a pixel short of an even share.
+    val density = LocalDensity.current
     val tileTextWidthPx =
-        with(LocalDensity.current) {
-            ((maxWidth - TileGap * (ROUTE_CHOICE_SLOTS - 1)) / ROUTE_CHOICE_SLOTS - TilePaddingHorizontal * 2)
-                .roundToPx()
+        with(density) {
+            (constraints.maxWidth - TileGap.roundToPx() * (CANDIDATE_COUNT - 1)) / CANDIDATE_COUNT -
+                TilePaddingHorizontal.roundToPx() * 2
         }
     val timeStyle = MaterialTheme.typography.bodyMedium
     val measurer = rememberTextMeasurer()
@@ -104,13 +107,16 @@ internal fun RouteChoiceCard(
                     .selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(TileGap),
         ) {
-            choice.candidates.take(ROUTE_CHOICE_SLOTS).forEachIndexed { index, candidate ->
+            choice.candidates.take(CANDIDATE_COUNT).forEachIndexed { index, candidate ->
                 // The locale's short units ("1 hr, 5 min") where they fit the tile on one line, its narrow ones
-                // ("1h 5m") where they do not. Never cut short: the line wraps if even those do not fit.
+                // ("1h 5m") where they do not. Never cut short: the line wraps if even those do not fit. Measured at
+                // the current density and keyed on it, as the user's text size reaches the card through its font
+                // scale, even while the card is open under Settings.
                 val travelTime =
-                    remember(candidate.durationSeconds, timeStyle, tileTextWidthPx) {
+                    remember(candidate.durationSeconds, timeStyle, tileTextWidthPx, density) {
                         travelTimeText(candidate.durationSeconds).takeIf {
-                            measurer.measure(it, timeStyle, maxLines = 1).size.width <= tileTextWidthPx
+                            measurer.measure(it, timeStyle, maxLines = 1, density = density).size.width <=
+                                tileTextWidthPx
                         } ?: travelTimeText(candidate.durationSeconds, width = MeasureFormat.FormatWidth.NARROW)
                     }
                 CandidateTile(
@@ -123,17 +129,15 @@ internal fun RouteChoiceCard(
                     modifier = Modifier.weight(1f).fillMaxHeight(),
                 )
             }
-            val free = ROUTE_CHOICE_SLOTS - choice.candidates.size.coerceAtMost(ROUTE_CHOICE_SLOTS)
+            // With every slot taken, the last branch adds no spacer.
+            val free = CANDIDATE_COUNT - choice.candidates.size.coerceAtMost(CANDIDATE_COUNT)
             when {
-                free == 0 -> {
-                    Unit
-                }
-
-                choice.finding -> {
+                choice.finding && free > 0 -> {
                     FindingTile(modifier = Modifier.weight(1f).fillMaxHeight())
                     EmptySlots(count = free - 1)
                 }
 
+                // Only the first route, so the other slots are free.
                 choice.noOtherRoute -> {
                     NoOtherRoute(modifier = Modifier.weight(free.toFloat()).fillMaxHeight())
                 }
@@ -295,9 +299,6 @@ internal fun travelTimeText(
         ).let { measures -> MeasureFormat.getInstance(locale, width).formatMeasures(*measures.toTypedArray()) }
     }
 
-/** The most routes the card holds side by side: the first one and the finder's two alternatives. */
-internal const val ROUTE_CHOICE_SLOTS = 3
-
 private const val HALF_MINUTE_SECONDS = 30
 private const val SECONDS_PER_MINUTE = 60
 private const val MINUTES_PER_HOUR = 60
@@ -322,10 +323,10 @@ private val SelectedMarkClearance = SelectedMarkSize + SelectedMarkEndInset + 2.
 // default font size. Declared after the insets it adds up with: top-level values initialise in file order.
 private val RouteChoiceTileMinWidth = 84.dp
 
-/** The card's widest, and its narrowest: room for [ROUTE_CHOICE_SLOTS] tiles of [RouteChoiceTileMinWidth]. */
+/** The card's widest, and its narrowest: room for [CANDIDATE_COUNT] tiles of [RouteChoiceTileMinWidth]. */
 internal val RouteChoiceCardMaxWidth = 360.dp
 internal val RouteChoiceCardMinWidth =
-    RouteChoiceTileMinWidth * ROUTE_CHOICE_SLOTS + TileGap * (ROUTE_CHOICE_SLOTS - 1) + CardInset * 2
+    RouteChoiceTileMinWidth * CANDIDATE_COUNT + TileGap * (CANDIDATE_COUNT - 1) + CardInset * 2
 
 @PreviewLightDark
 @Composable

@@ -131,6 +131,7 @@ class CandidateFinderTest {
             runCurrent()
 
             assertTrue(planner.cancelled)
+            assertEquals(CandidateSearchEnding.STOPPED, finder.lastSearch.value?.ending)
         }
 
     @Test
@@ -145,6 +146,7 @@ class CandidateFinderTest {
             runCurrent()
 
             assertTrue(planner.cancelled)
+            assertEquals(CandidateSearchEnding.STOPPED, finder.lastSearch.value?.ending)
         }
 
     @Test

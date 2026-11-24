@@ -23,8 +23,11 @@ import java.io.File
  */
 internal const val NEAR_DUPLICATE_SHARE = 0.8
 
-// The first route and two alternatives: a later alternative recomputes every one before it, so a third costs most.
-private const val CANDIDATE_COUNT = 3
+/**
+ * The routes a session can offer: the first one and BRouter's alternatives after it. A later alternative recomputes
+ * every one before it, so each one more costs most; the choice card holds this many side by side.
+ */
+internal const val CANDIDATE_COUNT = 3
 
 /** How the last search for more routes ended, for the diagnostics report. */
 internal enum class CandidateSearchEnding {
