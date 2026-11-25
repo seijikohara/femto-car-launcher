@@ -60,9 +60,6 @@
     <string name="speed_metric_avg">AVG.</string>
     <!-- The active route's row under the address (issue #389 phase 3); %1$s = the arrival clock time. -->
     <string name="speed_route_arrival">ETA %1$s</string>
-    <!-- In place of the arrival time when Settings → Navigation picks the time remaining; %1$s = the travel time left,
-         in the locale's units ("1 hr, 5 min"). -->
-    <string name="speed_route_remaining">%1$s left</string>
     <string name="speed_route_clear">Clear route</string>
     <!-- In place of the arrival time while the launcher reroutes after the vehicle left the route, and after a reroute
          that needed routing data the device does not hold or found no route; the old line stays in both cases. -->

@@ -58,7 +58,7 @@ internal object DashboardFixtures {
                 ),
         )
 
-    /** [routeState] with the route row set to the time remaining (Settings → Navigation): "18 min left". */
+    /** [routeState] with the route row set to the time remaining (Settings → Navigation): "18 min". */
     val routeRemainingState: HomeUiState =
         routeState.copy(activeRoute = routeState.activeRoute?.copy(rowTime = RouteRowTime.REMAINING))
 
