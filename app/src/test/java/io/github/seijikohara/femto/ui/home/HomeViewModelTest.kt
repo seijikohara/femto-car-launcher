@@ -48,6 +48,7 @@ import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -98,6 +99,23 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
+    // The view model follows a route on Dispatchers.Default unless it is given another dispatcher. A worker thread of
+    // that pool can still be handing a value to Dispatchers.Main when tearDown resets it, which the test dispatcher
+    // reports as "Dispatchers.Main is used concurrently with setting it" in whichever test is running. So every view
+    // model in this file follows the route on the test's own thread.
+    private fun testRouteDispatcher(): CoroutineDispatcher = UnconfinedTestDispatcher()
+
+    // A view model built here without it would bring the worker thread back, and fail a test only once in a long while.
+    @Test
+    fun `every view model in this file follows the route on a test dispatcher`() {
+        val source = File("src/test/java/io/github/seijikohara/femto/ui/home/HomeViewModelTest.kt").readText()
+
+        assertEquals(
+            Regex("""\bHomeViewModel\(\n""").findAll(source).count(),
+            Regex("""\brouteDispatcher\s=\s""").findAll(source).count(),
+        )
+    }
+
     @Test
     fun `combines all flows into one HomeUiState`() =
         runTest {
@@ -121,6 +139,7 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(calendar),
                     systemStatusFlow = flowOf(systemStatus),
                     tripStateFlow = flowOf(tripState),
+                    routeDispatcher = testRouteDispatcher(),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -152,6 +171,7 @@ class HomeViewModelTest {
                     systemStatusFlow = flowOf(fakeSystemStatus()),
                     tripStateFlow = flowOf(fakeTripState()),
                     onlineFlow = flowOf(false),
+                    routeDispatcher = testRouteDispatcher(),
                 )
             backgroundScope.launch { viewModel.uiState.collect {} }
             backgroundScope.launch { viewModel.online.collect {} }
@@ -176,6 +196,7 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(fakeCalendarSnapshot()),
                     systemStatusFlow = flow { throw SecurityException("system status source broke") },
                     tripStateFlow = flowOf(fakeTripState()),
+                    routeDispatcher = testRouteDispatcher(),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -208,6 +229,7 @@ class HomeViewModelTest {
                             throw IllegalStateException("system status source broke after emitting")
                         },
                     tripStateFlow = flowOf(fakeTripState()),
+                    routeDispatcher = testRouteDispatcher(),
                 )
             viewModel.uiState.test {
                 val state = awaitItem()
@@ -260,6 +282,7 @@ class HomeViewModelTest {
                     calendarFlow = flowOf(fakeCalendarSnapshot()),
                     systemStatusFlow = flowOf(fakeSystemStatus()),
                     tripStateFlow = flowOf(fakeTripState()),
+                    routeDispatcher = testRouteDispatcher(),
                 )
             // uiState uses WhileSubscribed, so collect it first to make the
             // StateFlow value live before onAction reads uiState.value.location.
@@ -648,6 +671,7 @@ class HomeViewModelTest {
                     systemStatusFlow = flowOf(fakeSystemStatus()),
                     tripStateFlow = flowOf(fakeTripState()),
                     resumeLastPlayed = { attemptPlays.await() },
+                    routeDispatcher = testRouteDispatcher(),
                 )
             val dashboard = backgroundScope.launch { viewModel.uiState.collect { } }
             runCurrent()
@@ -860,6 +884,7 @@ class HomeViewModelTest {
                     systemStatusFlow = flowOf(fakeSystemStatus()),
                     tripStateFlow = flowOf(fakeTripState()),
                     updateStateFlow = flow { throw IllegalStateException("updater broke") },
+                    routeDispatcher = testRouteDispatcher(),
                 )
             val state = settledState(viewModel)
             assertFalse(state.updateBadge)
@@ -882,6 +907,7 @@ class HomeViewModelTest {
                     systemStatusFlow = flowOf(fakeSystemStatus()),
                     tripStateFlow = flowOf(fakeTripState()),
                     updateStateFlow = flow { awaitCancellation() },
+                    routeDispatcher = testRouteDispatcher(),
                 )
             val state = settledState(viewModel)
             assertEquals(weather, state.weather)
@@ -1171,6 +1197,7 @@ class HomeViewModelTest {
             updateStateFlow = flowOf(update),
             updateSettingsFlow = flowOf(settings),
             nowElapsedRealtimeNanos = { BADGE_NOW },
+            routeDispatcher = testRouteDispatcher(),
         )
 
     // Subscribes the way the dashboard does, to its combined state and to the
@@ -1239,6 +1266,7 @@ class HomeViewModelTest {
             updateSettingsFlow = settings,
             recordUpdatePrompted = record,
             nowElapsedRealtimeNanos = { virtualNowNanos() },
+            routeDispatcher = testRouteDispatcher(),
         )
 
     private fun liveGpsFix(): Location =
@@ -1267,6 +1295,7 @@ class HomeViewModelTest {
             tripStateFlow = flowOf(fakeTripState()),
             spectrumEnabledFlow = flowOf(enabled),
             spectrumBandsFor = { active -> active.map { if (it) bands else null } },
+            routeDispatcher = testRouteDispatcher(),
         )
 
     // Every source emits, so the card holds [musicState]; subscribed the way the
@@ -1284,6 +1313,7 @@ class HomeViewModelTest {
             systemStatusFlow = flowOf(fakeSystemStatus()),
             tripStateFlow = flowOf(fakeTripState()),
             resumeLastPlayed = resume,
+            routeDispatcher = testRouteDispatcher(),
         ).also { settledState(it) }
 
     private suspend fun HomeViewModel.assertEvent(
@@ -1806,6 +1836,7 @@ class HomeViewModelTest {
             resetTrip = resetTrip,
             resolveMusicSourceComponent = resolveMusicSourceComponent,
             receivedPlaces = receivedPlaces,
+            routeDispatcher = testRouteDispatcher(),
         )
 
     private companion object {
