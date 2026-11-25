@@ -116,6 +116,10 @@ internal enum class SettingsSectionId(
          * section whose rows show it, but no section reset deletes it: a value the
          * person typed in cannot be chosen again from a list, so only a reset that
          * asks for these values by name deletes them.
+         *
+         * The reset dialog names each of them in `settings_reset_entered_values_desc`;
+         * change that string together with this set. `SettingsSectionIdTest` pins
+         * the set, so a fifth key fails there until it is named in the string too.
          */
         val ENTERED_VALUE_KEYS: Set<Preferences.Key<*>> =
             setOf(
@@ -124,5 +128,14 @@ internal enum class SettingsSectionId(
                 DisplayPreferences.MAP_CUSTOM_STYLE_URL_KEY,
                 DisplayPreferences.MAP_TILE_HOST_KEY,
             )
+
+        /**
+         * What deleting the entered values deletes: [ENTERED_VALUE_KEYS] plus the
+         * map provider. Without its key the Google Maps provider can only show its
+         * missing-key notice, so the provider goes back to its default with them;
+         * nothing else of [MAP] changes.
+         */
+        val ENTERED_VALUE_RESET_KEYS: Set<Preferences.Key<*>> =
+            ENTERED_VALUE_KEYS + DisplayPreferences.MAP_BACKEND_KEY
     }
 }

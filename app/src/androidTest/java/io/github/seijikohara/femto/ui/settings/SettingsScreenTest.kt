@@ -18,6 +18,7 @@ import io.github.seijikohara.femto.data.display.FullscreenSetting
 import io.github.seijikohara.femto.data.display.GoogleMapType
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
+import io.github.seijikohara.femto.data.display.SettingsSectionId
 import io.github.seijikohara.femto.data.display.ThemeMode
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -144,11 +145,13 @@ class SettingsScreenTest {
         setScreen(onAction = { actions += it }, category = R.string.settings_group_system)
         // The reset row sits at the bottom of the System category; scroll it in,
         // tap to open the checklist, then tap Reset with its default ticks: every
-        // listed category, and not the entered values.
+        // listed category, which resets every section, and not the entered values.
         rule.onNodeWithText(resetLabel).performScrollTo().performClick()
         rule.onNodeWithText(resetConfirmLabel).performClick()
-        val listedSections = visibleSettingsCategories(SettingsUiState.Initial).mapNotNull { it.sectionId }.toSet()
-        assertEquals(listOf(SettingsAction.ResetSettings(listedSections, deleteEnteredValues = false)), actions)
+        assertEquals(
+            listOf(SettingsAction.ResetSettings(SettingsSectionId.entries.toSet(), deleteEnteredValues = false)),
+            actions,
+        )
     }
 
     @Test

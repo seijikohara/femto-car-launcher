@@ -146,13 +146,13 @@ internal interface DisplaySettingsStore {
     /**
      * Remove exactly [keys] so their read falls back to [DisplaySettings.Default]
      * for those fields only, leaving every other persisted field untouched.
-     * [SettingsSectionId]'s "reset this section" affordance drives this with
-     * one section's [SettingsSectionId.displayKeys].
+     * Every settings reset drives this once, with the union of the reset
+     * sections' [SettingsSectionId.displayKeys] less
+     * [SettingsSectionId.ENTERED_VALUE_KEYS], plus
+     * [SettingsSectionId.ENTERED_VALUE_RESET_KEYS] when the reset asks to delete
+     * the entered values.
      */
     suspend fun resetKeys(keys: Set<Preferences.Key<*>>)
-
-    /** Restore every display setting to [DisplaySettings.Default]. */
-    suspend fun resetToDefaults()
 }
 
 /**
@@ -431,15 +431,10 @@ internal class DisplayPreferences(
 
     // Removing only the given keys makes the read path above fall back to its
     // per-field defaults for exactly those fields; every other key is left as-is.
+    // The per-field defaults are kept identical to DisplaySettings.Default, so a
+    // reset restores the defaults without duplicating the default literals here.
     override suspend fun resetKeys(keys: Set<Preferences.Key<*>>) {
         context.displayDataStore.editOrLog(TAG) { prefs -> keys.forEach { prefs.remove(it) } }
-    }
-
-    // Clearing every key makes the read path above fall back to its per-field
-    // defaults, which are kept identical to DisplaySettings.Default — so a reset
-    // restores the defaults without duplicating the default literals here.
-    override suspend fun resetToDefaults() {
-        context.displayDataStore.editOrLog(TAG) { it.clear() }
     }
 
     // Internal (not private): SettingsSectionId groups these same key instances

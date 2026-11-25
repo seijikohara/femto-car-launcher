@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.testfixtures
 import io.github.seijikohara.femto.data.display.AccentColor
 import io.github.seijikohara.femto.data.display.AssistantLaunchSetting
 import io.github.seijikohara.femto.data.display.ClockSetting
+import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.display.DisplaySettingsStore
 import io.github.seijikohara.femto.data.display.DockPosition
@@ -24,12 +25,15 @@ import io.github.seijikohara.femto.data.display.UiScale
 import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
 import kotlinx.coroutines.flow.first
 
+/** Remove every persisted display key, so every field reads its default. */
+internal suspend fun DisplaySettingsStore.resetAllKeys() = resetKeys(DisplayPreferences.ALL_KEYS)
+
 /**
  * Set every persisted display field to a value other than [DisplaySettings.Default] and return the result: the real
  * store's reset tests and the view model's reset tests both start here, so each states only what its reset restores.
  */
 internal suspend fun DisplaySettingsStore.mutateAllAwayFromDefault(): DisplaySettings {
-    resetToDefaults()
+    resetAllKeys()
     setThemeMode(ThemeMode.DARK)
     setAccentColor(AccentColor.TEAL)
     setUiScale(UiScale.LARGE)

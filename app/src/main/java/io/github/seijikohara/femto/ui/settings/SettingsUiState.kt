@@ -628,8 +628,9 @@ internal sealed interface SettingsAction {
 
     /**
      * Restore each of [sections] exactly as its own [ResetSection] does, all in one go, and delete the keys and
-     * addresses the person entered ([SettingsSectionId.ENTERED_VALUE_KEYS]) only when [deleteEnteredValues] is set.
-     * Every section plus the entered values restores every setting the section stores hold.
+     * addresses the person entered only when [deleteEnteredValues] is set; that also puts the map provider back to its
+     * default ([SettingsSectionId.ENTERED_VALUE_RESET_KEYS]). Every section plus the entered values restores every
+     * setting the section stores hold.
      */
     data class ResetSettings(
         val sections: Set<SettingsSectionId>,

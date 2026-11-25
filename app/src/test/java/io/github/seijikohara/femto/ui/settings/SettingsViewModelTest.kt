@@ -37,12 +37,10 @@ import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeNavigationSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
-import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
+import io.github.seijikohara.femto.testfixtures.fakeSettingsViewModel
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import io.github.seijikohara.femto.testfixtures.mutateAllAwayFromDefault
 import kotlinx.coroutines.Dispatchers
@@ -335,28 +333,8 @@ class SettingsViewModelTest {
             assertEquals(true, locationStore.settings.first().backgroundRangingEnabled)
         }
 
-    // The old "Reset to defaults" emptied the display store and reset the font,
-    // location, calendar, update, video and navigation stores; every section plus
-    // the entered values must leave each of those stores as that did.
-    @Test
-    fun `a reset of every section and the entered values restores every store to its defaults`() =
-        runTest(dispatcher) {
-            val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L, 2L))
-            val vm = viewModel(calendarPrefs = calendarPrefs)
-            store.mutateAllAwayFromDefault()
-            moveOtherStoresAwayFromDefault()
-
-            vm.onAction(SettingsAction.ResetSettings(SettingsSectionId.entries.toSet(), deleteEnteredValues = true))
-            advanceUntilIdle()
-
-            assertEquals(DisplaySettings.Default, store.settings.first())
-            assertEquals(FontSource.SystemDefault, fontStore.selection.first().latin)
-            assertEquals(LocationSettings.Default, locationStore.settings.first())
-            assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
-            assertEquals(UpdateSettings.Default.autoCheck, updateStore.current.autoCheck)
-            assertEquals(NavigationSettings.Default, navigationStore.current)
-        }
-
+    // The full reset through the dialog, every store included, is
+    // ResetSettingsDialogTest's.
     @Test
     fun `a reset of every section keeps the entered values when their row is not ticked`() =
         runTest(dispatcher) {
@@ -369,17 +347,23 @@ class SettingsViewModelTest {
             assertEquals(mutated.enteredValuesOnly(), store.settings.first())
         }
 
+    // Without its key the Google Maps provider could only show its missing-key
+    // notice, so the provider goes back to its default with the entered values.
     @Test
-    fun `the entered values row alone deletes the entered values and nothing else`() =
+    fun `the entered values row alone deletes the entered values and resets only the map provider besides`() =
         runTest(dispatcher) {
             val vm = viewModel()
             val mutated = store.mutateAllAwayFromDefault()
             moveOtherStoresAwayFromDefault()
+            assertEquals(MapBackend.GOOGLEMAPS, mutated.mapBackend)
 
             vm.onAction(SettingsAction.ResetSettings(emptySet(), deleteEnteredValues = true))
             advanceUntilIdle()
 
-            assertEquals(mutated.withoutEnteredValues(), store.settings.first())
+            assertEquals(
+                mutated.withoutEnteredValues().copy(mapBackend = DisplaySettings.Default.mapBackend),
+                store.settings.first(),
+            )
             assertOtherStoresKept()
         }
 
@@ -1824,19 +1808,16 @@ class SettingsViewModelTest {
         updaterPort: UpdaterPort = updater,
         offlineRegionsAvailable: Boolean = false,
         routingData: Flow<RoutingDataSummary?> = flowOf(null),
-    ) = SettingsViewModel(
-        store,
-        fontStore,
-        locationStore,
-        calendarPrefs,
-        dockStore,
-        trackLog = FakeTrackLogPort(),
-        availableCalendars = flowOf(availableCalendars),
+    ) = fakeSettingsViewModel(
+        displayPreferences = store,
+        fontPreferences = fontStore,
+        locationPreferences = locationStore,
+        calendarPreferences = calendarPrefs,
+        dockPreferences = dockStore,
+        availableCalendars = availableCalendars,
         updater = updaterPort,
         updatePreferences = updateStore,
         motion = motion,
-        videoPreferences = FakeVideoSettingsStore(),
-        videoGrants = FakeVideoSourceGrants(),
         navigationPreferences = navigationStore,
         offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = dispatcher,

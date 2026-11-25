@@ -786,7 +786,7 @@ internal class SettingsViewModel(
     ) {
         displayPreferences.resetKeys(
             sections.flatMap { it.displayKeys }.toSet() - SettingsSectionId.ENTERED_VALUE_KEYS +
-                SettingsSectionId.ENTERED_VALUE_KEYS.takeIf { deleteEnteredValues }.orEmpty(),
+                SettingsSectionId.ENTERED_VALUE_RESET_KEYS.takeIf { deleteEnteredValues }.orEmpty(),
         )
         sections.forEach { resetOtherStoreOf(it) }
     }

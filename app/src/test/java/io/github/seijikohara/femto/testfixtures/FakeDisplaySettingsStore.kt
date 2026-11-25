@@ -167,8 +167,6 @@ internal class FakeDisplaySettingsStore(
         state.update { current -> keys.fold(current) { acc, key -> acc.resetField(key, default) } }
     }
 
-    override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
-
     private fun DisplaySettings.resetField(
         key: Preferences.Key<*>,
         default: DisplaySettings,
