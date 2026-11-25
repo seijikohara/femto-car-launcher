@@ -2,6 +2,8 @@ package io.github.seijikohara.femto.data.diagnostics
 
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.data.routing.NavigationSettings
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.video.VideoSettings
 import org.junit.Test
@@ -10,15 +12,16 @@ import kotlin.test.assertEquals
 
 /**
  * Completeness drift guard for the SETTINGS dump: every [DisplaySettings],
- * [LocationSettings], [UpdateSettings] and [VideoSettings] field must surface
- * as a fact, so a
+ * [LocationSettings], [UpdateSettings], [VideoSettings] and
+ * [NavigationSettings] field must surface as a fact, so a
  * field added without a matching fact is caught here instead of silently
  * vanishing from every diagnostics report — the same guard
  * [io.github.seijikohara.femto.data.display.SettingsSectionIdTest] applies to
  * section keys.
  *
  * [propertyToFactLabel], [locationPropertyToFactLabel],
- * [updatePropertyToFactLabel] and [videoPropertyToFactLabel] are the bridges:
+ * [updatePropertyToFactLabel], [videoPropertyToFactLabel] and
+ * [navigationPropertyToFactLabel] are the bridges:
  * facts that fold several fields
  * into one row (e.g. the light/dark map schemes) repeat the label. Reflection
  * over the data class's declared properties (Java reflection — kotlin-reflect
@@ -53,6 +56,14 @@ class SettingsFactsCompletenessTest {
             "windowEnabled" to "Video window",
             "hidePictureWhileDriving" to "Video hide picture while driving",
             "sourceUri" to "Video file",
+        )
+
+    private val navigationPropertyToFactLabel: Map<String, String> =
+        mapOf(
+            "rerouteAutomatically" to "Reroute automatically",
+            "suggestOtherRoutes" to "Suggest other routes",
+            "restoreRouteAfterRestart" to "Restore route after restart",
+            "routeRowTime" to "Route row time",
         )
 
     private val propertyToFactLabel: Map<String, String> =
@@ -154,6 +165,28 @@ class SettingsFactsCompletenessTest {
         val emittedLabels = videoSettingsFacts(VideoSettings.Default).map { it.label }.toSet()
 
         assertEquals(videoPropertyToFactLabel.values.toSet(), emittedLabels)
+    }
+
+    @Test
+    fun `every NavigationSettings property is mapped to a settings fact`() {
+        assertEquals(declaredProperties(NavigationSettings::class.java), navigationPropertyToFactLabel.keys)
+    }
+
+    @Test
+    fun `the collector emits every mapped navigation fact label`() {
+        val emittedLabels = navigationSettingsFacts(NavigationSettings.Default).map { it.label }.toSet()
+
+        assertEquals(navigationPropertyToFactLabel.values.toSet(), emittedLabels)
+    }
+
+    @Test
+    fun `the navigation facts read on or off and name the route row's time`() {
+        val defaults = navigationSettingsFacts(NavigationSettings.Default).map { it.value }
+        val changed =
+            navigationSettingsFacts(NavigationSettings(false, false, false, RouteRowTime.REMAINING)).map { it.value }
+
+        assertEquals(listOf("on", "on", "on", "arrival time").map { FactValue.Text(it) }, defaults)
+        assertEquals(listOf("off", "off", "off", "time remaining").map { FactValue.Text(it) }, changed)
     }
 
     @Test

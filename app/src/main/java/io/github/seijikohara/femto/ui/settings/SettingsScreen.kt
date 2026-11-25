@@ -25,6 +25,7 @@ import io.github.seijikohara.femto.ui.settings.components.AppearanceSection
 import io.github.seijikohara.femto.ui.settings.components.Header
 import io.github.seijikohara.femto.ui.settings.components.LocationSection
 import io.github.seijikohara.femto.ui.settings.components.MapSection
+import io.github.seijikohara.femto.ui.settings.components.NavigationSection
 import io.github.seijikohara.femto.ui.settings.components.PanelsSection
 import io.github.seijikohara.femto.ui.settings.components.ScreenSection
 import io.github.seijikohara.femto.ui.settings.components.SettingsCategoryDetail
@@ -89,6 +90,7 @@ internal fun SettingsScreen(
     ) {
         Header(onBack = onBack)
 
+        val categories = visibleSettingsCategories(uiState)
         val entries =
             settingsCategoryEntries(
                 uiState = uiState,
@@ -101,11 +103,14 @@ internal fun SettingsScreen(
                 onOpenDiagnostics = onOpenDiagnostics,
                 onOpenLicenses = onOpenLicenses,
                 onOpenDocument = onOpenDocument,
-            )
+            ).filter { it.id in categories }
         // Hoisted here (not the ViewModel): which category is showing is pure
         // navigation state, not a persisted setting. rememberSaveable keeps it
         // across rotation the same way the old per-section expand flags did.
         var selectedId by rememberSaveable { mutableStateOf(initialCategory ?: SettingsCategoryId.entries.first()) }
+        // A category that stops showing while selected (Navigation, once the
+        // map backend no longer offers routing) gives way to the first one.
+        val shownId = selectedId.takeIf { it in categories } ?: categories.first()
         // Narrow list-detail only — whether the detail view covers the list.
         // Meaningless in the wide layout, where the rail and detail pane are
         // always both visible side by side.
@@ -119,16 +124,18 @@ internal fun SettingsScreen(
         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
             if (maxWidth >= SettingsWidePaneBreakpoint) {
                 SettingsWidePane(
+                    categories = categories,
                     entries = entries,
-                    selectedId = selectedId,
+                    selectedId = shownId,
                     onSelect = { selectedId = it },
                     onAction = onAction,
                     badged = badged,
                 )
             } else {
                 SettingsNarrowPane(
+                    categories = categories,
                     entries = entries,
-                    selectedId = selectedId,
+                    selectedId = shownId,
                     showDetail = showDetail,
                     badged = badged,
                     onSelect = {
@@ -148,6 +155,7 @@ internal fun SettingsScreen(
 // height so each scrolls independently of the other.
 @Composable
 private fun SettingsWidePane(
+    categories: List<SettingsCategoryId>,
     entries: List<SettingsCategoryEntry>,
     selectedId: SettingsCategoryId,
     onSelect: (SettingsCategoryId) -> Unit,
@@ -159,6 +167,7 @@ private fun SettingsWidePane(
     horizontalArrangement = Arrangement.spacedBy(FemtoDimens.ScreenPadding),
 ) {
     SettingsCategoryRail(
+        categories = categories,
         selectedId = selectedId,
         onSelect = onSelect,
         modifier = Modifier.fillMaxHeight(),
@@ -178,6 +187,7 @@ private fun SettingsWidePane(
 // replaces it — only one of the two is ever composed at a time.
 @Composable
 private fun SettingsNarrowPane(
+    categories: List<SettingsCategoryId>,
     entries: List<SettingsCategoryEntry>,
     selectedId: SettingsCategoryId,
     showDetail: Boolean,
@@ -198,6 +208,7 @@ private fun SettingsNarrowPane(
         )
     } else {
         SettingsCategoryList(
+            categories = categories,
             selectedId = selectedId,
             onSelect = onSelect,
             modifier = Modifier.fillMaxSize(),
@@ -249,6 +260,9 @@ private fun settingsCategoryEntries(
                 onOpenOfflineRegions = onOpenOfflineRegions,
                 onOpenRoutingData = onOpenRoutingData,
             )
+        },
+        SettingsCategoryEntry(SettingsCategoryId.NAVIGATION) {
+            NavigationSection(uiState = uiState, onAction = onAction)
         },
         SettingsCategoryEntry(SettingsCategoryId.LOCATION) {
             LocationSection(uiState = uiState, onAction = onAction)

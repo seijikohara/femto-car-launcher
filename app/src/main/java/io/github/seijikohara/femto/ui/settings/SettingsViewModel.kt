@@ -27,6 +27,9 @@ import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettingsStore
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.location.currentOrUnknown
+import io.github.seijikohara.femto.data.routing.NavigationPreferences
+import io.github.seijikohara.femto.data.routing.NavigationSettings
+import io.github.seijikohara.femto.data.routing.NavigationSettingsStore
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.update.UpdatePreferences
@@ -120,6 +123,7 @@ internal class SettingsViewModel(
     private val motion: Flow<VehicleMotion>,
     private val videoPreferences: VideoSettingsStore,
     private val videoGrants: VideoSourceGrants,
+    private val navigationPreferences: NavigationSettingsStore,
     // Whether the build offers the Saved map regions sheet; the factory reads it
     // from resources, tests set it.
     private val offlineRegionsAvailable: Boolean,
@@ -297,6 +301,19 @@ internal class SettingsViewModel(
             )
         }.distinctUntilChanged()
 
+    // The Navigation rows, one per setting of the navigation store.
+    private val navigation: Flow<NavigationSettingsUi> =
+        navigationPreferences.settings
+            .catchAsDefault(TAG, "navigation settings", NavigationSettings.Default)
+            .map { settings ->
+                NavigationSettingsUi(
+                    rerouteAutomatically = settings.rerouteAutomatically,
+                    suggestOtherRoutes = settings.suggestOtherRoutes,
+                    restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
+                    routeRowTime = settings.routeRowTime,
+                )
+            }.distinctUntilChanged()
+
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
     val uiState: StateFlow<SettingsUiState> =
@@ -310,14 +327,16 @@ internal class SettingsViewModel(
             combine(
                 video,
                 routingData.onStart { emit(null) }.catchAsDefault(TAG, "routing data", null),
-                ::Pair,
+                navigation,
+                ::Triple,
             ),
-        ) { state, export, statusVisible, update, (videoRows, routing) ->
+        ) { state, export, statusVisible, update, (videoRows, routing, navigationRows) ->
             state.copy(
                 trackExport = export,
                 dockStatusVisible = statusVisible,
                 updates = update,
                 video = videoRows,
+                navigation = navigationRows,
                 offlineRegionsAvailable = offlineRegionsAvailable,
                 routingData = routing,
             )
@@ -606,6 +625,22 @@ internal class SettingsViewModel(
                         withContext(ioDispatcher) { videoPreferences.adoptSourceOrRefusal(action.uri, videoGrants) }
                 }
 
+                is SettingsAction.SetRerouteAutomatically -> {
+                    navigationPreferences.setRerouteAutomatically(action.value)
+                }
+
+                is SettingsAction.SetSuggestOtherRoutes -> {
+                    navigationPreferences.setSuggestOtherRoutes(action.value)
+                }
+
+                is SettingsAction.SetRestoreRouteAfterRestart -> {
+                    navigationPreferences.setRestoreRouteAfterRestart(action.value)
+                }
+
+                is SettingsAction.SetRouteRowTime -> {
+                    navigationPreferences.setRouteRowTime(action.value)
+                }
+
                 SettingsAction.CheckForUpdates -> {
                     updater.checkNow()
                 }
@@ -690,6 +725,7 @@ internal class SettingsViewModel(
                     calendarPreferences.resetToDefaults()
                     updatePreferences.resetToDefaults()
                     videoPreferences.resetToDefaults()
+                    navigationPreferences.resetToDefaults()
                 }
 
                 is SettingsAction.ResetSection -> {
@@ -712,6 +748,10 @@ internal class SettingsViewModel(
 
                         SettingsSectionId.UPDATES -> {
                             updatePreferences.resetToDefaults()
+                        }
+
+                        SettingsSectionId.NAVIGATION -> {
+                            navigationPreferences.resetToDefaults()
                         }
 
                         SettingsSectionId.SCREEN,
@@ -802,6 +842,7 @@ internal class SettingsViewModelFactory(
             motion = locationGraph.vehicleMotion(),
             videoPreferences = VideoPreferences(application),
             videoGrants = ContentResolverVideoSourceGrants(application),
+            navigationPreferences = NavigationPreferences(application),
             offlineRegionsAvailable = application.resources.getBoolean(R.bool.offline_regions_enabled),
             routingData =
                 routingDataSummaryFlow(

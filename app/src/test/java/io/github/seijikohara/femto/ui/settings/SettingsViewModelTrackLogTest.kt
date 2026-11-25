@@ -9,6 +9,7 @@ import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeNavigationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
@@ -65,6 +66,7 @@ class SettingsViewModelTrackLogTest {
             motion = flowOf(VehicleMotion.PARKED),
             videoPreferences = FakeVideoSettingsStore(),
             videoGrants = FakeVideoSourceGrants(),
+            navigationPreferences = FakeNavigationSettingsStore(),
             offlineRegionsAvailable = false,
             ioDispatcher = dispatcher,
         )
