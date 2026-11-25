@@ -74,7 +74,8 @@ private val TurnKind.roundabout: Boolean
 private fun turnTextRes(maneuver: TurnManeuver): Int =
     (maneuver as? TurnManeuver.Turn)?.kind?.let(::turnKindTextRes) ?: R.string.turn_card_arrive
 
-// A roundabout's text without its exit number; one with it reads through turn_card_roundabout_exit.
+// A roundabout's text without its exit number; one with it reads through turn_card_roundabout_exit. Both motorway
+// exits read the same: the arrow shows the side, and a line naming it would not fit a narrow card.
 @StringRes
 private fun turnKindTextRes(kind: TurnKind): Int =
     when (kind) {
@@ -89,6 +90,5 @@ private fun turnKindTextRes(kind: TurnKind): Int =
         TurnKind.KEEP_RIGHT -> R.string.turn_card_keep_right
         TurnKind.U_TURN_LEFT, TurnKind.U_TURN_RIGHT, TurnKind.U_TURN -> R.string.turn_card_u_turn
         TurnKind.ROUNDABOUT_COUNTERCLOCKWISE, TurnKind.ROUNDABOUT_CLOCKWISE -> R.string.turn_card_roundabout_enter
-        // The arrow shows the exit's side, and a line naming it would not fit a narrow card.
         TurnKind.EXIT_LEFT, TurnKind.EXIT_RIGHT -> R.string.turn_card_exit
     }
