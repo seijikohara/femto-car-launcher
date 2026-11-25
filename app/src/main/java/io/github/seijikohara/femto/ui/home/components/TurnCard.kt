@@ -68,12 +68,10 @@ internal fun TurnCard(
 ) {
     val (value, unit) = turnDistance(state.distanceMeters, speedUnit)
     val text = turnText(state.maneuver)
-    val thenText = state.then?.let { turnText(it) }
     val description =
-        listOfNotNull(
-            stringResource(R.string.turn_card_description, text, "$value $unit"),
-            thenText?.let { stringResource(R.string.turn_card_description_then, it) },
-        ).joinToString(" ")
+        state.then?.let { then ->
+            stringResource(R.string.turn_card_description_then, text, value, unit, turnText(then))
+        } ?: stringResource(R.string.turn_card_description, text, value, unit)
     val content = TurnCardContent(state = state, value = value, unit = unit, text = text)
     val sizes = turnCardSizes(content)
     // Only the form that shows is composed: a form tried and left out would stay in the semantics tree beside it.

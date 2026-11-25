@@ -98,11 +98,11 @@
     <string name="turn_card_arrive">Destination</string>
     <!-- Caption over the small arrow of the turn that follows closely after the announced one. -->
     <string name="turn_card_then">Then</string>
-    <!-- What a screen reader says for the whole card: %1$s = the line of text above ("Turn left"), %2$s = the distance
-         with its unit as the card shows it ("300 m"). -->
-    <string name="turn_card_description">%1$s in %2$s.</string>
-    <!-- Follows turn_card_description when the card shows the turn after next; %1$s = that turn's line of text. -->
-    <string name="turn_card_description_then">Then: %1$s.</string>
+    <!-- What a screen reader says for the whole card: %1$s = the line of text ("Turn left"), %2$s = the distance's
+         value ("300") and %3$s its unit ("m"), as the card shows them. -->
+    <string name="turn_card_description">%1$s in %2$s %3$s.</string>
+    <!-- The same, when the card shows the turn after next: %4$s = that turn's line of text ("Turn right"). -->
+    <string name="turn_card_description_then">%1$s in %2$s %3$s. Then: %4$s.</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>
