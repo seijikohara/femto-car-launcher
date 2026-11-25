@@ -26,6 +26,7 @@ import io.github.seijikohara.femto.data.places.capPlaceName
 import io.github.seijikohara.femto.data.places.hasDestinationHandler
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.CandidateFinder
+import io.github.seijikohara.femto.data.routing.NavigationPreferences
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteConditionsStore
@@ -43,6 +44,7 @@ import io.github.seijikohara.femto.data.routing.tilesDueForCheck
 import io.github.seijikohara.femto.data.voice.SpeechInput
 import io.github.seijikohara.femto.data.voice.VoiceRecognizer
 import io.github.seijikohara.femto.data.voice.VoiceState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -128,6 +130,9 @@ internal class DestinationViewModel(
     // like a reroute before each search of the panel's own.
     private val startCandidates: (session: Long, origin: RoutePoint) -> Unit = { _, _ -> },
     private val cancelCandidates: () -> Unit = {},
+    // The "Suggest other routes" setting, read as each route is found: off, the route starts with no choice and no
+    // search for more.
+    private val suggestOtherRoutes: suspend () -> Boolean = { true },
 ) : ViewModel() {
     private val query = MutableStateFlow("")
 
@@ -524,15 +529,17 @@ internal class DestinationViewModel(
         when (val result = planner.route(ends.origin, ends.destination, conditions = ends.conditions)) {
             is RouteResult.Found -> {
                 val computingMs = planner.lastRunOrNull()?.computingMs ?: 0L
+                val choosing = suggestOtherRoutesOrDelete(result)
                 val session = activeRoute.start(
                     result.route,
                     ends.destination,
                     ends.conditions,
                     result.reference,
                     computingMs,
+                    choosing = choosing,
                 )
                 routeStep.value = RouteStep.Done
-                startCandidates(session, ends.origin)
+                if (choosing) startCandidates(session, ends.origin)
                 // The new session replaced every earlier route, whose references no reroute reads again. The new
                 // candidates' files are younger than the prune's grace.
                 withContext(ioDispatcher) { planner.pruneReferences(setOfNotNull(result.reference)) }
@@ -560,6 +567,17 @@ internal class DestinationViewModel(
             }
         }
     }
+
+    // Read as the route is found rather than as the run starts, so a switch changed during the search counts. A run
+    // cancelled during the read loses the route, and with it the reference the engine wrote for it, which no session
+    // holds and so nothing else would delete.
+    private suspend fun suggestOtherRoutesOrDelete(found: RouteResult.Found): Boolean =
+        try {
+            suggestOtherRoutes()
+        } catch (e: CancellationException) {
+            found.reference?.delete()
+            throw e
+        }
 
     // The weekly check: the installed tiles among [needed] whose check is due,
     // asked about one at a time with a conditional request, which costs the
@@ -707,7 +725,8 @@ private fun PlaceTarget.Point.toRoutePoint(): RoutePoint = RoutePoint(latitude =
  * the platform geocoder, the shared planner and tile store, the one active
  * route the dashboard reads, the boot clock and location grant a route's start
  * is judged by, the platform's answer to where the device is now, the shared
- * rerouter a route run stops, and the route conditions kept on the device.
+ * rerouter a route run stops, the route conditions kept on the device, and
+ * the "Suggest other routes" setting.
  */
 internal val DestinationViewModelFactory =
     viewModelFactory {
@@ -735,6 +754,7 @@ internal val DestinationViewModelFactory =
                 cancelReroute = Rerouter.get(application)::cancel,
                 startCandidates = CandidateFinder.get(application)::start,
                 cancelCandidates = CandidateFinder.get(application)::cancel,
+                suggestOtherRoutes = { NavigationPreferences(application).settings.first().suggestOtherRoutes },
             )
         }
     }

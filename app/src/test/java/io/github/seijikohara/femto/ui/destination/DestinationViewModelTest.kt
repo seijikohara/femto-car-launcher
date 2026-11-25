@@ -28,6 +28,7 @@ import io.github.seijikohara.femto.testfixtures.RoutingFixture
 import io.github.seijikohara.femto.testfixtures.fakeEngineTrack
 import io.github.seijikohara.femto.testfixtures.fakeRoute
 import io.github.seijikohara.femto.testfixtures.fakeSavedPlace
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -109,6 +110,7 @@ class DestinationViewModelTest {
         placeLocator: FakePlaceLocator = FakePlaceLocator(),
         ioDispatcher: CoroutineDispatcher = StandardTestDispatcher(testScheduler),
         conditions: RouteConditions = RouteConditions(),
+        suggestOtherRoutes: suspend () -> Boolean = { true },
     ): DestinationViewModel {
         routing = RoutingFixture(tempFolder.root, StandardTestDispatcher(testScheduler))
         return DestinationViewModel(
@@ -130,6 +132,7 @@ class DestinationViewModelTest {
             ioDispatcher = ioDispatcher,
             startCandidates = { session, origin -> candidateStarts += session to origin },
             cancelCandidates = { candidateCancels++ },
+            suggestOtherRoutes = suggestOtherRoutes,
         ).also { viewModel ->
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
         }
@@ -872,6 +875,61 @@ class DestinationViewModelTest {
             val session = assertNotNull(activeRoute.active.value).session
             assertEquals(listOf(session to RoutePoint(ORIGIN.point.latitude, ORIGIN.point.longitude)), candidateStarts)
         }
+
+    @Test
+    fun a_found_route_with_other_routes_on_opens_the_choice() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true, suggestOtherRoutes = { true })
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(true to 1, activeRoute.active.value?.choosing to candidateStarts.size)
+        }
+
+    @Test
+    fun a_found_route_with_other_routes_off_opens_no_choice_and_starts_no_search() =
+        runTest {
+            val viewModel = subscribedViewModel(routingAvailable = true, suggestOtherRoutes = { false })
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+
+            assertEquals(false to 0, activeRoute.active.value?.choosing to candidateStarts.size)
+        }
+
+    // The setting is read as the route is found, a suspension the route had not had there before: a dismiss that lands
+    // in it loses the route, and with it the reference the engine wrote, which no session holds.
+    @Test
+    fun dismissing_while_the_setting_is_read_starts_no_route_and_deletes_its_reference() =
+        runTest {
+            val setting = CompletableDeferred<Boolean>()
+            val viewModel = subscribedViewModel(routingAvailable = true, suggestOtherRoutes = { setting.await() })
+            routing.installTile(TILE)
+            routing.engine.outcome = fakeEngineTrack()
+            routing.engine.writesReference = true
+            viewModel.onAction(DestinationAction.RouteTo(DESTINATION, ORIGIN))
+            advanceUntilIdle()
+            val writtenWhileRead = referenceFiles().size
+
+            viewModel.onAction(DestinationAction.DismissRoute)
+            setting.complete(true)
+            advanceUntilIdle()
+
+            assertEquals(1, writtenWhileRead)
+            assertNull(activeRoute.active.value)
+            assertEquals(emptyList(), referenceFiles())
+        }
+
+    private fun referenceFiles(): List<File> =
+        routing.referenceDir
+            .listFiles()
+            .orEmpty()
+            .toList()
 
     // Once as the run starts, and again right before its search: the old route's candidates hold the planner too.
     @Test

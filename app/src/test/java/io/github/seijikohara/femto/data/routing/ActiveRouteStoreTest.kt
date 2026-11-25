@@ -46,6 +46,16 @@ class ActiveRouteStoreTest {
         assertEquals(Triple(0, true, false), active?.let { Triple(it.selected, it.choosing, it.finding) })
     }
 
+    // "Suggest other routes" is off: the route stands alone, as a restored one does.
+    @Test
+    fun `a session started without a choice holds its one candidate and no open choice`() {
+        store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE, computingMs = 500L, choosing = false)
+
+        val active = store.active.value
+        assertEquals(listOf(RouteCandidate(ROUTE, FIRST_REFERENCE, 500L)), active?.candidates)
+        assertEquals(0 to false, active?.let { it.selected to it.choosing })
+    }
+
     @Test
     fun `select switches the active route and reference`() {
         val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, FIRST_REFERENCE)

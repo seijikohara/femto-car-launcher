@@ -75,7 +75,8 @@ internal class ActiveRouteStore {
 
     /**
      * Make [route] to [destination], found under [conditions] in [computingMs], the active route in a new session,
-     * and return the session. The session opens with the choice between routes, [route] its first candidate.
+     * and return the session. With [choosing], the session opens with the choice between routes, [route] its first
+     * candidate; without it ("Suggest other routes" is off), [route] is its one candidate and no choice opens.
      */
     fun start(
         route: Route,
@@ -83,6 +84,7 @@ internal class ActiveRouteStore {
         conditions: RouteConditions,
         reference: File?,
         computingMs: Long = 0L,
+        choosing: Boolean = true,
     ): Long =
         sessions.incrementAndGet().also { session ->
             mutableActive.value =
@@ -93,7 +95,7 @@ internal class ActiveRouteStore {
                     reference = reference,
                     conditions = conditions,
                     candidates = listOf(RouteCandidate(route, reference, computingMs)),
-                    choosing = true,
+                    choosing = choosing,
                 )
         }
 
