@@ -28,6 +28,12 @@ class TurnCardStateTest {
         assertNull(stateOrNull(upcomingTurns = null))
     }
 
+    // Before the first fix the turns count from the start of the line, which a restored route can lie far behind.
+    @Test
+    fun `the card hides until a fix has been placed on the line`() {
+        assertNull(stateOrNull(fixPlaced = false))
+    }
+
     @Test
     fun `the card hides while the vehicle is off the route`() {
         assertNull(stateOrNull(offRoute = true))
@@ -179,6 +185,7 @@ class TurnCardStateTest {
     private fun stateOrNull(
         upcomingTurns: List<UpcomingTurn>? = listOf(upcoming(TurnKind.LEFT, 300.0)),
         remainingMeters: Double = 5_000.0,
+        fixPlaced: Boolean = true,
         offRoute: Boolean = false,
         reroute: RerouteStatus = RerouteStatus.NONE,
         choosing: Boolean = false,
@@ -187,6 +194,7 @@ class TurnCardStateTest {
         turnCardStateOrNull(
             upcomingTurns = upcomingTurns,
             remainingMeters = remainingMeters,
+            fixPlaced = fixPlaced,
             offRoute = offRoute,
             reroute = reroute,
             choosing = choosing,

@@ -42,8 +42,9 @@ internal data class TurnCardSettings(
 
 /**
  * Return what the turn card shows, or null for no card: with the card [TurnCardSettings.show] off, for a route without
- * turn data ([upcomingTurns] null), while the vehicle is [offRoute], while a reroute's status shows ([reroute] not
- * [RerouteStatus.NONE]) and while the route choice card is open ([choosing]).
+ * turn data ([upcomingTurns] null), until a fix has been placed on the line ([fixPlaced]; before it the turns count
+ * from the start of the line, which a restored route can lie far behind), while the vehicle is [offRoute], while a
+ * reroute's status shows ([reroute] not [RerouteStatus.NONE]) and while the route choice card is open ([choosing]).
  *
  * The first turn ahead that the card announces is the manoeuvre; "continue straight" counts only with
  * [TurnCardSettings.showStraight], and the engine's off-route and beeline hints never do, as no driver acts on them.
@@ -52,13 +53,14 @@ internal data class TurnCardSettings(
 internal fun turnCardStateOrNull(
     upcomingTurns: List<UpcomingTurn>?,
     remainingMeters: Double,
+    fixPlaced: Boolean,
     offRoute: Boolean,
     reroute: RerouteStatus,
     choosing: Boolean,
     settings: TurnCardSettings,
 ): TurnCardState? =
     upcomingTurns
-        ?.takeIf { settings.show && !offRoute && reroute == RerouteStatus.NONE && !choosing }
+        ?.takeIf { settings.show && fixPlaced && !offRoute && reroute == RerouteStatus.NONE && !choosing }
         ?.filter { it.turn.kind.announced(settings.showStraight) }
         ?.let { turns ->
             turns.firstOrNull()?.let { first ->

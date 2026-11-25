@@ -1649,11 +1649,35 @@ class HomeViewModelTest {
             assertNull(route.turnCard)
         }
 
+    // A route restored after a restart counts from the start of its line until the first fix, which can lie far
+    // behind the vehicle: the card waits for the fix.
+    @Test
+    fun `a restored route shows no card until the first fix, and the card with it`() =
+        runTest {
+            // A receiver that has not fixed yet.
+            val location = MutableSharedFlow<Location?>()
+            val viewModel = routeViewModel(locationFlow = location, available = true, route = TURNING_ROUTE)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val beforeTheFix = assertNotNull(viewModel.uiState.value.activeRoute, "the route shows before the fix")
+
+            location.emit(beforeTheTurn())
+
+            assertNull(beforeTheFix.turnCard)
+            assertEquals(
+                5_500.0,
+                assertNotNull(
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard,
+                ).distanceMeters,
+                1.0,
+            )
+        }
+
     @Test
     fun `the card shows only once the choice card closes`() =
         runTest {
             val active = MutableStateFlow<ActiveRoute?>(choosingRoute().copy(route = TURNING_ROUTE))
-            val viewModel = routeViewModel(available = true, activeRouteFlow = active)
+            val viewModel = routeViewModel(location = beforeTheTurn(), available = true, activeRouteFlow = active)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             val whileChoosing = viewModel.uiState.value.activeRoute
 
@@ -1699,8 +1723,13 @@ class HomeViewModelTest {
     fun `while a reroute's status shows the card hides`() =
         runTest {
             val active = MutableStateFlow<ActiveRoute?>(activeRouteOf(TURNING_ROUTE))
-            val viewModel = routeViewModel(available = true, activeRouteFlow = active)
+            val viewModel = routeViewModel(location = beforeTheTurn(), available = true, activeRouteFlow = active)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+                "the card shows before the reroute",
+            )
 
             active.value = active.value?.copy(reroute = RerouteStatus.REROUTING)
 
@@ -1738,6 +1767,7 @@ class HomeViewModelTest {
         runTest {
             val viewModel =
                 routeViewModel(
+                    location = beforeTheTurn(),
                     available = true,
                     route = TURNING_ROUTE,
                     navigationSettingsFlow = flowOf(NavigationSettings.Default.copy(turnCard = false)),
@@ -1758,7 +1788,12 @@ class HomeViewModelTest {
         runTest {
             val settings = MutableStateFlow(NavigationSettings.Default)
             val viewModel =
-                routeViewModel(available = true, route = STRAIGHT_THEN_LEFT_ROUTE, navigationSettingsFlow = settings)
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = STRAIGHT_THEN_LEFT_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             val shown =
                 listOf(
@@ -2069,6 +2104,9 @@ class HomeViewModelTest {
             accuracyM = FIX_ACCURACY_M,
             provider = provider,
         )
+
+    // On the equator route a quarter of the way along it, 5.5 km before its halfway turn.
+    private fun beforeTheTurn(): Location = fakeLocation(latitude = 0.0, longitude = ROUTE_LONGITUDE)
 
     // About 5.6 m north of the equator route, halfway along it.
     private fun besideTheRoute(): Location = fakeLocation(latitude = 0.00005, longitude = 0.1)

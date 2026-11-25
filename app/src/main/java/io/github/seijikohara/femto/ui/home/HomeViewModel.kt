@@ -310,6 +310,7 @@ internal class HomeViewModel(
                                 ),
                             upcomingTurns = follow.upcomingTurns,
                             offRoute = follow.offRoute,
+                            fixPlaced = follow.fixPlaced,
                         )
                     }
                 } ?: flowOf(null)
@@ -732,6 +733,7 @@ private data class FollowedRoute(
     val state: ActiveRouteState,
     val upcomingTurns: List<UpcomingTurn>?,
     val offRoute: Boolean,
+    val fixPlaced: Boolean,
 )
 
 // The route row's time, the vehicle on the line only with its setting on, and
@@ -745,6 +747,7 @@ private fun FollowedRoute.withSettings(settings: NavigationSettings): ActiveRout
             turnCardStateOrNull(
                 upcomingTurns = upcomingTurns,
                 remainingMeters = state.progress.remainingMeters,
+                fixPlaced = fixPlaced,
                 offRoute = offRoute,
                 reroute = state.reroute,
                 choosing = state.choice != null,
