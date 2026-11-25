@@ -103,7 +103,9 @@ internal class ReadDmsTest(
                     CASTLE.copy(label = "West gate"),
                 ),
                 row("a word's first letter is no hemisphere", "33°50'44.2\"N 132°45'56.2\" Exit 5", NotAPoint),
-                row("a pair glued to a word", "GPS35°39'31\"N 139°44'43\"E", NotAPoint),
+                // A word that ends in no hemisphere letter: one that does ("GPS") was no position before this rule
+                // either, since its last letter gave the latitude two.
+                row("a pair glued to a word", "ABC35°39'31\"N 139°44'43\"E", NotAPoint),
                 row("minutes past 59", "33°60'44.2\"N 132°45'56.2\"E", NotAPoint),
                 row("seconds past 59", "33°50'60.0\"N 132°45'56.2\"E", NotAPoint),
                 row("latitude past 90", "91°00'00.0\"N 132°45'56.2\"E", NotAPoint),
