@@ -91,8 +91,8 @@
     <string name="turn_card_roundabout_exit">Take exit %1$d</string>
     <!-- A roundabout whose exit the routing data does not give. -->
     <string name="turn_card_roundabout_enter">Enter the roundabout</string>
-    <string name="turn_card_exit_left">Take the exit on the left</string>
-    <string name="turn_card_exit_right">Take the exit on the right</string>
+    <!-- A motorway exit to either side: the arrow beside the text shows which. -->
+    <string name="turn_card_exit">Take the exit</string>
     <!-- No turn is left before the destination. -->
     <string name="turn_card_arrive">Destination</string>
     <!-- Caption over the small arrow of the turn that follows closely after the announced one. -->

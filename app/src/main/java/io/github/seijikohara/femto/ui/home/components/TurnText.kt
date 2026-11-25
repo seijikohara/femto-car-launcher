@@ -89,6 +89,6 @@ private fun turnKindTextRes(kind: TurnKind): Int =
         TurnKind.KEEP_RIGHT -> R.string.turn_card_keep_right
         TurnKind.U_TURN_LEFT, TurnKind.U_TURN_RIGHT, TurnKind.U_TURN -> R.string.turn_card_u_turn
         TurnKind.ROUNDABOUT_COUNTERCLOCKWISE, TurnKind.ROUNDABOUT_CLOCKWISE -> R.string.turn_card_roundabout_enter
-        TurnKind.EXIT_LEFT -> R.string.turn_card_exit_left
-        TurnKind.EXIT_RIGHT -> R.string.turn_card_exit_right
+        // The arrow shows the exit's side, and a line naming it would not fit a narrow card.
+        TurnKind.EXIT_LEFT, TurnKind.EXIT_RIGHT -> R.string.turn_card_exit
     }

@@ -65,8 +65,9 @@ class TurnTextTest {
                 TurnManeuver.Turn(TurnKind.ROUNDABOUT_COUNTERCLOCKWISE, exitNumber = 2) to "Take exit 2",
                 TurnManeuver.Turn(TurnKind.ROUNDABOUT_CLOCKWISE, exitNumber = 12) to "Take exit 12",
                 TurnManeuver.Turn(TurnKind.ROUNDABOUT_CLOCKWISE) to "Enter the roundabout",
-                TurnManeuver.Turn(TurnKind.EXIT_LEFT) to "Take the exit on the left",
-                TurnManeuver.Turn(TurnKind.EXIT_RIGHT) to "Take the exit on the right",
+                // The arrow shows the side.
+                TurnManeuver.Turn(TurnKind.EXIT_LEFT) to "Take the exit",
+                TurnManeuver.Turn(TurnKind.EXIT_RIGHT) to "Take the exit",
                 // The card never announces these two (turnCardStateOrNull drops them); they read as going on.
                 TurnManeuver.Turn(TurnKind.OFF_ROUTE) to "Continue straight",
                 TurnManeuver.Turn(TurnKind.BEELINE) to "Continue straight",

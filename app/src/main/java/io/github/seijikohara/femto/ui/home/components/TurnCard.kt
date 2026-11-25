@@ -123,7 +123,7 @@ private val ContentGap = 12.dp
 internal val TurnCardHeight = 88.dp
 
 /**
- * The card's narrowest: the longest line of text ("Take the exit on the right") at the 16 sp floor beside the arrow
+ * The card's narrowest: the longest line of text ("Enter the roundabout") at the 16 sp floor beside the arrow
  * and the turn after next. Its widest keeps it from spreading over the map on a wide screen.
  */
 internal val TurnCardMinWidth = 360.dp

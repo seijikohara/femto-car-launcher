@@ -136,9 +136,8 @@ class TurnCardTest {
     private companion object {
         val LONG_TEXTS =
             listOf(
-                TurnManeuver.Turn(TurnKind.EXIT_RIGHT) to "Take the exit on the right",
-                TurnManeuver.Turn(TurnKind.EXIT_LEFT) to "Take the exit on the left",
                 TurnManeuver.Turn(TurnKind.ROUNDABOUT_CLOCKWISE) to "Enter the roundabout",
+                TurnManeuver.Turn(TurnKind.EXIT_RIGHT) to "Take the exit",
                 TurnManeuver.Turn(TurnKind.SLIGHT_RIGHT) to "Turn slightly right",
                 TurnManeuver.Turn(TurnKind.SHARP_RIGHT) to "Turn sharply right",
             )
