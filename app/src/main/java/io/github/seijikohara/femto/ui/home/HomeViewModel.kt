@@ -72,6 +72,7 @@ import io.github.seijikohara.femto.data.update.skipped
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
+import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -515,7 +516,12 @@ internal class HomeViewModel(
             }
 
             is HomeAction.Shortcut -> {
-                mutableEvents.tryEmit(HomeEvent.LaunchAppCategory(action.target.intentCategory))
+                mutableEvents.tryEmit(
+                    when (action.target) {
+                        AppsBarShortcut.Phone -> HomeEvent.LaunchDialer
+                        AppsBarShortcut.Music -> HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MUSIC)
+                    },
+                )
             }
 
             HomeAction.ConnectMusicPlayer -> {
