@@ -47,6 +47,9 @@ internal fun HomeRoute(
     motionTier: MotionTier = MotionTier.STANDARD,
     sheetOpen: Boolean = false,
     fullscreen: Boolean = false,
+    // Called once for each place another app sends, as the destination panel opens on it: the host's sheets are
+    // windows above the dashboard and would hide the panel, so the host closes them here.
+    onReceivePlace: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val viewModel: HomeViewModel =
@@ -54,6 +57,13 @@ internal fun HomeRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val online by viewModel.online.collectAsStateWithLifecycle()
     val updatePrompt by viewModel.updatePrompt.collectAsStateWithLifecycle()
+    val receivedPlace by viewModel.receivedPlace.collectAsStateWithLifecycle()
+    val currentOnReceivePlace by rememberUpdatedState(onReceivePlace)
+    // Keyed on the value the dashboard opens the panel on, so the sheets close as the panel opens; once the panel
+    // holds the place the inbox is empty, and a recreated dashboard closes nothing.
+    LaunchedEffect(receivedPlace) {
+        if (receivedPlace != null) currentOnReceivePlace()
+    }
     val currentOnEvent by rememberUpdatedState(onEvent)
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event -> currentOnEvent(event) }
@@ -101,5 +111,6 @@ internal fun HomeRoute(
         videoPictureVisible = videoPictureVisible,
         onVideoAction = onVideoAction,
         videoSurface = videoSurface,
+        receivedPlace = receivedPlace,
     )
 }

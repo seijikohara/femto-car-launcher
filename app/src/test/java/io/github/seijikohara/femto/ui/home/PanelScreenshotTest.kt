@@ -189,6 +189,26 @@ class PanelScreenshotTest {
             DestinationPanelSample(RouteStep.Idle, pickedPoint = PlaceTarget.Point(35.658581, 139.745433))
         }
 
+    // A place another app sent: a point with the name it came with, shown over its coordinates; and a share the
+    // launcher could not read a place from, which says so under the search field.
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun destination_panel_received_point_head_unit() =
+        capture("destination-panel-head-unit-853x512-received-point") {
+            DestinationPanelSample(
+                RouteStep.Idle,
+                pickedPoint = PlaceTarget.Point(33.845556, 132.765556),
+                pickedLabel = "Matsuyama Castle",
+            )
+        }
+
+    @Test
+    @Config(qualifiers = "w853dp-h512dp-mdpi")
+    fun destination_panel_received_unreadable_head_unit() =
+        capture("destination-panel-head-unit-853x512-received-unreadable") {
+            DestinationPanelSample(RouteStep.Idle, query = "", receivedUnreadable = true)
+        }
+
     // Saved places the driver named: a typed place and a saved point carry a name over the line that says what they
     // were saved as, next to one that was never named, each row with its route, rename and delete buttons.
     @Test
@@ -226,11 +246,14 @@ class PanelScreenshotTest {
         conditions: RouteConditions = RouteConditions(),
         places: List<SavedPlace> = DefaultPlaces,
         renaming: RenameDraft? = null,
+        pickedLabel: String = "",
+        query: String = "Central Station",
+        receivedUnreadable: Boolean = false,
     ) {
         DestinationPanel(
             uiState =
                 DestinationUiState(
-                    query = "Central Station",
+                    query = query,
                     voice = VoiceState.Idle,
                     places = places,
                     motion = VehicleMotion.PARKED,
@@ -238,6 +261,8 @@ class PanelScreenshotTest {
                     geocoderAvailable = true,
                     route = route,
                     pickedPoint = pickedPoint,
+                    pickedLabel = pickedLabel,
+                    receivedUnreadable = receivedUnreadable,
                     conditions = conditions,
                     renaming = renaming,
                 ),

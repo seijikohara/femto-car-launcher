@@ -5,6 +5,7 @@ import io.github.seijikohara.femto.data.dock.DockNavId
 import io.github.seijikohara.femto.data.dock.DockStatusId
 import io.github.seijikohara.femto.data.music.MusicCommand
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 
 internal sealed interface HomeAction {
@@ -35,6 +36,15 @@ internal sealed interface HomeAction {
     data class Navigate(
         val target: PlaceTarget,
         val label: String = "",
+    ) : HomeAction
+
+    /**
+     * The destination panel holds [place], a place another app sent
+     * ([HomeViewModel.receivedPlace]): the inbox lets go of it, so it opens
+     * the panel only once.
+     */
+    data class ReceivedPlaceHandled(
+        val place: ReceivedPlace,
     ) : HomeAction
 
     data object ConnectMusicPlayer : HomeAction

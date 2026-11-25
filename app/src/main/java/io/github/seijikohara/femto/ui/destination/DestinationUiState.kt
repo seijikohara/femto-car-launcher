@@ -2,6 +2,7 @@ package io.github.seijikohara.femto.ui.destination
 
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.voice.VoiceState
@@ -25,9 +26,17 @@ import java.util.Locale
  * routed to. [route] is where a route the panel asked for stands. [conditions] are the roads the next route
  * avoids, as the driver last picked them.
  *
- * [pickedPoint] is a point picked with a long press on the map, which the
- * panel offers in place of the text entry until the driver goes back to the
- * search or the panel closes. It is not saved unless the driver saves it.
+ * [pickedPoint] is a point picked with a long press on the map, or received
+ * from another app, which the panel offers in place of the text entry until the
+ * driver goes back to the search or the panel closes. It is not saved unless
+ * the driver saves it. [pickedLabel] is the name a received point came with
+ * ("" for a long press): the panel shows it above the coordinates, Save point
+ * saves the point under it, and Open in maps app names the pin with it.
+ *
+ * [receivedUnreadable] says the last place another app sent held no position
+ * and no name (a bare link): the panel says so under the search field until the
+ * driver types, speaks, picks a point, receives another place, or closes the
+ * panel.
  *
  * [renaming] is the name being typed for one saved place, or null. Renaming is typing, so it follows
  * [typingAllowed]: it never starts while moving, and a rename open when the vehicle starts to move closes without
@@ -43,6 +52,8 @@ internal data class DestinationUiState(
     val geocoderAvailable: Boolean = false,
     val route: RouteStep = RouteStep.Idle,
     val pickedPoint: PlaceTarget.Point? = null,
+    val pickedLabel: String = "",
+    val receivedUnreadable: Boolean = false,
     val conditions: RouteConditions = RouteConditions(),
     val renaming: RenameDraft? = null,
 ) {
@@ -294,8 +305,25 @@ internal sealed interface DestinationAction {
     /** Put the picked point away and give the panel its text entry back; the panel sends it as it closes too. */
     data object ClearPickedPoint : DestinationAction
 
-    /** Keep the picked point as a saved place labelled with its coordinates; not while moving. */
+    /**
+     * Keep the picked point as a saved place labelled with the name it came with ([DestinationUiState.pickedLabel]),
+     * else its coordinates; not while moving.
+     */
     data object SavePickedPoint : DestinationAction
+
+    /**
+     * Show [place], which another app sent: a point as a picked point with its name, a search text in the search
+     * field, or the line that nothing could be read from it. It replaces what an earlier place showed. Allowed in every
+     * motion state: the driver chose it in the other app, and a filled field still takes no typing while moving.
+     * A route under way stops as [DismissRoute] stops it, and recognition is cancelled, so neither a route's status
+     * nor a late transcript can hide or overwrite the place. A name longer than the name cap is cut to it.
+     */
+    data class Receive(
+        val place: ReceivedPlace,
+    ) : DestinationAction
+
+    /** Put away the line that nothing could be read from a received place; the panel sends it as it closes. */
+    data object ClearReceivedUnreadable : DestinationAction
 
     /**
      * The driver declined newer data ([RouteDownload.NEWER]): the route is computed with the stored data at once, and

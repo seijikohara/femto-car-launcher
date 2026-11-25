@@ -262,6 +262,10 @@
     <string name="destination_picked_point">Point on the map</string>
     <string name="destination_save_point">Save point</string>
     <string name="destination_search_instead">Search instead</string>
+    <!-- The launcher's entry in another app's share sheet and in the system's "Open with" list for a map link. -->
+    <string name="receive_destination_label">Set as destination</string>
+    <!-- Shown under the search field when another app shared or opened something with no position and no place name in it, such as a bare link. -->
+    <string name="destination_received_unreadable">No place could be read from what the other app sent.</string>
 
     <!-- Shared edit-mode "Done" affordance (drawer pinned dock + dashboard dock nav). -->
     <string name="edit_done">Done</string>

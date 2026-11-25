@@ -78,6 +78,7 @@ import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.common.hasRecordAudioPermission
 import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.places.SavedPlace
 import io.github.seijikohara.femto.data.places.capPlaceName
 import io.github.seijikohara.femto.data.routing.RouteConditions
@@ -176,10 +177,12 @@ internal fun DestinationPanel(
     val currentRoute by rememberUpdatedState(uiState.route)
     val currentPickedPoint by rememberUpdatedState(uiState.pickedPoint)
     val currentRenaming by rememberUpdatedState(uiState.renaming)
+    val currentReceivedUnreadable by rememberUpdatedState(uiState.receivedUnreadable)
     //
     // A point picked on the map goes with the panel too, so the next open from
     // the dock starts on the search, and so does a name half typed: the next open
-    // shows no field the driver forgot.
+    // shows no field the driver forgot. The line that a received place could not
+    // be read goes as well: it speaks of that share alone.
     if (visible) {
         DisposableEffect(Unit) {
             onDispose {
@@ -188,6 +191,7 @@ internal fun DestinationPanel(
                 if (closing && currentRoute != RouteStep.Idle) currentOnAction(DestinationAction.DismissRoute)
                 if (closing && currentPickedPoint != null) currentOnAction(DestinationAction.ClearPickedPoint)
                 if (closing && currentRenaming != null) currentOnAction(DestinationAction.CancelRename)
+                if (closing && currentReceivedUnreadable) currentOnAction(DestinationAction.ClearReceivedUnreadable)
             }
         }
     }
@@ -321,6 +325,7 @@ private fun DestinationEntry(
         voice = uiState.voice,
         typingAllowed = uiState.typingAllowed,
         handOffAvailable = uiState.handOffAvailable,
+        receivedUnreadable = uiState.receivedUnreadable,
     )
     val queryTarget = PlaceTarget.Query(query)
     // One action to a row: side by side, half a row cuts "Open in maps app" at
@@ -368,10 +373,11 @@ private fun DestinationEntry(
     }
 }
 
-// A point picked with a long press on the map, in place of the text entry: its
-// coordinates, Open in maps app (the point's `geo:` hand-off) with Show route under it, and
-// the way to keep it or to go back to the search. Nothing here types, so only
-// saving waits for a stop, as every save does.
+// A point picked with a long press on the map, or received from another app, in
+// place of the text entry: its name if it came with one, its coordinates, Open
+// in maps app (the point's `geo:` hand-off, naming the pin) with Show route under
+// it, and the way to keep it or to go back to the search. Nothing here types, so
+// only saving waits for a stop, as every save does.
 @Composable
 private fun PickedPointEntry(
     point: PlaceTarget.Point,
@@ -400,7 +406,26 @@ private fun PickedPointEntry(
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(FemtoDimens.InlineIconSize),
         )
-        Text(text = point.coordinateLabel(), style = MaterialTheme.typography.drawerBody())
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = uiState.pickedLabel.ifEmpty { point.coordinateLabel() },
+                style = MaterialTheme.typography.drawerBody(),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            // A named point keeps its coordinates in view, so the driver can tell where the name points. They sit
+            // under the name inside the row, as a saved place's detail does: a line of their own below the row would
+            // push the last row of actions past the bottom of the panel on the head-unit geometry.
+            if (uiState.pickedLabel.isNotEmpty()) {
+                Text(
+                    text = point.coordinateLabel(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
     if (!uiState.handOffAvailable) {
         Text(
@@ -411,7 +436,7 @@ private fun PickedPointEntry(
     }
     // One action to a row, as in the search entry.
     Button(
-        onClick = { onNavigate(point, "") },
+        onClick = { onNavigate(point, uiState.pickedLabel) },
         enabled = uiState.handOffAvailable,
         modifier = Modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget),
     ) {
@@ -493,14 +518,17 @@ private fun ConditionChip(
 )
 
 // One line under the field: the voice step (live transcript or failure), else
-// the missing hand-off app, else the motion gate's explanation while moving;
-// nothing when idle. The missing app outranks the motion line, whose promise
-// that saved places work now would not hold.
+// a received place that could not be read, else the missing hand-off app, else
+// the motion gate's explanation while moving; nothing when idle. The unreadable
+// place answers what the driver just did in another app, so it comes first. The
+// missing app outranks the motion line, whose promise that saved places work now
+// would not hold.
 @Composable
 private fun StatusLine(
     voice: VoiceState,
     typingAllowed: Boolean,
     handOffAvailable: Boolean,
+    receivedUnreadable: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val text =
@@ -513,6 +541,10 @@ private fun StatusLine(
 
             voice is VoiceState.Failed -> {
                 stringResource(voice.messageRes)
+            }
+
+            receivedUnreadable -> {
+                stringResource(R.string.destination_received_unreadable)
             }
 
             !handOffAvailable -> {
@@ -1043,6 +1075,12 @@ private fun RouteFailure.messageRes(): Int =
  * [pickedPoint] is a point a long press on the map has just picked: the host
  * hands it to the ViewModel, which keeps it from then on, and reports it consumed
  * through [onConsumePickedPoint], so the same pick is not handed over twice.
+ *
+ * [receivedPlace] is a place another app sent, still waiting in the inbox: the
+ * host hands it to the ViewModel and, in the same step, reports it taken through
+ * [onConsumeReceivedPlace], which empties the inbox. The ViewModel outlives a
+ * rotation, so a place handed over is never lost to one, and an emptied inbox
+ * opens nothing again after a recreation.
  */
 @Composable
 internal fun DestinationPanelHost(
@@ -1055,6 +1093,8 @@ internal fun DestinationPanelHost(
     modifier: Modifier = Modifier,
     pickedPoint: PlaceTarget.Point? = null,
     onConsumePickedPoint: () -> Unit = {},
+    receivedPlace: ReceivedPlace? = null,
+    onConsumeReceivedPlace: (ReceivedPlace) -> Unit = {},
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
 ) {
@@ -1084,6 +1124,13 @@ internal fun DestinationPanelHost(
         pickedPoint?.let { point ->
             viewModel.onAction(DestinationAction.PickPoint(point))
             currentOnConsumePickedPoint()
+        }
+    }
+    val currentOnConsumeReceivedPlace by rememberUpdatedState(onConsumeReceivedPlace)
+    LaunchedEffect(receivedPlace) {
+        receivedPlace?.let { place ->
+            viewModel.onAction(DestinationAction.Receive(place))
+            currentOnConsumeReceivedPlace(place)
         }
     }
     DestinationPanel(

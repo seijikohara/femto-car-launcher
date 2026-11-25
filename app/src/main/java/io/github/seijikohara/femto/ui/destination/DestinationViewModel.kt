@@ -19,6 +19,7 @@ import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.location.hasLocationPermission
 import io.github.seijikohara.femto.data.location.isFresh
 import io.github.seijikohara.femto.data.places.PlaceTarget
+import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.places.SavedPlacesPreferences
 import io.github.seijikohara.femto.data.places.SavedPlacesStore
 import io.github.seijikohara.femto.data.places.capPlaceName
@@ -100,7 +101,10 @@ import kotlinx.coroutines.withContext
  * ([DestinationAction.UseStoredData]). Nothing is checked in the background.
  *
  * A point picked on the map ([DestinationAction.PickPoint]) stays here until
- * the panel lets go of it; it is saved only on the driver's word.
+ * the panel lets go of it; it is saved only on the driver's word. A place
+ * another app sent ([DestinationAction.Receive]) lands in the same two slots a
+ * driver fills: a point as the picked point, with the name it came with, and a
+ * search text in the query.
  */
 internal class DestinationViewModel(
     private val placesStore: SavedPlacesStore,
@@ -139,7 +143,10 @@ internal class DestinationViewModel(
     private var routeEnds: RouteEnds? = null
     private var pendingDownload = TileDownload()
 
-    private val pickedPoint = MutableStateFlow<PlaceTarget.Point?>(null)
+    private val pickedPoint = MutableStateFlow<PickedPoint?>(null)
+
+    // Whether the last received place held nothing readable; see DestinationUiState.receivedUnreadable.
+    private val receivedUnreadable = MutableStateFlow(false)
 
     // The name being typed for one saved place. Kept here, not in the row, so the typing gate judges it and a
     // rotation does not lose it.
@@ -184,10 +191,12 @@ internal class DestinationViewModel(
                 routeAvailable = available,
                 geocoderAvailable = placeLocator.available,
                 route = step,
-                pickedPoint = picked,
+                pickedPoint = picked?.point,
+                pickedLabel = picked?.label.orEmpty(),
                 conditions = conditions,
             )
-        }.combine(renaming) { state, draft -> state to draft }
+        }.combine(receivedUnreadable) { state, unreadable -> state.copy(receivedUnreadable = unreadable) }
+            .combine(renaming) { state, draft -> state to draft }
             // The motion verdict reaches the VM only through this chain (collecting it elsewhere would keep the
             // location stack running with no panel open), so the rename that moving closes is closed here: the
             // draft is dropped for good, not only hidden until the next stop. The panel's own disposal clears it
@@ -204,6 +213,7 @@ internal class DestinationViewModel(
             speech.state.collect { state ->
                 if (state is VoiceState.Result) {
                     query.value = state.text
+                    receivedUnreadable.value = false
                     speech.reset()
                 }
             }
@@ -215,13 +225,18 @@ internal class DestinationViewModel(
         val typingAllowed = state.typingAllowed
         when (action) {
             is DestinationAction.QueryChanged -> {
-                if (typingAllowed) query.value = action.text
+                if (typingAllowed) {
+                    query.value = action.text
+                    receivedUnreadable.value = false
+                }
             }
 
             DestinationAction.StartListening -> {
                 // Some engines silently ignore the next start after an error
                 // unless the recognizer is cancelled first (VoiceRecognizer.reset).
                 if (speech.state.value is VoiceState.Failed) speech.reset()
+                // The driver is entering a place now; the line about the last share no longer applies.
+                receivedUnreadable.value = false
                 speech.start()
             }
 
@@ -296,7 +311,8 @@ internal class DestinationViewModel(
             }
 
             is DestinationAction.PickPoint -> {
-                pickedPoint.value = action.point
+                pickedPoint.value = PickedPoint(action.point)
+                receivedUnreadable.value = false
             }
 
             DestinationAction.ClearPickedPoint -> {
@@ -306,7 +322,17 @@ internal class DestinationViewModel(
             DestinationAction.SavePickedPoint -> {
                 pickedPoint.value
                     ?.takeIf { typingAllowed }
-                    ?.let { point -> save(label = point.coordinateLabel(), target = point) }
+                    ?.let { picked ->
+                        save(label = picked.label.ifEmpty { picked.point.coordinateLabel() }, target = picked.point)
+                    }
+            }
+
+            is DestinationAction.Receive -> {
+                receive(action.place)
+            }
+
+            DestinationAction.ClearReceivedUnreadable -> {
+                receivedUnreadable.value = false
             }
 
             DestinationAction.UseStoredData -> {
@@ -338,11 +364,7 @@ internal class DestinationViewModel(
             }
 
             DestinationAction.DismissRoute -> {
-                routeJob?.cancel()
-                routeJob = null
-                routeEnds = null
-                pendingDownload = TileDownload()
-                routeStep.value = RouteStep.Idle
+                stopRoute()
             }
 
             is DestinationAction.SetAvoidMotorways -> {
@@ -353,6 +375,48 @@ internal class DestinationViewModel(
                 updateConditions { it.copy(avoidTolls = action.on) }
             }
         }
+    }
+
+    // Not gated on motion: the driver chose the place in the other app, and the query field it fills still takes no
+    // typing while moving. Two things stop first. A route under way, whose status would hide the place behind a step
+    // that names no destination (a download prompt), so a tap meant for the new place would route to the old one. And
+    // recognition, so a late transcript cannot overwrite the place.
+    private fun receive(place: ReceivedPlace) {
+        stopRoute()
+        speech.reset()
+        when (place) {
+            is ReceivedPlace.Found -> {
+                receivedUnreadable.value = false
+                when (val target = place.target) {
+                    // Cut to the name cap: the label names the pin and, saved, the place's row.
+                    is PlaceTarget.Point -> {
+                        pickedPoint.value = PickedPoint(target, capPlaceName(place.label))
+                    }
+
+                    is PlaceTarget.Query -> {
+                        pickedPoint.value = null
+                        query.value = target.text
+                    }
+                }
+            }
+
+            // The text of an earlier search goes too: left under the line, with its actions live, it would read
+            // as the place that just arrived.
+            ReceivedPlace.Unreadable -> {
+                pickedPoint.value = null
+                query.value = ""
+                receivedUnreadable.value = true
+            }
+        }
+    }
+
+    // Stop the route under way, or put its message away, and give the panel its entry back.
+    private fun stopRoute() {
+        routeJob?.cancel()
+        routeJob = null
+        routeEnds = null
+        pendingDownload = TileDownload()
+        routeStep.value = RouteStep.Idle
     }
 
     // viewModelScope outlives a panel collapsed right after the tap, so the
@@ -579,6 +643,12 @@ internal class DestinationViewModel(
         speech.destroy()
     }
 }
+
+// The point the panel offers in place of the text entry, and the name it came with ("" for a long press).
+private data class PickedPoint(
+    val point: PlaceTarget.Point,
+    val label: String = "",
+)
 
 private data class RouteEnds(
     val origin: RoutePoint,
