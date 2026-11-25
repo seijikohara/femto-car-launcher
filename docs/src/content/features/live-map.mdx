@@ -4,18 +4,20 @@ summary: A map that fills the display and follows the vehicle, with a keyless de
 order: 1
 ---
 
-The dashboard background is a live map that fills the whole display and follows the vehicle. The cards, the clock, the speed readout and the dock float above the map.
+The dashboard background is a live map that fills the whole display and follows the vehicle. The cards, the clock, the speed readout and the dock float above the map. A tap on the map opens your maps app at the current position.
 
 ## Two map providers
 
 - **OpenStreetMap (default).** OpenStreetMap data rendered through the keyless OpenFreeMap service. The provider needs no account and no application programming interface (API) key.
-- **Google Maps (optional).** Roadmap, satellite, hybrid and terrain map types with a traffic overlay. The provider activates when you enter a personal Google Maps Platform API key under **Settings → Map**. Usage bills your own Google Cloud account; Femto Car Launcher adds no fees. The app stores the key in its settings and sends it only to Google. The Google Maps provider is not offered in the territories on Google's [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories) list; the default provider is unaffected. The [Terms of Service](/terms/) give the details that apply to each provider.
+- **Google Maps (optional).** Roadmap, satellite, hybrid and terrain map types with a traffic overlay. The provider activates when you enter a personal Google Maps Platform API key under **Settings → Map**. Usage bills your own Google Cloud account; Femto Car Launcher adds no fees. The app stores the key in its settings and sends it only to Google. The Google Maps provider is not offered in the territories on Google's [Prohibited Territories](https://cloud.google.com/maps-platform/terms/maps-prohibited-territories) list; the default provider is unaffected. The [Terms of Service](/terms/) give the details that apply to each provider. The [install guide](/install/) explains how to set up the key, and **Settings → Map → Google Maps Platform terms** opens the terms your key is used under, including the restrictions on in-vehicle use.
 
 ## Bring your own style
 
 The OpenStreetMap provider can load a hosted MapLibre style you name (**Settings → Appearance → Map color → Custom style URL**), including a style whose provider key is part of the URL. The map then shows that style's own credits. If you only want a mirror of the default provider's layout (a tile server closer to you, or one you run yourself), set **Settings → Map → Tile host (advanced)** instead.
 
 ## A car-navigation camera
+
+**Settings → Map → Camera** shapes the view. **Map tilt** sets how far the camera tilts from straight down toward the horizon. **Map zoom** sets the zoom level, which the on-map zoom buttons also change. **North up** keeps north at the top of the map instead of turning it with the direction of travel. **Marker position** sets how far below the center of the map the vehicle marker sits.
 
 - The camera follows the Global Positioning System (GPS) position with easing and keeps the direction of travel pointing up. A tap on the compass toggles a north-up mode.
 - A drag detaches the camera for free panning. The camera re-attaches after a pause, or immediately when you tap the locate button.
@@ -34,6 +36,16 @@ While you follow a route, a second card in the same corner of the map shows the 
 ## Depth and style
 
 Optional three-dimensional buildings and terrain relief add depth on the OpenStreetMap provider. Map colors default to the Standard scheme, a clean palette for both the light and the dark theme. They can instead follow the launcher's accent color, or use the provider's own styles unchanged.
+
+**Settings → Appearance → Map color** holds the color choices. **Match app theme**, on by default, gives the map the light or dark look of the launcher's theme; with it off, **Map style** sets **Light** or **Dark** for the map alone. **Light scheme** and **Dark scheme** are chosen separately. Each offers **Standard**, **Accent (app color)**, **Custom style URL** and the provider's own styles: **Positron**, **Bright** and **Liberty** for light, **Dark Matter**, **Dark** and **Fiord** for dark. Map color schemes apply to the OpenStreetMap provider only.
+
+Under **Settings → Map**, **3D buildings** is on by default and **Terrain** is off. Terrain adds tile downloads from Mapterhorn for the elevation relief.
+
+## Saved map regions (nightly builds)
+
+Nightly builds can save regions of the map on the device, under **Settings → Map → Saved map regions**. The entry shows only with the OpenStreetMap provider. The map does not draw saved regions yet.
+
+**Add region** lists the regions Geofabrik publishes, with a suggestion for the current location, and shows a region's download size before you save it. One region downloads at a time. An interrupted download pauses: **Resume** continues it, and **Cancel** discards the part already downloaded. **Storage limit** caps the total size of the saved regions; lowering it deletes nothing. Each saved region shows its size and the date of its data, and **Delete** removes it after asking.
 
 ## Automatic recovery
 

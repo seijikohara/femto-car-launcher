@@ -30,6 +30,14 @@ internal sealed interface HomeEvent {
     ) : HomeEvent
 
     /**
+     * Open the dial pad of whichever phone app the device uses. No selector
+     * category names a phone app, so this is its own event: the host sends
+     * `ACTION_DIAL`, and falls back to the contacts app on a unit that has no
+     * phone app (many head units have no telephony).
+     */
+    data object LaunchDialer : HomeEvent
+
+    /**
      * Open whichever maps app handles a `geo:` URI, centred on the given
      * coordinates. The event carries only the position; the host builds the
      * package-agnostic `geo:` intent so the user's elected maps app resolves it,

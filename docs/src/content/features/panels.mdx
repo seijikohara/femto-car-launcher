@@ -4,27 +4,31 @@ summary: Weather, calendar, now playing, an optional video window, the clock and
 order: 3
 ---
 
-The cards float over the map in a column beside the driver (landscape) or a band along the bottom (portrait). The cards show large primary figures and add secondary details only where they help. A tap on the weather or calendar header opens a full-screen panel with the rest.
+The cards float over the map in a column beside the driver (landscape) or a band along the bottom (portrait). The cards show large primary figures and add secondary details only where they help. A tap on the weather or calendar card opens a full-screen panel with the rest.
 
 ## Weather
 
-Current conditions, feels-like temperature, wind and humidity from the Norwegian Meteorological Institute (MET Norway), with an hourly strip on the card. The full-screen panel is built around a 24-hour temperature curve, a precipitation nowcast and daily range bars. Forecasts stay readable offline through an on-device cache.
+The card shows the current temperature with an icon for the conditions, then precipitation for the hour ahead, wind and humidity, from the Norwegian Meteorological Institute (MET Norway). An hourly forecast below them scrolls on the card. When the forecast could not be refreshed for over an hour, the card adds an "as of …" caption with the time the data was fetched. Forecasts stay readable offline through an on-device cache.
+
+The full-screen panel is built around a 24-hour temperature curve, with today's high and low and a precipitation nowcast above it. Range bars cover seven days, starting today, and tiles show the sun, the wind, the ultraviolet (UV) index and humidity. The icon button in the panel's header, **Open weather**, opens the device's weather app.
 
 ## Calendar
 
-A multi-day strip plus upcoming events read from the device calendar, with per-calendar visibility selection and a full-screen agenda panel. Event colors match the colors of the calendars they come from.
+A multi-day strip plus upcoming events read from the device calendar, with per-calendar visibility selection and a full-screen agenda panel. Event colors match the colors of the calendars they come from. The icon button in the full-screen panel's header, **Open calendar**, opens the device's calendar app.
 
 **Settings → Panels → Date only** reduces the card to today's date, weekday and month, without the agenda. The date shows even without calendar access, and a tap still opens the full-screen panel when calendar access is granted and the calendar can be read. With the weather card switched off, the card shrinks to the date and the map takes the freed space.
 
 ## Now playing
 
-The active media session of any app that publishes one: title, artist, album, cover art and transport controls, including shuffle and repeat where the source app supports them. Cover art opens a full-screen player. Long titles scroll only while the vehicle is parked and truncate while it moves. A spectrum visualization renders on devices whose audio stack supports capture.
+The active media session of any app that publishes one: title, artist, album, cover art and transport controls, including shuffle and repeat where the source app supports them. Cover art opens a full-screen player with a seek bar, which you can drag where the source app supports seeking. When the source app publishes its queue and lets the launcher jump within it, the player also lists the upcoming tracks under **Playing next**, and a tap on one plays it. Long titles scroll only while the vehicle is parked and truncate while it moves. A spectrum visualization renders on devices whose audio stack supports capture.
+
+Until the launcher has notification access, the card reads **Tap to connect a player**, and a tap opens Android's notification access settings. With access granted but no app playing and no earlier track to offer, the card reads **Nothing is playing**; a tap presses the play media key and opens the device's default music app.
 
 While no app is playing or paused, for example after the head unit starts, the card shows the track that played last, with its app's name and a play button. The play button asks that app to resume the track; if it does not start, the launcher presses the play media key, and if still nothing plays and the dashboard is on screen, it opens the app. A tap elsewhere on the card opens the app. The launcher keeps the track's app, title and artist on the device only, outside backup. It forgets them when you turn off notification access, at the latest the next time the dashboard is shown, and drops a track whose app is uninstalled the next time the dashboard is opened, or when the play button is pressed.
 
 ## Video window
 
-An optional small 16:9 window over the map, on the side away from the cards, plays a video file you pick from the device or attached USB storage with the system file picker. A tap opens a full-screen player, which also picks another file or closes the window. Playing the video pauses other media, and the audio keeps playing while the launcher is off screen.
+An optional small 16:9 window over the map, on the side away from the cards, plays a video file you pick from the device or attached USB storage with the system file picker. A tap opens a full-screen player, which also picks another file or closes the window. **Settings → Panels → Video file**, which appears once **Video window** is on, also picks the file and names the one in use. Playing the video pauses other media, and the audio keeps playing while the launcher is off screen.
 
 The picture stays hidden unless the Global Positioning System (GPS) reads the vehicle as stopped on a live fix. The picture returns only a few seconds after the vehicle stops, and the audio keeps playing throughout. Many places ban video the driver can see while driving, including when stopped in traffic. GPS cannot tell a parked vehicle from one stopped at a light, so the window is off by default. Where the screen is out of the driver's view or local law allows it, you can turn off **Settings → Panels → Hide the picture while driving**, which appears once **Video window** is on; the app shows a warning first.
 
@@ -34,7 +38,7 @@ A clock that follows the system 12/24-hour preference by default, with optional 
 
 ## Status cluster
 
-Wi-Fi and cellular signal, Bluetooth state, GPS reception and battery level with charging state, shown in the dock.
+Wi-Fi and cellular signal, Bluetooth state, GPS reception with the number of satellites in use, and battery level with charging state, shown in the dock. **Settings → Screen → Status icons** shows or hides the whole cluster; a long-press on one icon reorders or hides just that icon.
 
 ## Missing permissions and data
 
