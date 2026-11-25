@@ -32,6 +32,7 @@ import io.github.seijikohara.femto.testfixtures.DashboardFixtures
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.DashboardGeometry
 import io.github.seijikohara.femto.testfixtures.TurnCardFixtures
+import io.github.seijikohara.femto.testfixtures.fakeVideoUiState
 import io.github.seijikohara.femto.testfixtures.selfMarkerChevronBounds
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.DashboardTags
@@ -43,6 +44,7 @@ import io.github.seijikohara.femto.ui.home.components.TurnCardMinWidth
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
+import io.github.seijikohara.femto.ui.video.VideoUiState
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -57,9 +59,10 @@ import kotlin.test.assertEquals
  * everywhere: never over the compass, the map control column, the clock, the speed readout, the cards or the vehicle's
  * chevron at the default marker position, inside the screen, no narrower than its minimum, and no line cut short.
  * FitText cuts a line short only once even the 16 sp floor would overflow, so a line not cut short is one at 16 sp or
- * more. At every Display size, wherever it shows, it ends a gap above the speed readout, inside the screen and clear of
- * the chevron; a table pins which form each geometry and size gets. Each geometry is laid out at its own size inside
- * one window larger than all of them, as in RouteChoiceLayoutTest; the Display size scales the dashboard inside it.
+ * more. At every Display size, with the video window off and on, wherever it shows it ends a gap above the speed
+ * readout, stays inside the screen and clear of the chevron and the video window; two tables pin the form and the slot
+ * each geometry and size gets. Each geometry is laid out at its own size inside one window larger than all of them, as
+ * in RouteChoiceLayoutTest; the Display size scales the dashboard inside it.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -72,6 +75,7 @@ class TurnCardLayoutTest {
     private var driverSide by mutableStateOf(DriverSide.RIGHT)
     private var uiScale by mutableStateOf(UiScale.MEDIUM)
     private var fontScale by mutableFloatStateOf(1f)
+    private var videoOn by mutableStateOf(false)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
@@ -95,47 +99,60 @@ class TurnCardLayoutTest {
         )
     }
 
-    // The card's cap is the room above the speed readout, less the gap every card keeps to its neighbours.
+    // The card's cap is the room above the speed readout, less the gap every card keeps to its neighbours, and with the
+    // video window on, the card keeps clear of it too.
     @Test
-    fun `at every display size the card shows only where it ends above the speed readout`() {
+    fun `at every display size the card shows only where it ends above the speed readout and clear of the video`() {
         setDashboard()
 
         assertEquals(
             emptyList(),
-            UiScale.entries.flatMap { scale ->
-                uiScale = scale
-                each(DashboardGeometries.all) { case ->
-                    if (shownForm() == null) {
-                        emptyList()
-                    } else {
-                        roomFailures(case) + cutLines(case)
+            listOf(false, true).flatMap { on ->
+                videoOn = on
+                UiScale.entries.flatMap { scale ->
+                    uiScale = scale
+                    each(DashboardGeometries.all) { case ->
+                        if (shownForm() == null) emptyList() else roomFailures(case) + videoFailures(case) + cutLines(case)
                     }
                 }
             },
         )
     }
 
-    // A later layout change that gains or loses room shows here.
+    // The window sits below the clock on the head unit, so the card takes the top row beside the clock, where the
+    // room above the window leaves it the compact form (65 dp: the turn after next still fits).
     @Test
-    fun `each geometry and display size gets its form`() {
+    fun `with the video window on the head unit the compact card takes the top row, clear of the window`() {
+        videoOn = true
         setDashboard()
 
-        val forms =
-            UiScale.entries.flatMap { scale ->
-                uiScale = scale
-                DashboardGeometries.all.flatMap { candidate ->
-                    DriverSide.entries.map { side ->
-                        geometry = candidate
-                        driverSide = side
-                        rule.waitForIdle()
-                        "${candidate.id} ${scale.name} ${side.name}" to shownForm()
-                    }
-                }
-            }
         assertEquals(
-            forms.map { (case, _) -> case to expectedForm(case) },
-            forms,
+            emptyList(),
+            each(DashboardGeometries.all.filter { it.id == "head-unit-853x512" }) { case ->
+                listOfNotNull(
+                    "$case: shows ${placementLabel()}".takeIf {
+                        placementLabel() !in listOf("compact top", "compact+then top")
+                    },
+                ) +
+                    videoFailures(case) + coverFailures(case)
+            },
         )
+    }
+
+    // A later layout change that gains or loses room shows here.
+    @Test
+    fun `each geometry and display size gets its form and slot`() {
+        setDashboard()
+
+        assertEquals(PLACEMENTS_VIDEO_OFF, placements())
+    }
+
+    @Test
+    fun `each geometry and display size gets its form and slot with the video window on`() {
+        videoOn = true
+        setDashboard()
+
+        assertEquals(PLACEMENTS_VIDEO_ON, placements())
     }
 
     // A larger system font grows the full card past the room the phone in landscape leaves it.
@@ -195,6 +212,7 @@ class TurnCardLayoutTest {
                                 mapConfig = config
                                 Box(Modifier.fillMaxSize())
                             },
+                            video = if (videoOn) fakeVideoUiState() else VideoUiState.Off,
                         )
                     }
                 }
@@ -227,6 +245,48 @@ class TurnCardLayoutTest {
 
     private fun chevron(): DpRect = selfMarkerChevronBounds(mapConfig, screenWidth(), screenHeight())
 
+    // The form and the slot each geometry gets at each display size, by geometry, in UiScale order; both driver sides
+    // must agree, or the left side's differing label is added after a slash.
+    private fun placements(): Map<String, List<String>> =
+        DashboardGeometries.all.associate { candidate ->
+            geometry = candidate
+            candidate.id to
+                UiScale.entries.map { scale ->
+                    uiScale = scale
+                    DriverSide.entries
+                        .map { side ->
+                            driverSide = side
+                            rule.waitForIdle()
+                            placementLabel()
+                        }.distinct()
+                        .joinToString(" / ")
+                }
+        }
+
+    // "full", "compact" or "compact+then", and "top" for the top row beside the clock or "below" for under it; "none"
+    // where the card shows nothing.
+    private fun placementLabel(): String =
+        when (shownForm()) {
+            null -> "none"
+            TurnCardForm.FULL -> "full"
+            TurnCardForm.COMPACT_THEN -> "compact+then"
+            TurnCardForm.COMPACT -> "compact"
+        }.let { form ->
+            if (form == "none") form else "$form ${if (card().top < bounds(DashboardTags.CLOCK).bottom) "top" else "below"}"
+        }
+
+    // With the video window on, the card and the window must not meet.
+    private fun videoFailures(case: String): List<String> =
+        if (!videoOn) {
+            emptyList()
+        } else {
+            listOfNotNull(
+                "$case: card ${card()} covers the video window ${bounds(DashboardTags.VIDEO_WINDOW)}".takeIf {
+                    card().overlaps(bounds(DashboardTags.VIDEO_WINDOW))
+                },
+            )
+        }
+
     // The form the card shows, read off what it draws: its one-sentence node, the full form's line of text, and the
     // turn after next's caption. Null where the card shows nothing.
     private fun shownForm(): TurnCardForm? =
@@ -250,7 +310,8 @@ class TurnCardLayoutTest {
             DashboardTags.CLOCK,
             DashboardTags.SPEED,
             DashboardTags.CARDS,
-        ).filter { card().overlaps(bounds(it)) }
+        ).plus(if (videoOn) listOf(DashboardTags.VIDEO_WINDOW) else emptyList())
+            .filter { card().overlaps(bounds(it)) }
             .map { "$case: card ${card()} covers $it ${bounds(it)}" } +
             listOfNotNull("$case: card ${card()} covers the chevron ${chevron()}".takeIf { card().overlaps(chevron()) })
 
@@ -335,23 +396,40 @@ class TurnCardLayoutTest {
                 )
             }
 
-        // The forms that differ from the full one at the default font, by geometry and display size (both driver
-        // sides alike). Where the speed readout leaves less room than the full card's 88 dp, or the slot is narrower
-        // than TurnCardMinWidth, the card falls back to the compact one: 64 dp tall with the turn after next, 56 dp
-        // without it (the head unit at Large leaves 63.75 dp). Where it leaves less than that, the card is left out.
-        val FORMS_OTHER_THAN_FULL: Map<String, TurnCardForm?> =
+        // The form and the slot each geometry gets at the default font, for Display sizes SMALL, COMPACT, MEDIUM,
+        // COMFORTABLE and LARGE.
+        val PLACEMENTS_VIDEO_OFF: Map<String, List<String>> =
             mapOf(
-                "head-unit-853x512 LARGE" to TurnCardForm.COMPACT,
-                "phone-portrait-412x915 COMFORTABLE" to TurnCardForm.COMPACT_THEN,
-                "phone-portrait-412x915 LARGE" to null,
-                "floor-800x480 LARGE" to null,
-                "phone-landscape-915x412 COMFORTABLE" to null,
-                "phone-landscape-915x412 LARGE" to null,
+                "floor-800x480" to listOf("full top", "full below", "full below", "full below", "none"),
+                "head-unit-853x512" to listOf("full top", "full top", "full below", "full below", "compact below"),
+                "budget-1024x600" to listOf("full top", "full top", "full top", "full below", "full below"),
+                "mainstream-1280x720" to listOf("full top", "full top", "full top", "full top", "full top"),
+                "ultrawide-1920x720" to listOf("full top", "full top", "full top", "full top", "full top"),
+                "flagship-1920x1080" to listOf("full top", "full top", "full top", "full top", "full top"),
+                "premium-2000x1200" to listOf("full top", "full top", "full top", "full top", "full top"),
+                "phone-landscape-915x412" to listOf("full top", "full top", "full below", "none", "none"),
+                "phone-portrait-412x915" to listOf("full below", "full below", "full below", "compact+then below", "none"),
+                "tablet-800x1280" to listOf("full top", "full top", "full top", "full top", "full below"),
+                "car-portrait-1024x1365" to listOf("full top", "full top", "full top", "full top", "full top"),
+                "car-portrait-tall-1200x1920" to listOf("full top", "full top", "full top", "full top", "full top"),
             )
 
-        fun expectedForm(case: String): TurnCardForm? =
-            case.substringBeforeLast(' ').let { key ->
-                if (key in FORMS_OTHER_THAN_FULL) FORMS_OTHER_THAN_FULL[key] else TurnCardForm.FULL
-            }
+        // Where the video window takes the top row, it also reaches below the clock: the card has no slot. Where it
+        // sits below the clock, the card takes the top row above it.
+        val PLACEMENTS_VIDEO_ON: Map<String, List<String>> =
+            mapOf(
+                "floor-800x480" to listOf("none", "none", "none", "none", "none"),
+                "head-unit-853x512" to listOf("none", "none", "compact+then top", "none", "none"),
+                "budget-1024x600" to listOf("none", "none", "none", "none", "none"),
+                "mainstream-1280x720" to listOf("none", "none", "none", "none", "none"),
+                "ultrawide-1920x720" to listOf("none", "none", "none", "none", "none"),
+                "flagship-1920x1080" to listOf("none", "none", "none", "none", "none"),
+                "premium-2000x1200" to listOf("none", "none", "none", "none", "none"),
+                "phone-landscape-915x412" to listOf("none", "none", "none", "none", "none"),
+                "phone-portrait-412x915" to listOf("none", "compact top", "none", "none", "none"),
+                "tablet-800x1280" to listOf("none", "none", "none", "none", "none"),
+                "car-portrait-1024x1365" to listOf("none", "none", "none", "none", "none"),
+                "car-portrait-tall-1200x1920" to listOf("none", "none", "none", "none", "none"),
+            )
     }
 }

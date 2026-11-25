@@ -766,6 +766,9 @@ private fun DashboardOverlays(
     // The speed readout's measured height: the route choice card stops above
     // it (routeCardPlacement).
     var speedHeightPx by remember { mutableIntStateOf(0) }
+    // The video window's measured size: the turn card keeps clear of it
+    // (turnCardPlacementOrNull).
+    var videoSize by remember { mutableStateOf(IntSize.Zero) }
 
     BoxWithConstraints(modifier = modifier) {
         // Map controls render only when the map does (a fix exists). The compass pins
@@ -954,8 +957,8 @@ private fun DashboardOverlays(
         // the compass and control column (which own the outer edge), at the
         // top. The open panel stands in for it, so one surface at a time
         // draws the picture.
-        if (video.windowEnabled && !videoExpanded) {
-            val placement =
+        val videoPlacement =
+            if (video.windowEnabled && !videoExpanded) {
                 with(LocalDensity.current) {
                     videoWindowPlacement(
                         overlayWidth = maxWidth,
@@ -967,6 +970,10 @@ private fun DashboardOverlays(
                         clockHeight = clockSize.height.toDp(),
                     )
                 }
+            } else {
+                null
+            }
+        videoPlacement?.let { placement ->
             VideoWindow(
                 state = video,
                 pictureVisible = videoPictureVisible,
@@ -985,6 +992,7 @@ private fun DashboardOverlays(
                                 PaddingValues(start = placement.start, top = placement.top)
                             },
                         ).width(placement.width)
+                        .onSizeChanged { videoSize = it }
                         .testTag(DashboardTags.VIDEO_WINDOW),
             )
         }
@@ -995,12 +1003,9 @@ private fun DashboardOverlays(
         // The bottom padding of the speed readout's box above.
         val speedBottomInset = cardGap + if (bottomCards) bottomCardExtent else 0.dp
 
-        fun routeCardPlacementFor(
-            cardMinWidth: Dp,
-            cardMaxWidth: Dp,
-        ): RouteCardPlacement =
+        fun routeCardSlots(cardMaxWidth: Dp): RouteCardSlots =
             with(density) {
-                routeCardPlacement(
+                routeCardSlots(
                     overlayWidth = maxWidth,
                     mapAreaWidth = if (landscapeCards) maxWidth - floatingCardWidth else maxWidth,
                     outerPad = outerPad,
@@ -1009,10 +1014,14 @@ private fun DashboardOverlays(
                     clockWidth = clockSize.width.toDp(),
                     clockHeight = clockSize.height.toDp(),
                     speedTop = maxHeight - speedBottomInset - speedHeightPx.toDp(),
-                    cardMinWidth = cardMinWidth,
                     cardMaxWidth = cardMaxWidth,
                 )
             }
+
+        fun routeCardPlacementFor(
+            cardMinWidth: Dp,
+            cardMaxWidth: Dp,
+        ): RouteCardPlacement = routeCardSlots(cardMaxWidth).placement(cardMinWidth)
 
         // The route choice card (issue #389 phase 3), in the video window's
         // corner of the map and drawn over it: the card is brief, and the
@@ -1037,27 +1046,48 @@ private fun DashboardOverlays(
             )
         }
 
-        // The turn card (issue #389 phase 4), in the choice card's corner by
-        // the same rules; the two never show together (turnCardStateOrNull).
-        // The cap keeps it above the speed readout: the card shows in the
-        // first of its forms that fits under it, or not at all (TurnCard).
-        // TurnCardLayoutTest checks every geometry at every display size.
-        uiState.activeRoute?.turnCard?.let { turn ->
-            val placement = routeCardPlacementFor(TurnCardMinWidth, TurnCardMaxWidth)
-            TurnCard(
-                state = turn,
-                speedUnit = speedUnit,
-                hazeState = hazeState,
-                glassConfig = glassConfig,
-                modifier =
-                    Modifier
-                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
-                        .padding(placement.insets(mirror))
-                        .width(placement.width)
-                        .heightIn(max = placement.maxHeight)
-                        .testTag(DashboardTags.TURN_CARD),
-            )
-        }
+        // The turn card (issue #389 phase 4), in the choice card's corner; the
+        // two never show together (turnCardStateOrNull). It takes the first
+        // slot and form that fit, measured (turnCardPlacementOrNull), clear of
+        // the speed readout and the video window, or shows nothing. Not before
+        // the clock, the speed readout and the video window have been
+        // measured: in the first frame after a rotation their sizes are still
+        // zero. TurnCardLayoutTest checks every geometry at every display size.
+        uiState.activeRoute
+            ?.turnCard
+            ?.takeIf {
+                clockSize != IntSize.Zero &&
+                    speedHeightPx > 0 &&
+                    (videoPlacement == null || videoSize != IntSize.Zero)
+            }?.let { turn ->
+                val sizes = rememberTurnCardSizes(turn, speedUnit)
+                with(density) {
+                    turnCardPlacementOrNull(
+                        sizes = sizes,
+                        slots = routeCardSlots(TurnCardMaxWidth),
+                        video =
+                            videoPlacement?.let { placement ->
+                                placement.top to placement.top + videoSize.height.toDp()
+                            },
+                        gap = cardGap,
+                    )
+                }?.let { placement ->
+                    TurnCard(
+                        state = turn,
+                        speedUnit = speedUnit,
+                        hazeState = hazeState,
+                        glassConfig = glassConfig,
+                        modifier =
+                            Modifier
+                                .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                                .padding(placement.insets(mirror))
+                                .width(placement.width)
+                                .heightIn(max = placement.maxHeight)
+                                .testTag(DashboardTags.TURN_CARD),
+                    )
+                }
+            }
+
 
         // A tap on the margin ring around an open maximize panel dismisses it,
         // matching the modal sheets' scrim-tap behavior. The catcher is drawn
@@ -1346,22 +1376,31 @@ private data class RouteCardPlacement(
         if (mirror) PaddingValues(end = start, top = top) else PaddingValues(start = start, top = top)
 }
 
-// The card starts past the compass and control column, as the video window
-// does. It takes the top row beside the clock when that row leaves room for
-// [cardMinWidth] (the choice card's three tiles, the turn card's longest
-// line), where it has the most height, as on a phone in landscape; otherwise
-// it drops below the clock and takes the map area's width, up to
-// [cardMaxWidth]. Either way the compass, the control column, the clock and
-// the cards stay uncovered. [maxHeight] keeps either card above the speed
-// readout's top edge ([speedTop], from the top of the overlay box): the
-// choice card scrolls its tiles under it, the turn card picks a form that
-// fits under it or does not show. The choice
-// card's own height, a header and one row of tiles, and the turn card's also
-// end them above the vehicle's chevron, which the map drops below the middle
-// of the screen; RouteChoiceLayoutTest and TurnCardLayoutTest check both on
-// every geometry. The choice card's tiles scroll inside it only where the
-// speed readout leaves less room than that.
-private fun routeCardPlacement(
+// The two places a route card may take, both starting past the compass and
+// control column, as the video window does: the top row beside the clock,
+// where it has the most height, and below the clock, where it takes the map
+// area's width. [topRowRoom] is the top row's width before the card's cap.
+// Either way the compass, the control column, the clock and the cards stay
+// uncovered, and [RouteCardPlacement.maxHeight] keeps the card above the speed
+// readout's top edge. The choice card's own height, a header and one row of
+// tiles, and the turn card's also end them above the vehicle's chevron, which
+// the map drops below the middle of the screen; RouteChoiceLayoutTest and
+// TurnCardLayoutTest check both on every geometry.
+private data class RouteCardSlots(
+    val topRow: RouteCardPlacement,
+    val belowClock: RouteCardPlacement,
+    val topRowRoom: Dp,
+) {
+    // The route choice card's place: the top row where it leaves room for
+    // [cardMinWidth] (its three tiles), as on a phone in landscape, else
+    // below the clock. Its tiles scroll inside it only where the speed
+    // readout leaves less room than its own height.
+    fun placement(cardMinWidth: Dp): RouteCardPlacement = if (topRowRoom >= cardMinWidth) topRow else belowClock
+}
+
+// [speedTop] is the speed readout's top edge, from the top of the overlay box;
+// each slot is [cardMaxWidth] wide at most.
+private fun routeCardSlots(
     overlayWidth: Dp,
     mapAreaWidth: Dp,
     outerPad: Dp,
@@ -1370,21 +1409,61 @@ private fun routeCardPlacement(
     clockWidth: Dp,
     clockHeight: Dp,
     speedTop: Dp,
-    cardMinWidth: Dp,
     cardMaxWidth: Dp,
-): RouteCardPlacement {
+): RouteCardSlots {
     val start = mapControlsClearance(outerPad, gap)
     val topRowRoom = overlayWidth - clockInset - clockWidth - gap - start
-    val inTopRow = topRowRoom >= cardMinWidth
-    val top = if (inTopRow) outerPad else outerPad + maxOf(clockHeight, MapCompassSize) + gap
-    val room = if (inTopRow) topRowRoom else mapAreaWidth - start - outerPad
-    return RouteCardPlacement(
+    fun slot(
+        top: Dp,
+        room: Dp,
+    ) = RouteCardPlacement(
         start = start,
         top = top,
         width = room.coerceIn(0.dp, cardMaxWidth),
         maxHeight = (speedTop - gap - top).coerceAtLeast(0.dp),
     )
+    return RouteCardSlots(
+        topRow = slot(top = outerPad, room = topRowRoom),
+        belowClock =
+            slot(top = outerPad + maxOf(clockHeight, MapCompassSize) + gap, room = mapAreaWidth - start - outerPad),
+        topRowRoom = topRowRoom,
+    )
 }
+
+/**
+ * Return where the turn card goes, or null for no card: the first of the full card in the top row, the full card
+ * below the clock, the compact card below the clock and the compact card in the top row that [sizes] say fits. The
+ * [video] window, its top and bottom edges where it shows, starts where the card does, so a slot it reaches into, or
+ * reaches within [gap] of, is not available, and a slot above it ends [gap] above it.
+ */
+private fun turnCardPlacementOrNull(
+    sizes: TurnCardSizes,
+    slots: RouteCardSlots,
+    video: Pair<Dp, Dp>?,
+    gap: Dp,
+): RouteCardPlacement? {
+    val topRow = slots.topRow.clearOf(video, gap)
+    val belowClock = slots.belowClock.clearOf(video, gap)
+    return listOf(topRow to true, belowClock to true, belowClock to false, topRow to false)
+        .firstNotNullOfOrNull { (slot, full) ->
+            slot?.takeIf { place ->
+                sizes.formOrNull(place.width, place.maxHeight)?.let { form -> (form == TurnCardForm.FULL) == full } == true
+            }
+        }
+}
+
+// This slot as it stays clear of the [video] window's top and bottom edges: unchanged where the window ended above
+// it, ending [gap] above a window below it, and not available where the window reaches into it.
+private fun RouteCardPlacement.clearOf(
+    video: Pair<Dp, Dp>?,
+    gap: Dp,
+): RouteCardPlacement? =
+    when {
+        video == null -> this
+        video.first > top -> copy(maxHeight = minOf(maxHeight, (video.first - gap - top).coerceAtLeast(0.dp)))
+        top < video.second + gap -> null
+        else -> this
+    }
 
 // Margins that float the dock off its free edges by [margin] (a vertical rail's
 // inner edge faces the dashboard, where the overlay inset already opens the gap).
