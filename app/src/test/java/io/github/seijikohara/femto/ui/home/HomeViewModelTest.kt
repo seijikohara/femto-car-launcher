@@ -1509,6 +1509,48 @@ class HomeViewModelTest {
             assertEquals(RouteRowTime.ARRIVAL, assertNotNull(viewModel.uiState.value.activeRoute).rowTime)
         }
 
+    // --- The vehicle on the line ------------------------------------------------
+
+    @Test
+    fun `the route carries the point of the line the map draws the vehicle at`() =
+        runTest {
+            val viewModel = routeViewModel(location = besideTheRoute(), available = true)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertOnTheLineHalfway(assertNotNull(viewModel.uiState.value.activeRoute).vehicleOnLine)
+        }
+
+    @Test
+    fun `with the setting off the route carries no point, so the map draws the fix`() =
+        runTest {
+            val viewModel =
+                routeViewModel(location = besideTheRoute(), available = true, vehicleOnLineEnabled = flowOf(false))
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val route = assertNotNull(viewModel.uiState.value.activeRoute)
+            assertEquals(11_000.0, route.progress.remainingMeters, 1.0, "the route follows the fix")
+            assertNull(route.vehicleOnLine)
+        }
+
+    // A follow that started over would place no fix until the next one arrives: the progress back at the start, the
+    // off-route watch unarmed, and no point on the line.
+    @Test
+    fun `switching the setting off and on again keeps the follow going`() =
+        runTest {
+            // Fixes that are not replayed: a follow that started over would see none.
+            val location = MutableSharedFlow<Location?>()
+            val enabled = MutableStateFlow(true)
+            val viewModel = routeViewModel(locationFlow = location, available = true, vehicleOnLineEnabled = enabled)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            location.emit(besideTheRoute())
+
+            enabled.value = false
+            assertNull(assertNotNull(viewModel.uiState.value.activeRoute).vehicleOnLine)
+            enabled.value = true
+
+            assertOnTheLineHalfway(assertNotNull(viewModel.uiState.value.activeRoute).vehicleOnLine)
+        }
+
     // Cheap GPS receivers leave the speed unset while moving.
     @Test
     fun `a GPS fix without speed moves at the trip's speed, so leaving the route is noticed`() =
@@ -1807,6 +1849,16 @@ class HomeViewModelTest {
             provider = provider,
         )
 
+    // About 5.6 m north of the equator route, halfway along it.
+    private fun besideTheRoute(): Location = fakeLocation(latitude = 0.00005, longitude = 0.1)
+
+    // [point] is the equator route's halfway point, to a micro-degree.
+    private fun assertOnTheLineHalfway(point: RoutePoint?) {
+        assertNotNull(point)
+        assertEquals(0.0, point.latitude, MICRODEGREE)
+        assertEquals(0.1, point.longitude, MICRODEGREE)
+    }
+
     private fun activeRouteOf(route: Route): ActiveRoute =
         ActiveRoute(SESSION, route, ROUTE_DESTINATION, reference = null)
 
@@ -1828,6 +1880,7 @@ class HomeViewModelTest {
         onGpsFix: (Long) -> Unit = {},
         nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
         routeRowTimeFlow: Flow<RouteRowTime> = flowOf(RouteRowTime.ARRIVAL),
+        vehicleOnLineEnabled: Flow<Boolean> = flowOf(true),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1848,6 +1901,7 @@ class HomeViewModelTest {
             onGpsFix = onGpsFix,
             nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
             routeRowTimeFlow = routeRowTimeFlow,
+            vehicleOnLineEnabled = vehicleOnLineEnabled,
         )
 
     private fun stubViewModel(
@@ -1891,6 +1945,9 @@ class HomeViewModelTest {
         const val OFF_ROUTE_LATITUDE = 0.001
         const val EAST = 90f
         const val FIX_ACCURACY_M = 5f
+
+        // The precision of an engine route's points.
+        const val MICRODEGREE = 1e-6
 
         // A provider that counts as GPS (anything but the network provider), and the trip's speed from the positions.
         const val TEST_PROVIDER = "test"

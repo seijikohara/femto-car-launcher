@@ -170,6 +170,9 @@ internal class HomeViewModel(
     // Which time the speed readout's route row shows (Settings → Navigation).
     // Defaults to the arrival time, the row as it was before the setting.
     routeRowTimeFlow: Flow<RouteRowTime> = flowOf(RouteRowTime.ARRIVAL),
+    // Whether the map draws the vehicle on the route line while it drives
+    // along it (Settings → Navigation). Defaults to on, the setting's default.
+    vehicleOnLineEnabled: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -298,6 +301,7 @@ internal class HomeViewModel(
                             reroute = view.reroute,
                             choice = view.choice,
                             alternativeLines = view.alternativeLines,
+                            vehicleOnLine = follow.onLine,
                         )
                     }
                 } ?: flowOf(null)
@@ -349,14 +353,29 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "route row time", RouteRowTime.ARRIVAL)
 
+    // Seeded with the setting's default for the same reason. Applied here,
+    // after the follow, like the row's time: switching it never restarts the
+    // follow, which would put the progress back to the start of the line.
+    private val drawVehicleOnLine: Flow<Boolean> =
+        vehicleOnLineEnabled
+            .onStart { emit(true) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "vehicle on line", true)
+
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            combine(activeRoute, routingOffered, routeChoiceAutoClose, routeRowTime) { route, offered, _, time ->
-                route?.copy(rowTime = time) to offered
+            combine(
+                activeRoute,
+                routingOffered,
+                routeChoiceAutoClose,
+                routeRowTime,
+                drawVehicleOnLine,
+            ) { route, offered, _, time, onLine ->
+                route?.copy(rowTime = time, vehicleOnLine = route.vehicleOnLine?.takeIf { onLine }) to offered
             },
         ) { core, calendar, systemStatus, tripState, (route, offered) ->
             HomeUiState(
@@ -849,6 +868,7 @@ internal class HomeViewModelFactory(
         // off the main thread while the dashboard opens. A build without
         // routing only deletes what an earlier build left.
         val routeKeeper = RoutePersistence.get(application).apply { start(enabled = routingEnabled) }
+        val navigationSettings = NavigationPreferences(application).settings
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -893,7 +913,8 @@ internal class HomeViewModelFactory(
             closeRouteChoice = { session -> ActiveRouteStore.shared.closeChoice(session) },
             onGpsFix = routeKeeper::onGpsFix,
             receivedPlaces = ReceivedPlaceInbox.shared,
-            routeRowTimeFlow = NavigationPreferences(application).settings.map { it.routeRowTime },
+            routeRowTimeFlow = navigationSettings.map { it.routeRowTime },
+            vehicleOnLineEnabled = navigationSettings.map { it.vehicleOnRouteLine },
         ) as T
     }
 }

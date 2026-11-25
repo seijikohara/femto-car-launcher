@@ -514,6 +514,7 @@ private fun DashboardContent(
         attributionBottomInset = attributionBottomInset,
         routeLine = uiState.activeRoute?.line,
         alternativeLines = uiState.activeRoute?.alternativeLines.orEmpty(),
+        vehiclePosition = uiState.activeRoute?.vehicleOnLine,
         // Where routing is offered, a long press on the map opens the
         // destination panel on the pressed point.
         onLongPress =

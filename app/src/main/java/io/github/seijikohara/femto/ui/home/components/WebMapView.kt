@@ -162,6 +162,10 @@ internal fun WebMapView(
     // The other routes on the choice card, drawn thin and muted under the route
     // while the card is open; OSM backend only, like the route.
     alternativeLines: List<List<RoutePoint>> = emptyList(),
+    // The point of the route line the camera centres the vehicle on in place of
+    // the fix's position while it drives along the route; null keeps the fix's
+    // (cameraPosition). The heading stays the fix's course.
+    vehiclePosition: RoutePoint? = null,
     // A point picked by a long press on the OSM map; null ignores long presses.
     // The Google page never reports one.
     onLongPress: ((RoutePoint) -> Unit)? = null,
@@ -816,12 +820,15 @@ internal fun WebMapView(
 
     // Each effect keys on [pageReady] (so it fires once the page is ready) and on
     // [webView] (so a rebuilt WebView gets the state re-pushed), then pushes the
-    // current state to the page.
+    // current state to the page. The camera keys on the position it sends, so a
+    // fix whose point on the route line is unchanged pushes nothing new.
+    val camera =
+        cameraPosition(fix = RoutePoint(location.latitude, location.longitude), vehiclePosition = vehiclePosition)
     LaunchedEffect(
         webView,
         pageReady.value,
-        location.latitude,
-        location.longitude,
+        camera.latitude,
+        camera.longitude,
         mapConfig.zoom,
         mapConfig.tiltDeg,
         mapConfig.markerPos,
@@ -834,7 +841,7 @@ internal fun WebMapView(
         val bearing = location.carriedBearing(bearingHolder)
         webView.evaluateJavascript(
             "window.updateCamera && updateCamera(" +
-                "${location.latitude}, ${location.longitude}, $bearing, ${mapConfig.zoom}, ${mapConfig.tiltDeg}, " +
+                "${camera.latitude}, ${camera.longitude}, $bearing, ${mapConfig.zoom}, ${mapConfig.tiltDeg}, " +
                 "${mapConfig.markerPos}, ${mapConfig.bottomSafeFraction}, ${mapConfig.rightSafeFraction}, " +
                 "${mapConfig.leftSafeFraction}, '$markerColor')",
             null,
@@ -1242,6 +1249,15 @@ internal fun setRouteAlternativesScript(
         } ?: CLEAR_ROUTE_ALTERNATIVES_SCRIPT
 
 internal const val CLEAR_ROUTE_ALTERNATIVES_SCRIPT = "window.clearRouteAlternatives && clearRouteAlternatives()"
+
+// The position updateCamera centres the map and the vehicle on: the point of the
+// route line the vehicle drives along ([vehiclePosition], which the dashboard
+// hands over only on a route the map draws, with the setting on and the fix
+// close to the line), else the fix itself, exactly as with no route.
+internal fun cameraPosition(
+    fix: RoutePoint,
+    vehiclePosition: RoutePoint?,
+): RoutePoint = vehiclePosition ?: fix
 
 private fun RoutePoint.isDrawable() =
     latitude.isFinite() && longitude.isFinite() && abs(latitude) <= 90.0 && abs(longitude) <= 180.0
