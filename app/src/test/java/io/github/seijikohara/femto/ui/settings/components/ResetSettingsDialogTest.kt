@@ -94,7 +94,7 @@ class ResetSettingsDialogTest {
         rule.onNodeWithText(RESET).performClick()
 
         assertEquals(
-            listOf(SettingsAction.ResetSettings(LISTED_SECTIONS, deleteEnteredValues = false)),
+            listOf<SettingsAction>(SettingsAction.ResetSettings(LISTED_SECTIONS, deleteEnteredValues = false)),
             actions,
         )
     }
@@ -109,7 +109,7 @@ class ResetSettingsDialogTest {
         rule.onNodeWithText(RESET).performClick()
 
         assertEquals(
-            listOf(
+            listOf<SettingsAction>(
                 SettingsAction.ResetSettings(
                     LISTED_SECTIONS + SettingsSectionId.NAVIGATION - SettingsSectionId.MAP - SettingsSectionId.UPDATES,
                     deleteEnteredValues = true,
