@@ -141,9 +141,9 @@ internal fun videoSettingsFacts(video: VideoSettings): List<DiagnosticFact> =
 
 internal fun navigationSettingsFacts(navigation: NavigationSettings): List<DiagnosticFact> =
     listOf(
-        entry("Reroute automatically", navigation.rerouteAutomatically.onOff()),
-        entry("Suggest other routes", navigation.suggestOtherRoutes.onOff()),
-        entry("Restore route after restart", navigation.restoreRouteAfterRestart.onOff()),
+        entry("Reroute automatically", "${navigation.rerouteAutomatically}"),
+        entry("Suggest other routes", "${navigation.suggestOtherRoutes}"),
+        entry("Restore route after restart", "${navigation.restoreRouteAfterRestart}"),
         entry(
             "Route row time",
             when (navigation.routeRowTime) {
@@ -152,8 +152,6 @@ internal fun navigationSettingsFacts(navigation: NavigationSettings): List<Diagn
             },
         ),
     )
-
-private fun Boolean.onOff(): String = if (this) "on" else "off"
 
 private fun entry(
     label: String,

@@ -180,13 +180,13 @@ class SettingsFactsCompletenessTest {
     }
 
     @Test
-    fun `the navigation facts read on or off and name the route row's time`() {
+    fun `the navigation facts read true or false like their neighbours and name the route row's time`() {
         val defaults = navigationSettingsFacts(NavigationSettings.Default).map { it.value }
         val changed =
             navigationSettingsFacts(NavigationSettings(false, false, false, RouteRowTime.REMAINING)).map { it.value }
 
-        assertEquals(listOf("on", "on", "on", "arrival time").map { FactValue.Text(it) }, defaults)
-        assertEquals(listOf("off", "off", "off", "time remaining").map { FactValue.Text(it) }, changed)
+        assertEquals(listOf("true", "true", "true", "arrival time").map { FactValue.Text(it) }, defaults)
+        assertEquals(listOf("false", "false", "false", "time remaining").map { FactValue.Text(it) }, changed)
     }
 
     @Test
