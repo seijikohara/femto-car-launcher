@@ -491,6 +491,10 @@ class MainActivity : ComponentActivity() {
                 launchAppCategory(event.intentCategory)
             }
 
+            HomeEvent.LaunchDialer -> {
+                launchDialer()
+            }
+
             is HomeEvent.LaunchGeo -> {
                 launchGeo(event.latitude, event.longitude)
             }
@@ -637,6 +641,16 @@ class MainActivity : ComponentActivity() {
                 .makeMainSelectorActivity(Intent.ACTION_MAIN, category)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         tryStartActivity(intent)
+    }
+
+    // ACTION_DIAL opens the dial pad of whichever phone app the device uses,
+    // with no number filled in, and needs no permission. Many head units have
+    // no telephony and so no phone app: there the contacts app, where this
+    // button led before, is the closest thing to one.
+    private fun launchDialer() {
+        if (!tryStartActivity(Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))) {
+            launchAppCategory(Intent.CATEGORY_APP_CONTACTS)
+        }
     }
 
     // A bare geo: URI lets whichever maps app the user has elected resolve the
