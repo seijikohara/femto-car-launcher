@@ -66,8 +66,9 @@ internal data class CandidateSearch(
  * short. The search stops when the choice closes, when the session ends, or on [cancel] (a reroute, or the panel's
  * next route, needs the planner). Once the choice closes, the reference files of the candidates not chosen are
  * deleted, whether the search was stopped or not. Switching the "Suggest other routes" setting ([enabled]) off stops
- * the search and closes the choice of the active session at once, keeping the route being followed. The constructor
- * stays injectable for JVM tests; production wiring goes through [get].
+ * the search and closes the choice of the active session at once, keeping the route being followed; a search reads the
+ * setting again as it starts, and with it off closes its choice and looks for nothing. The constructor stays
+ * injectable for JVM tests; production wiring goes through [get].
  */
 internal class CandidateFinder(
     private val route: suspend (
@@ -149,6 +150,13 @@ internal class CandidateFinder(
         references: MutableList<File>,
     ) {
         val session = active.session
+        // Read again as the search starts: the panel read the setting as the route was found, and a switch-off since
+        // then found no choice of this session open to close. The clean-up after the closed choice runs as for any.
+        if (!enabled.first()) {
+            store.closeChoice(session)
+            mutableLastSearch.update { it?.copy(ending = CandidateSearchEnding.STOPPED) }
+            return
+        }
         val ending =
             if (store.setFinding(session, true)) {
                 whileChoosing(session) { findAlternatives(active, origin, references) } ?: CandidateSearchEnding.STOPPED

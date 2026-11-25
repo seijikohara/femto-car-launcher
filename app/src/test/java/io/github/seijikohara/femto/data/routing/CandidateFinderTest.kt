@@ -364,6 +364,42 @@ class CandidateFinderTest {
             assertEquals(true to false, openBefore to store.active.value?.choosing)
         }
 
+    // The panel read the setting as on just before the driver switched it off; the switch-off found no choice of the
+    // new route open yet, so the search's own read is what closes it.
+    @Test
+    fun `a search started while other routes are off closes the choice and never calls the planner`() =
+        runTest {
+            val finder = finder(enabled = MutableStateFlow(false))
+            runCurrent()
+            val session = startSession()
+
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            assertEquals(emptyList(), planner.calls)
+            assertEquals(false, store.active.value?.choosing)
+        }
+
+    @Test
+    fun `switched off a second time, a running search stops again`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            val finder = finder(enabled = setting)
+            runCurrent()
+            setting.value = false
+            runCurrent()
+            setting.value = true
+            runCurrent()
+            val session = startSession()
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            setting.value = false
+            runCurrent()
+
+            assertEquals(true to false, planner.cancelled to store.active.value?.choosing)
+        }
+
     private data class AlternativeCall(
         val origin: RoutePoint,
         val destination: RoutePoint,

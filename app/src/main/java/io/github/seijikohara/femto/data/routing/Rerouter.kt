@@ -64,8 +64,9 @@ internal data class RerouteStats(
  *
  * It reroutes only while the "Reroute automatically" setting ([enabled]) is on. Each departure reads the stored value
  * before it does anything, so the first one after the start never reroutes on a default; with the setting off, a
- * departure changes nothing, and the choice between routes stays open. Switching it off stops a running reroute and
- * clears whatever the route row said about rerouting.
+ * departure changes nothing, and the choice between routes stays open. A departure acts only for the route it left:
+ * if the route on the map has changed by the time the setting has been read, it does nothing. Switching the setting
+ * off stops a running reroute and clears whatever the route row said about rerouting.
  *
  * A reroute writes to [store] only under [lock] and only while it has not been cancelled, and whoever cancels it
  * ([onBackOnRoute], [cancel], the switch-off) settles the status under the same lock. So a result that arrives after a
@@ -109,7 +110,7 @@ internal class Rerouter(
         session: Long,
         fix: RouteFix,
     ) {
-        val active = store.active.value?.takeIf { it.session == session } ?: return
+        val left = store.active.value?.takeIf { it.session == session } ?: return
         synchronized(lock) {
             val now = nowMs()
             val held =
@@ -118,38 +119,40 @@ internal class Rerouter(
             if (held) return
             // The job reads the setting itself, so [onBackOnRoute], [cancel] and a switch-off find it to stop while the
             // read is under way.
-            running = RunningReroute(session, scope.launch { rerouteIfEnabled(active, fix) })
+            running = RunningReroute(session, scope.launch { rerouteIfEnabled(left, fix) })
         }
     }
 
-    // The setting is read here, as the vehicle leaves the route, and never cached: the rerouter is created at the first
-    // such report, before the stored value could have been read, and a default would reroute that first departure.
-    // Turned away, the departure leaves no trace: no status, the choice and its search go on, and the next departure
-    // is not held back.
+    // The setting is read here, as the vehicle leaves the route, and never cached: the rerouter may be created at the
+    // first such report, before the stored value could have been read, and a default would reroute that first
+    // departure. Turned away, the departure leaves no trace: no status, the choice and its search go on, and the next
+    // departure is not held back.
     private suspend fun rerouteIfEnabled(
-        active: ActiveRoute,
+        left: ActiveRoute,
         fix: RouteFix,
     ) {
         if (!enabled.first()) return
-        val session = active.session
         val job = currentCoroutineContext().job
-        // The candidates were found from where the route started; from where the vehicle is now, they no longer apply,
-        // so the choice closes on the route being followed. Not once the reroute was stopped while the setting was
-        // read: the search may by then belong to the route that stopped it.
-        val proceeding =
+        // The read gave the driver and the panel time to act. Nothing more happens for a reroute stopped meanwhile, or
+        // for a route no longer on the map: a new session's search for other routes belongs to the new route, and a
+        // route picked from the choice has a reference of its own, while the one the departure saw may go with the
+        // choice; the route on the map reports its own departure. Otherwise the reroute starts from the route as it is
+        // now, and the choice closes on it: the candidates, found from where the route started, no longer apply from
+        // where the vehicle is.
+        val current =
             synchronized(lock) {
-                job.isActive &&
-                    run {
+                store.active.value
+                    ?.takeIf { job.isActive && it.session == left.session && it.route == left.route }
+                    ?.also {
                         cancelCandidates()
-                        store.closeChoice(session)
-                        true
+                        store.closeChoice(it.session)
                     }
-            }
-        if (proceeding) whileSessionCurrent(session) { reroute(active, fix) }
+            } ?: return
+        whileSessionCurrent(current.session) { reroute(current, fix) }
     }
 
-    // Switched off, a running reroute stops, and whatever the row said about rerouting goes with it: a "no routing
-    // data here" or "could not reroute" no reroute will follow up.
+    // Switched off, a running reroute stops and the row stops speaking of rerouting: no reroute is coming to replace a
+    // "No routing data here" or a "Could not reroute".
     private fun stopForSwitchOff() {
         synchronized(lock) {
             running?.job?.cancel()
