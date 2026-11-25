@@ -532,6 +532,7 @@ class MapFactsTest {
                 DiagnosticFact("Routing", FactValue.Text("available")),
                 DiagnosticFact("Routing data", FactValue.Text("2 tiles, 144 MB")),
                 DiagnosticFact("Last route", FactValue.Text("timed out, 60012 ms")),
+                DiagnosticFact("Active route", FactValue.Text("no route")),
                 DiagnosticFact("Route conditions", FactValue.Text("none")),
                 DiagnosticFact("Route candidates", FactValue.Text("none this session")),
                 DiagnosticFact("Last reroute", FactValue.Text("none this session")),
@@ -591,6 +592,23 @@ class MapFactsTest {
 
         assertEquals(
             listOf("1: 0.5 s; no more routes", "1: 0.5 s; stopped", "1: 0.5 s; searching").map { FactValue.Text(it) },
+            texts,
+        )
+    }
+
+    // Counts only: the report must not say where the route goes, and no turn position enters it.
+    @Test
+    fun `the active route reports how many turn hints it has`() {
+        val texts =
+            listOf(
+                RoutingFacts(true, emptyList(), null, true),
+                RoutingFacts(true, emptyList(), null, true, routeActive = true),
+                RoutingFacts(true, emptyList(), null, true, routeActive = true, activeTurnCount = 0),
+                RoutingFacts(true, emptyList(), null, true, routeActive = true, activeTurnCount = 7),
+            ).map { routingFacts(it).single { fact -> fact.label == "Active route" }.value }
+
+        assertEquals(
+            listOf("no route", "no turn data", "0 turn hints", "7 turn hints").map { FactValue.Text(it) },
             texts,
         )
     }
@@ -662,6 +680,7 @@ class MapFactsTest {
                 "Routing",
                 "Routing data",
                 "Last route",
+                "Active route",
                 "Route conditions",
                 "Route candidates",
                 "Last reroute",
