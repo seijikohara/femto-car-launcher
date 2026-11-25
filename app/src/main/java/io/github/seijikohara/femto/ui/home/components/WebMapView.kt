@@ -64,6 +64,7 @@ import io.github.seijikohara.femto.data.display.GoogleMapsRendering
 import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MapStyleSetting
 import io.github.seijikohara.femto.data.map.MapRuntimeSignals
+import io.github.seijikohara.femto.data.routing.OnLinePoint
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -163,9 +164,10 @@ internal fun WebMapView(
     // while the card is open; OSM backend only, like the route.
     alternativeLines: List<List<RoutePoint>> = emptyList(),
     // The point of the route line the camera centres the vehicle on in place of
-    // the fix's position while it drives along the route; null keeps the fix's
-    // (cameraPosition). The heading stays the fix's course.
-    vehiclePosition: RoutePoint? = null,
+    // the fix's position while it drives along the route, stamped with its fix;
+    // null keeps the fix's (cameraPosition, cameraKey). The heading stays the
+    // fix's course.
+    vehiclePosition: OnLinePoint? = null,
     // A point picked by a long press on the OSM map; null ignores long presses.
     // The Google page never reports one.
     onLongPress: ((RoutePoint) -> Unit)? = null,
@@ -820,15 +822,24 @@ internal fun WebMapView(
 
     // Each effect keys on [pageReady] (so it fires once the page is ready) and on
     // [webView] (so a rebuilt WebView gets the state re-pushed), then pushes the
-    // current state to the page. The camera keys on the position it sends, so a
-    // fix whose point on the route line is unchanged pushes nothing new.
-    val camera =
-        cameraPosition(fix = RoutePoint(location.latitude, location.longitude), vehiclePosition = vehiclePosition)
+    // current state to the page.
+    //
+    // The camera pushes once per fix: the page dates each push as a fix, and
+    // one that stops hearing for about 10 s greys the vehicle as if the signal
+    // were lost and stops turning it. While the vehicle is drawn on the route
+    // line the key is the stamped point (cameraKey), which every fix renews
+    // even where fixes in a row match the same point, past the line's end or
+    // outside a corner. It is not keyed on the fix as well: the fix reaches the
+    // dashboard before the follow has placed it on the line, and a push then
+    // would send the last point a second time, which the page eases into as a
+    // stutter every second. The push comes when the follow's point arrives,
+    // with that fix's bearing.
+    val fix = RoutePoint(location.latitude, location.longitude)
+    val camera = cameraPosition(fix = fix, vehiclePosition = vehiclePosition)
     LaunchedEffect(
         webView,
         pageReady.value,
-        camera.latitude,
-        camera.longitude,
+        cameraKey(fix = fix, vehiclePosition = vehiclePosition),
         mapConfig.zoom,
         mapConfig.tiltDeg,
         mapConfig.markerPos,
@@ -1256,8 +1267,17 @@ internal const val CLEAR_ROUTE_ALTERNATIVES_SCRIPT = "window.clearRouteAlternati
 // close to the line), else the fix itself, exactly as with no route.
 internal fun cameraPosition(
     fix: RoutePoint,
-    vehiclePosition: RoutePoint?,
-): RoutePoint = vehiclePosition ?: fix
+    vehiclePosition: OnLinePoint?,
+): RoutePoint = vehiclePosition?.point ?: fix
+
+// What the camera push is keyed on, so it runs once per fix: the stamped point on
+// the route line while there is one, which a new fix renews even at the same
+// point and a fix the follow has not placed yet leaves as it is; else the fix's
+// latitude and longitude, as with no route.
+internal fun cameraKey(
+    fix: RoutePoint,
+    vehiclePosition: OnLinePoint?,
+): Any = vehiclePosition ?: fix
 
 private fun RoutePoint.isDrawable() =
     latitude.isFinite() && longitude.isFinite() && abs(latitude) <= 90.0 && abs(longitude) <= 180.0

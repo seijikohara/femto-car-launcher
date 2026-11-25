@@ -238,6 +238,17 @@ internal data class UpcomingTurn(
 )
 
 /**
+ * The point of the line the map draws the vehicle at, and when the fix it was matched from was taken. Fixes in a row
+ * can match the same point, past the line's end or on the outside of a corner; the stamp makes each one a new value,
+ * so the map hears from every fix and never takes a vehicle at rest on the line for a lost signal.
+ */
+internal data class OnLinePoint(
+    val point: RoutePoint,
+    /** [RouteFix.elapsedMs] of the fix that was matched to [point]. */
+    val fixElapsedMs: Long,
+)
+
+/**
  * What [followFlow] reports at a fix: what is left of the route, what the off-route watch noticed there, where the map
  * draws the vehicle, and the turns ahead.
  */
@@ -245,10 +256,10 @@ internal data class RouteFollow(
     val progress: RouteProgress,
     val event: FollowEvent?,
     /**
-     * The point of the line the last fix was matched to, while the fix is close enough to it to be drawn there; else
-     * null.
+     * The point of the line the last fix was matched to, with that fix's stamp, while the fix is close enough to it to
+     * be drawn there; else null.
      */
-    val onLine: RoutePoint? = null,
+    val onLine: OnLinePoint? = null,
     /** Every turn from the vehicle on, nearest first; null when the route has no turn data. */
     val upcomingTurns: List<UpcomingTurn>? = null,
     /** Whether the vehicle has left the route and is not back on it yet ([OffRouteWatch.left]). */
@@ -259,8 +270,9 @@ internal data class RouteFollow(
  * What is left of this route from each fix in [fixes], each placed on the line from where the last one lay
  * ([RouteLine.follow]), whether the vehicle has left the route ([OffRouteWatch]), the point of the line it is drawn at
  * while the fix is close to it, and the turns ahead; the whole route, and every turn, until the first fix. Emits when
- * any of it changes. The line is flattened once, when the flow is collected, and each fix costs a few more passes over
- * it: for its distance from the whole line, and for the point it was matched to.
+ * any of it changes, which a fix drawn on the line always does ([OnLinePoint] carries its stamp). The line is flattened
+ * once, when the flow is collected, and each fix costs a few more passes over it: for its distance from the whole line,
+ * and for the point it was matched to.
  */
 internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
     flow {
@@ -280,8 +292,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                         progress = progress,
                         watch = step.watch.advance(fix, line.offLineMeters(fix.point), progress.remainingMeters),
                         onLine =
-                            line
-                                .pointAt(position)
+                            OnLinePoint(line.pointAt(position), fixElapsedMs = fix.elapsedMs)
                                 .takeIf { line.distanceMeters(position, fix.point) <= drawnOnLineMeters(fix) },
                     )
                 }.map { step ->
@@ -331,7 +342,7 @@ private data class FollowStep(
     val position: LinePosition,
     val progress: RouteProgress,
     val watch: OffRouteWatch,
-    val onLine: RoutePoint?,
+    val onLine: OnLinePoint?,
 )
 
 // A segment's point nearest a fix: the squared distance to it, and the length of line behind it.

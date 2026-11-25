@@ -376,7 +376,7 @@ class RouteProgressTest {
         runTest {
             val onLine = followOne(route, besideTheLine(meters = 10.0, accuracyMeters = null)).onLine
 
-            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine))
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine).point)
         }
 
     // A road beside the route: a good fix shows the vehicle where it is, not on a road it is not on.
@@ -391,7 +391,7 @@ class RouteProgressTest {
         runTest {
             val onLine = followOne(route, besideTheLine(meters = 30.0, accuracyMeters = 40f)).onLine
 
-            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine))
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine).point)
         }
 
     @Test
@@ -406,13 +406,59 @@ class RouteProgressTest {
             assertNull(followOne(route, besideTheLine(meters = 25.0, accuracyMeters = null)).onLine)
         }
 
+    // The map hears from every fix drawn on the line through these: a fix that matches the point the last one did must
+    // not read as no news, or the page greys the vehicle as if the signal were lost and its heading stops turning.
+    @Test
+    fun `fixes past the end of the line that all match its end each report their own stamp`() =
+        runTest {
+            // A second and a metre apart, 3 to 5 m east of the line's end.
+            val fixes =
+                (0..2).map { second ->
+                    fakeRouteFix(
+                        RoutePoint(0.0, 0.2 + (3.0 + second) / METERS_PER_DEGREE),
+                        elapsedMs = second * 1_000L,
+                    )
+                }
+
+            val drawn = route
+                .followFlow(fixes.asFlow())
+                .toList()
+                .drop(1)
+                .map { assertNotNull(it.onLine) }
+
+            assertEquals(listOf(0L, 1_000L, 2_000L), drawn.map { it.fixElapsedMs })
+            drawn.forEach { assertPoint(RoutePoint(0.0, 0.2), it.point) }
+        }
+
+    @Test
+    fun `fixes on the outside of a corner that all match its point each report their own stamp`() =
+        runTest {
+            // North along the meridian to 0.1°, then east. North-west of the corner, every point of the line nearest a
+            // fix is the corner itself.
+            val corner = fakeRoute(points = listOf(RoutePoint(0.0, 0.0), RoutePoint(0.1, 0.0), RoutePoint(0.1, 0.1)))
+            val fixes =
+                (0..2).map { second ->
+                    val offset = 0.00003 * (1 + second)
+                    fakeRouteFix(RoutePoint(0.1 + offset, -offset), elapsedMs = second * 1_000L)
+                }
+
+            val drawn = corner
+                .followFlow(fixes.asFlow())
+                .toList()
+                .drop(1)
+                .map { assertNotNull(it.onLine) }
+
+            assertEquals(listOf(0L, 1_000L, 2_000L), drawn.map { it.fixElapsedMs })
+            drawn.forEach { assertPoint(RoutePoint(0.1, 0.0), it.point) }
+        }
+
     // A route kept by an earlier build carries no turn data; the vehicle goes on the line all the same.
     @Test
     fun `a route without turn data still draws the vehicle on the line`() =
         runTest {
             val follow = followOne(route.copy(turns = null), besideTheLine(meters = 10.0, accuracyMeters = null))
 
-            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(follow.onLine))
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(follow.onLine).point)
         }
 
     // --- The turns ahead ----------------------------------------------------

@@ -20,6 +20,7 @@ import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.places.ReceivedPlaceInbox
 import io.github.seijikohara.femto.data.routing.ActiveRoute
+import io.github.seijikohara.femto.data.routing.OnLinePoint
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Route
 import io.github.seijikohara.femto.data.routing.RouteCandidate
@@ -1852,11 +1853,11 @@ class HomeViewModelTest {
     // About 5.6 m north of the equator route, halfway along it.
     private fun besideTheRoute(): Location = fakeLocation(latitude = 0.00005, longitude = 0.1)
 
-    // [point] is the equator route's halfway point, to a micro-degree.
-    private fun assertOnTheLineHalfway(point: RoutePoint?) {
-        assertNotNull(point)
-        assertEquals(0.0, point.latitude, MICRODEGREE)
-        assertEquals(0.1, point.longitude, MICRODEGREE)
+    // [drawn] is at the equator route's halfway point, to a micro-degree.
+    private fun assertOnTheLineHalfway(drawn: OnLinePoint?) {
+        assertNotNull(drawn)
+        assertEquals(0.0, drawn.point.latitude, MICRODEGREE)
+        assertEquals(0.1, drawn.point.longitude, MICRODEGREE)
     }
 
     private fun activeRouteOf(route: Route): ActiveRoute =

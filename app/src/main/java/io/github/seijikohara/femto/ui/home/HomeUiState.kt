@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.data.calendar.CalendarSnapshot
 import io.github.seijikohara.femto.data.geocoding.ShortAddress
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.music.MusicCardState
+import io.github.seijikohara.femto.data.routing.OnLinePoint
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteProgress
@@ -61,8 +62,8 @@ internal data class HomeUiState(
  * card and [alternativeLines] the routes not selected, which the map draws under the route; otherwise null and empty.
  * [rowTime] is the time the speed readout's route row shows beside the distance left (Settings → Navigation).
  * [vehicleOnLine] is the point of the line the map draws the vehicle at while it drives along the route (the point the
- * route follow matched the fix to), or null where the map draws it at the fix: a fix too far from the line, or the
- * setting off (Settings → Navigation). Only the map reads it; everything else keeps the fix.
+ * route follow matched the fix to, stamped with that fix), or null where the map draws it at the fix: a fix too far
+ * from the line, or the setting off (Settings → Navigation). Only the map reads it; everything else keeps the fix.
  */
 internal data class ActiveRouteState(
     val line: List<RoutePoint>,
@@ -71,7 +72,7 @@ internal data class ActiveRouteState(
     val choice: RouteChoiceState? = null,
     val alternativeLines: List<List<RoutePoint>> = emptyList(),
     val rowTime: RouteRowTime = RouteRowTime.ARRIVAL,
-    val vehicleOnLine: RoutePoint? = null,
+    val vehicleOnLine: OnLinePoint? = null,
 )
 
 /**
