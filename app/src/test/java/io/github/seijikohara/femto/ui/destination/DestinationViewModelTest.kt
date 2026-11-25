@@ -1732,6 +1732,19 @@ class DestinationViewModelTest {
         }
 
     @Test
+    fun an_unreadable_place_clears_the_search_before_it() =
+        runTest {
+            val viewModel = subscribedViewModel()
+            viewModel.onAction(
+                DestinationAction.Receive(ReceivedPlace.Found(PlaceTarget.Query("Matsuyama Castle"), "")),
+            )
+
+            viewModel.onAction(DestinationAction.Receive(ReceivedPlace.Unreadable))
+
+            assertEquals("" to true, viewModel.uiState.value.let { it.query to it.receivedUnreadable })
+        }
+
+    @Test
     fun a_second_place_replaces_the_first() =
         runTest {
             val viewModel = subscribedViewModel()

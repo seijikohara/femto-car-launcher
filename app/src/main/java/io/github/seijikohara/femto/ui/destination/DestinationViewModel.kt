@@ -400,8 +400,11 @@ internal class DestinationViewModel(
                 }
             }
 
+            // The text of an earlier search goes too: left under the line, with its actions live, it would read
+            // as the place that just arrived.
             ReceivedPlace.Unreadable -> {
                 pickedPoint.value = null
+                query.value = ""
                 receivedUnreadable.value = true
             }
         }
