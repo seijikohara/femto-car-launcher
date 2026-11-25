@@ -6,6 +6,10 @@ import io.github.seijikohara.femto.testfixtures.fakeRouteFix
 import io.github.seijikohara.femto.testfixtures.withoutChoice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -35,8 +39,9 @@ class RerouterTest {
     // How often the rerouter has stopped the candidate search.
     private var candidateCancels = 0
 
-    // The rerouter runs its reroutes on the test's background scope, so each test steps them with runCurrent.
-    private fun TestScope.rerouter(): Rerouter =
+    // The rerouter runs its reroutes on the test's background scope, so each test steps them with runCurrent. The
+    // "Reroute automatically" setting is on unless a test passes its own.
+    private fun TestScope.rerouter(enabled: Flow<Boolean> = flowOf(true)): Rerouter =
         Rerouter(
             route = planner::route,
             store = store,
@@ -47,6 +52,7 @@ class RerouterTest {
                 nowMs
             },
             cancelCandidates = { candidateCancels++ },
+            enabled = enabled,
         )
 
     // The candidates were found from where the route started, so they no longer apply once the vehicle left it.
@@ -57,6 +63,7 @@ class RerouterTest {
             val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
 
             rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
 
             assertEquals(1 to false, candidateCancels to store.active.value?.choosing)
         }
@@ -513,6 +520,123 @@ class RerouterTest {
                 RerouteStats(2, RouteRun(RouteRunOutcome.TIMED_OUT, computingMs = 70L), true),
                 rerouter.stats.value,
             )
+        }
+
+    // --- The "Reroute automatically" setting ---------------------------------------------------------------------------
+
+    // The rerouter is created at the first report that the vehicle left a route, so that report comes before the
+    // stored setting has been read: a default would reroute the first departure.
+    @Test
+    fun `with reroute off, the first departure after the start never reroutes`() =
+        runTest {
+            val setting = MutableSharedFlow<Boolean>(replay = 1)
+            val rerouter = rerouter(enabled = setting)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+            setting.emit(false)
+            runCurrent()
+
+            assertEquals(emptyList(), planner.calls)
+            assertEquals(
+                Triple(RerouteStatus.NONE, true, 0),
+                store.active.value?.let { Triple(it.reroute, it.choosing, candidateCancels) },
+            )
+        }
+
+    @Test
+    fun `switching reroute off stops a running reroute and clears its status`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            val rerouter = rerouter(enabled = setting)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            setting.value = false
+            runCurrent()
+
+            assertTrue(planner.cancelled)
+            assertEquals(ActiveRoute(session, ROUTE, DESTINATION, REFERENCE), store.active.value?.withoutChoice())
+        }
+
+    @Test
+    fun `switching reroute off clears no data`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            rerouteAnswered(RouteResult.MissingTiles(listOf("E130_N30")), rerouter(enabled = setting))
+            val before = store.active.value?.reroute
+
+            setting.value = false
+            runCurrent()
+
+            assertEquals(RerouteStatus.NO_DATA to RerouteStatus.NONE, before to store.active.value?.reroute)
+        }
+
+    @Test
+    fun `switching reroute off clears a failure`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            rerouteAnswered(RouteResult.Failed("no track found"), rerouter(enabled = setting))
+            val before = store.active.value?.reroute
+
+            setting.value = false
+            runCurrent()
+
+            assertEquals(RerouteStatus.FAILED to RerouteStatus.NONE, before to store.active.value?.reroute)
+        }
+
+    // The departure the setting turned away did not reroute, so it holds back none after it.
+    @Test
+    fun `switched on again, the next departure reroutes`() =
+        runTest {
+            val setting = MutableStateFlow(false)
+            val rerouter = rerouter(enabled = setting)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+            val callsWhileOff = planner.calls.size
+
+            setting.value = true
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            assertEquals(0 to 1, callsWhileOff to planner.calls.size)
+        }
+
+    @Test
+    fun `back on the route before the setting has been read starts nothing`() =
+        runTest {
+            val setting = MutableSharedFlow<Boolean>(replay = 1)
+            val rerouter = rerouter(enabled = setting)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            rerouter.onBackOnRoute(session)
+            setting.emit(true)
+            runCurrent()
+
+            assertEquals(emptyList(), planner.calls)
+            assertEquals(RerouteStatus.NONE, store.active.value?.reroute)
+        }
+
+    @Test
+    fun `cancel before the setting has been read starts nothing`() =
+        runTest {
+            val setting = MutableSharedFlow<Boolean>(replay = 1)
+            val rerouter = rerouter(enabled = setting)
+            val session = store.start(ROUTE, DESTINATION, NO_CONDITIONS, REFERENCE)
+            rerouter.onLeftRoute(session, LEFT_AT)
+            runCurrent()
+
+            rerouter.cancel()
+            setting.emit(true)
+            runCurrent()
+
+            assertEquals(emptyList(), planner.calls)
+            assertEquals(RerouteStatus.NONE, store.active.value?.reroute)
         }
 
     // A session whose one reroute through [rerouter] has answered [result]; returns the session.

@@ -9,10 +9,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
@@ -57,9 +62,14 @@ internal data class RerouteStats(
  * route that ended it. A found route replaces the old one; one that needs data the device does not hold leaves the old
  * line with [RerouteStatus.NO_DATA], and any other failure with [RerouteStatus.FAILED].
  *
+ * It reroutes only while the "Reroute automatically" setting ([enabled]) is on. Each departure reads the stored value
+ * before it does anything, so the first one after the start never reroutes on a default; with the setting off, a
+ * departure changes nothing, and the choice between routes stays open. Switching it off stops a running reroute and
+ * clears whatever the route row said about rerouting.
+ *
  * A reroute writes to [store] only under [lock] and only while it has not been cancelled, and whoever cancels it
- * ([onBackOnRoute], [cancel]) settles the status under the same lock. So a result that arrives after a cancel never
- * lands. The constructor stays injectable for JVM tests; production wiring goes through [get].
+ * ([onBackOnRoute], [cancel], the switch-off) settles the status under the same lock. So a result that arrives after a
+ * cancel never lands. The constructor stays injectable for JVM tests; production wiring goes through [get].
  */
 internal class Rerouter(
     private val route: suspend (
@@ -75,6 +85,8 @@ internal class Rerouter(
     private val nowMs: () -> Long = SystemClock::elapsedRealtime,
     // Stops the search for more candidates (the CandidateFinder), which would hold the planner the reroute needs.
     private val cancelCandidates: () -> Unit = {},
+    // The "Reroute automatically" setting.
+    private val enabled: Flow<Boolean> = flowOf(true),
 ) {
     private val lock = Any()
 
@@ -86,6 +98,11 @@ internal class Rerouter(
 
     /** The reroutes of this process so far. */
     val stats: StateFlow<RerouteStats> = mutableStats.asStateFlow()
+
+    // After the fields above: the collector may start on another thread before the constructor returns.
+    init {
+        scope.launch { enabled.distinctUntilChanged().filter { !it }.collect { stopForSwitchOff() } }
+    }
 
     /** Route again from [fix], where the vehicle left the route of [session]. */
     fun onLeftRoute(
@@ -99,11 +116,44 @@ internal class Rerouter(
                 running?.job?.isActive == true ||
                     lastFinished?.let { it.session == session && now - it.finishedMs < REROUTE_MIN_INTERVAL_MS } == true
             if (held) return
-            // The candidates were found from where the route started; from where the vehicle is now, they no longer
-            // apply, so the choice closes on the route being followed.
-            cancelCandidates()
-            store.closeChoice(session)
-            running = RunningReroute(session, scope.launch { whileSessionCurrent(session) { reroute(active, fix) } })
+            // The job reads the setting itself, so [onBackOnRoute], [cancel] and a switch-off find it to stop while the
+            // read is under way.
+            running = RunningReroute(session, scope.launch { rerouteIfEnabled(active, fix) })
+        }
+    }
+
+    // The setting is read here, as the vehicle leaves the route, and never cached: the rerouter is created at the first
+    // such report, before the stored value could have been read, and a default would reroute that first departure.
+    // Turned away, the departure leaves no trace: no status, the choice and its search go on, and the next departure
+    // is not held back.
+    private suspend fun rerouteIfEnabled(
+        active: ActiveRoute,
+        fix: RouteFix,
+    ) {
+        if (!enabled.first()) return
+        val session = active.session
+        val job = currentCoroutineContext().job
+        // The candidates were found from where the route started; from where the vehicle is now, they no longer apply,
+        // so the choice closes on the route being followed. Not once the reroute was stopped while the setting was
+        // read: the search may by then belong to the route that stopped it.
+        val proceeding =
+            synchronized(lock) {
+                job.isActive &&
+                    run {
+                        cancelCandidates()
+                        store.closeChoice(session)
+                        true
+                    }
+            }
+        if (proceeding) whileSessionCurrent(session) { reroute(active, fix) }
+    }
+
+    // Switched off, a running reroute stops, and whatever the row said about rerouting goes with it: a "no routing
+    // data here" or "could not reroute" no reroute will follow up.
+    private fun stopForSwitchOff() {
+        synchronized(lock) {
+            running?.job?.cancel()
+            store.active.value?.let { store.setStatus(it.session, RerouteStatus.NONE) }
         }
     }
 
@@ -241,6 +291,10 @@ internal class Rerouter(
                             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
                             pruneReferences = planner::pruneReferences,
                             cancelCandidates = CandidateFinder.get(context)::cancel,
+                            enabled =
+                                NavigationPreferences(context.applicationContext).settings.map {
+                                    it.rerouteAutomatically
+                                },
                         )
                     }.also { instance = it }
             }
