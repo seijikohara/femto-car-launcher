@@ -26,6 +26,8 @@ import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
 import io.github.seijikohara.femto.data.location.TripAutoResetSetting
+import io.github.seijikohara.femto.data.routing.NavigationSettings
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.video.VideoSettings
 
 /** State for the in-app settings screen: the persisted display + font choices. */
@@ -115,6 +117,9 @@ internal data class SettingsUiState(
     // The Panels category's video rows, from the video store (see
     // SettingsViewModel's video flow); defaulted on the field like updates.
     val video: VideoSettingsUi = VideoSettingsUi.Initial,
+    // The Navigation category's rows, from the navigation store (see
+    // SettingsViewModel's navigation flow); defaulted on the field like video.
+    val navigation: NavigationSettingsUi = NavigationSettingsUi.Initial,
     // Whether this build offers the Saved map regions sheet (R.bool.offline_regions_enabled):
     // fixed for the build, read once by SettingsViewModelFactory; defaulted on the field like
     // updates, since no store backs it.
@@ -204,6 +209,24 @@ internal data class VideoSettingsUi(
                 windowEnabled = VideoSettings.Default.windowEnabled,
                 hidePictureWhileDriving = VideoSettings.Default.hidePictureWhileDriving,
                 file = VideoFileSummary.None,
+            )
+    }
+}
+
+/** The Navigation category's rows (issue #389): what the route preview does besides the line on the map. */
+internal data class NavigationSettingsUi(
+    val rerouteAutomatically: Boolean,
+    val suggestOtherRoutes: Boolean,
+    val restoreRouteAfterRestart: Boolean,
+    val routeRowTime: RouteRowTime,
+) {
+    companion object {
+        val Initial =
+            NavigationSettingsUi(
+                rerouteAutomatically = NavigationSettings.Default.rerouteAutomatically,
+                suggestOtherRoutes = NavigationSettings.Default.suggestOtherRoutes,
+                restoreRouteAfterRestart = NavigationSettings.Default.restoreRouteAfterRestart,
+                routeRowTime = NavigationSettings.Default.routeRowTime,
             )
     }
 }
@@ -499,6 +522,26 @@ internal sealed interface SettingsAction {
         val uri: String,
     ) : SettingsAction
 
+    /** Compute a new route on its own when the vehicle leaves the one on the map, or not. */
+    data class SetRerouteAutomatically(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Look for more routes to choose from after the first one, or not. */
+    data class SetSuggestOtherRoutes(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Keep the route on the map across a restart, or not; off deletes the kept route. */
+    data class SetRestoreRouteAfterRestart(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Pick the time the speed readout's route row shows. */
+    data class SetRouteRowTime(
+        val value: RouteRowTime,
+    ) : SettingsAction
+
     /** Check this channel's release feed now. */
     data object CheckForUpdates : SettingsAction
 
@@ -573,7 +616,9 @@ internal sealed interface SettingsAction {
     /** The "Updated to …" notice has been shown; stop reporting it. */
     data object AcknowledgeUpdatedTo : SettingsAction
 
-    /** Restore every display + font + location + calendar + update setting to its default value. */
+    /**
+     * Restore every display + font + location + calendar + update + video + navigation setting to its default value.
+     */
     data object ResetToDefaults : SettingsAction
 
     /** Restore only [sectionId]'s own settings (and any store it owns) to their default value. */

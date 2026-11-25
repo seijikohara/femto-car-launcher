@@ -10,10 +10,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -68,13 +71,23 @@ internal enum class RouteRestoreDecision {
      * how long the vehicle was parked either; the files went.
      */
     FIX_BEFORE_LAST_DRIVE,
+
+    /** The setting that keeps a route across a restart is off; any files went. */
+    SWITCHED_OFF,
 }
 
 /**
  * Keeps the active route of [store] across a restart of the launcher's process: a route on the map when the process
- * ends comes back when it starts again, unless the vehicle was parked longer than the "Start a new trip automatically"
- * time ([TripAutoResetSetting], read through [parkedGapMs]; null is "Never", which keeps the route until the driver
- * clears it). That time is the only link to the trip meter: a trip reset, a trip boundary and the trip id do not matter.
+ * ends comes back when it starts again, while the "Bring the route back after a restart" setting ([keep]) is on and
+ * unless the vehicle was parked longer than the "Start a new trip automatically" time ([TripAutoResetSetting], read
+ * through [parkedGapMs]; null is "Never", which keeps the route until the driver clears it). That time is the only link
+ * to the trip meter: a trip reset, a trip boundary and the trip id do not matter.
+ *
+ * The setting is read at the start, before the decision; off, the files go and nothing comes back
+ * ([RouteRestoreDecision.SWITCHED_OFF]). Switched off later, the files go at once, and a kept route still waiting for
+ * its first fix goes with them; nothing writes them until the setting is on again, which writes the route on the map at
+ * once. The route on the map stays either way, and the check of a restored route at the first GPS fix still runs: it
+ * clears the route from the map and does not depend on the files.
  *
  * Two files hold the route ([RouteSnapshotFiles]): the snapshot of the session, and the last-driven stamp, the time of
  * the last GPS fix the dashboard received while the route was on ([onGpsFix], written at most once per
@@ -97,12 +110,13 @@ internal enum class RouteRestoreDecision {
  * ([ActiveRouteStore.restore]): one candidate, no choice, no reference. A route the driver sets before the kept one
  * comes back deletes the kept one's files at once, even if it is cleared again before its own write.
  *
- * Everything after the start runs in one coroutine, one event at a time: each state of the store and each fix. So a
- * write never lands after the delete that follows it, and a write first checks that its session is still the store's,
- * which leaves the files holding the store's session or nothing. Only a change of the session, its route, its
- * destination or its conditions rewrites the snapshot; a reroute status, the candidate search and the choice card do
- * not. A write that fails deletes the files, and the next GPS fixes write the session again, at most once per
- * [LAST_DRIVEN_STAMP_INTERVAL_MS]. The constructor stays injectable for JVM tests; production wiring goes through [get].
+ * Everything after the start runs in one coroutine, one event at a time: each state of the store, each fix and each
+ * change of the setting. So a write never lands after the delete that follows it, and a write first checks that its
+ * session is still the store's, which leaves the files holding the store's session or nothing. Only a change of the
+ * session, its route, its destination or its conditions rewrites the snapshot; a reroute status, the candidate search
+ * and the choice card do not. A write that fails deletes the files, and the next GPS fixes write the session again, at
+ * most once per [LAST_DRIVEN_STAMP_INTERVAL_MS]. The constructor stays injectable for JVM tests; production wiring goes
+ * through [get].
  */
 internal class RoutePersistence(
     private val store: ActiveRouteStore,
@@ -111,6 +125,8 @@ internal class RoutePersistence(
     private val scope: CoroutineScope,
     private val nowEpochMs: () -> Long = System::currentTimeMillis,
     private val nowElapsedMs: () -> Long = SystemClock::elapsedRealtime,
+    // The "Bring the route back after a restart" setting.
+    private val keep: Flow<Boolean> = flowOf(true),
 ) {
     private val started = AtomicBoolean()
 
@@ -122,7 +138,9 @@ internal class RoutePersistence(
     /** What the start of this process did with the kept route; null until it has decided anything. */
     val decision: StateFlow<RouteRestoreDecision?> = mutableDecision.asStateFlow()
 
-    // Read and written only by the one coroutine [start] launches.
+    // Read and written only by the one coroutine [start] launches. [keeping] takes the stored setting before its first
+    // use.
+    private var keeping = true
     private var phase = Phase.SETTLED
     private var pending: KeptRoute? = null
     private var restoredSession: Long? = null
@@ -153,14 +171,19 @@ internal class RoutePersistence(
 
     private suspend fun run() {
         try {
-            decideAtStart()
+            // Read before the decision, which runs before any event below: a decision on the default would bring back
+            // a route the driver asked not to keep.
+            keeping = keep.first()
+            if (keeping) decideAtStart() else discard(RouteRestoreDecision.SWITCHED_OFF)
             merge(
                 store.active.map { Event.Session(it?.mirrored()) },
                 fixes.receiveAsFlow().map(Event::Fix),
+                keep.distinctUntilChanged().map(Event::Keep),
             ).collect { event ->
                 when (event) {
                     is Event.Session -> onSession(event.route)
                     is Event.Fix -> onFix(event.timeEpochMs)
+                    is Event.Keep -> onKeep(event.on)
                 }
             }
         } catch (e: CancellationException) {
@@ -236,7 +259,23 @@ internal class RoutePersistence(
         }
     }
 
+    // The first value repeats the one read at the start, and the settings store emits again for a change of any other
+    // setting: only a change of this one acts. Off, the files go at once, and a kept route still waiting for its fix
+    // goes with them; on again, the route on the map is written without waiting for it to change.
+    private fun onKeep(on: Boolean) {
+        if (on == keeping) return
+        keeping = on
+        when {
+            on -> store.active.value?.let { mirror(it.mirrored()) }
+            phase == Phase.WAITING_FOR_FIX -> discard(RouteRestoreDecision.SWITCHED_OFF)
+            else -> deleteFiles()
+        }
+    }
+
     private fun mirror(route: MirroredRoute) {
+        // Off, the files went when the setting was switched off, and nothing writes them until it is on again. Every
+        // write passes here, a route change's and a fix's retry alike, so this one check covers them all.
+        if (!keeping) return
         // A route the driver set replaces a kept one still waiting for its fix, even one that is gone again by now.
         if (phase == Phase.WAITING_FOR_FIX) replaceKept()
         // A later state of the store follows this one; writing this one would only put an older session on the disk.
@@ -364,6 +403,10 @@ internal class RoutePersistence(
         data class Fix(
             val timeEpochMs: Long,
         ) : Event
+
+        data class Keep(
+            val on: Boolean,
+        ) : Event
     }
 
     // What of a session the snapshot keeps, so a change of anything else rewrites nothing.
@@ -394,6 +437,7 @@ internal class RoutePersistence(
                                     .tripAutoReset.parkedGapMs
                             },
                             scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                            keep = NavigationPreferences(app).settings.map { it.restoreRouteAfterRestart },
                         )
                     }.also { instance = it }
             }

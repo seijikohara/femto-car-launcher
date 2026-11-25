@@ -1,10 +1,14 @@
 package io.github.seijikohara.femto.data.diagnostics
 
 import android.content.Context
+import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.display.DisplayPreferences
 import io.github.seijikohara.femto.data.display.DisplaySettings
 import io.github.seijikohara.femto.data.location.LocationPreferences
 import io.github.seijikohara.femto.data.location.LocationSettings
+import io.github.seijikohara.femto.data.routing.NavigationPreferences
+import io.github.seijikohara.femto.data.routing.NavigationSettings
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.update.UpdatePreferences
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.video.VideoPreferences
@@ -13,7 +17,8 @@ import kotlinx.coroutines.flow.first
 
 /**
  * Dumps every [DisplaySettings], [LocationSettings], [UpdateSettings] and
- * [VideoSettings] field as SETTINGS facts. Labels stay English on the screen as well as in
+ * [VideoSettings] field as SETTINGS facts, and every [NavigationSettings]
+ * field in a build that offers routing. Labels stay English on the screen as well as in
  * the report: the dump is a debug artifact shared verbatim with the
  * unlocalized Markdown report, where stable machine-greppable wording is the
  * contract. Secrets (tokens, API keys) render only as `set` / `not set` —
@@ -27,11 +32,21 @@ internal class SettingsFactsCollector(
         val location = LocationPreferences(context).settings.first()
         val update = UpdatePreferences(context).settings.first()
         val video = VideoPreferences(context).settings.first()
+        // A build without routing has none of the features these settings
+        // switch, so it reports none of them, as the Map group leaves out its
+        // routing facts there.
+        val navigation =
+            if (context.resources.getBoolean(R.bool.routing_enabled)) {
+                navigationSettingsFacts(NavigationPreferences(context).settings.first())
+            } else {
+                emptyList()
+            }
         return SectionPayload.Facts(
             displaySettingsFacts(display) +
                 locationSettingsFacts(location) +
                 updateSettingsFacts(update) +
-                videoSettingsFacts(video),
+                videoSettingsFacts(video) +
+                navigation,
         )
     }
 }
@@ -122,6 +137,20 @@ internal fun videoSettingsFacts(video: VideoSettings): List<DiagnosticFact> =
         entry("Video window", "${video.windowEnabled}"),
         entry("Video hide picture while driving", "${video.hidePictureWhileDriving}"),
         entry("Video file", video.sourceUri.orEmpty().secretLabel()),
+    )
+
+internal fun navigationSettingsFacts(navigation: NavigationSettings): List<DiagnosticFact> =
+    listOf(
+        entry("Reroute automatically", "${navigation.rerouteAutomatically}"),
+        entry("Suggest other routes", "${navigation.suggestOtherRoutes}"),
+        entry("Restore route after restart", "${navigation.restoreRouteAfterRestart}"),
+        entry(
+            "Route row time",
+            when (navigation.routeRowTime) {
+                RouteRowTime.ARRIVAL -> "arrival time"
+                RouteRowTime.REMAINING -> "time remaining"
+            },
+        ),
     )
 
 private fun entry(

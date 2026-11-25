@@ -9,6 +9,10 @@ import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
 import io.github.seijikohara.femto.testfixtures.fakeParallelRoadsRoute
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
@@ -53,8 +57,9 @@ class RoutePersistenceTest {
     private var nowEpochMs = NOW_MS
     private var nowElapsedMs = BOOT_MS
 
-    // The process's keeper, on the test's background scope: each test steps it with runCurrent.
-    private fun TestScope.keeper(): RoutePersistence =
+    // The process's keeper, on the test's background scope: each test steps it with runCurrent. The "Bring the route
+    // back after a restart" setting is on unless a test passes its own.
+    private fun TestScope.keeper(keep: Flow<Boolean> = flowOf(true)): RoutePersistence =
         RoutePersistence(
             store = store,
             files = files,
@@ -62,10 +67,11 @@ class RoutePersistenceTest {
             scope = backgroundScope,
             nowEpochMs = { nowEpochMs },
             nowElapsedMs = { nowElapsedMs },
+            keep = keep,
         )
 
-    private fun TestScope.started(): RoutePersistence =
-        keeper().also {
+    private fun TestScope.started(keep: Flow<Boolean> = flowOf(true)): RoutePersistence =
+        keeper(keep).also {
             it.start(enabled = true)
             runCurrent()
         }
@@ -706,6 +712,164 @@ class RoutePersistenceTest {
             keeper.gpsFix(NOW_MS + 1_000L, this)
 
             assertEquals(listOf("last-driven"), written)
+        }
+
+    // --- The "Bring the route back after a restart" setting -----------------------------------------------------------
+
+    @Test
+    fun `with the setting off at the start, the kept route is deleted and nothing comes back`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+
+            val keeper = started(keep = flowOf(false))
+
+            assertNull(store.active.value)
+            assertFalse(dir.exists())
+            assertEquals(RouteRestoreDecision.SWITCHED_OFF, keeper.decision.value)
+        }
+
+    @Test
+    fun `with the setting off at the start, a route the driver sets writes nothing`() =
+        runTest {
+            val keeper = started(keep = flowOf(false))
+
+            store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            keeper.gpsFix(NOW_MS + 1_000L, this)
+
+            assertEquals(emptyList(), written)
+            assertFalse(dir.exists())
+        }
+
+    // Off deletes the kept route; the route on the map is the driver's and stays.
+    @Test
+    fun `switched off while a route is on the map, both files go at once`() =
+        runTest {
+            val keep = MutableStateFlow(true)
+            started(keep)
+            store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            val before = files.readOrNull() != null && files.readStampOrNull() != null
+
+            keep.value = false
+            runCurrent()
+
+            assertTrue(before)
+            assertFalse(dir.exists())
+            assertNotNull(store.active.value)
+        }
+
+    @Test
+    fun `switched off, neither a route change nor a fix writes the files again`() =
+        runTest {
+            val keep = MutableStateFlow(true)
+            val keeper = started(keep)
+            val session = store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            keep.value = false
+            runCurrent()
+            written.clear()
+
+            store.replace(session, REROUTED, reference = null)
+            runCurrent()
+            nowElapsedMs += LAST_DRIVEN_STAMP_INTERVAL_MS
+            keeper.gpsFix(NOW_MS + 1_000L, this)
+
+            assertEquals(emptyList(), written)
+            assertFalse(dir.exists())
+        }
+
+    // A write failed just before the switch-off; the fixes after it would retry that write while the setting is on.
+    @Test
+    fun `switched off, a fix does not retry a failed write`() =
+        runTest {
+            val keep = MutableStateFlow(true)
+            val keeper = started(keep)
+            val session = store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            failWrites = true
+            store.replace(session, REROUTED, reference = null)
+            runCurrent()
+            failWrites = false
+            keep.value = false
+            runCurrent()
+
+            nowElapsedMs += LAST_DRIVEN_STAMP_INTERVAL_MS
+            keeper.gpsFix(NOW_MS + 1_000L, this)
+
+            assertFalse(dir.exists())
+        }
+
+    @Test
+    fun `switched on again, the route on the map is written at once`() =
+        runTest {
+            val keep = MutableStateFlow(true)
+            started(keep)
+            store.start(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS, reference = null)
+            runCurrent()
+            keep.value = false
+            runCurrent()
+            val whileOff = dir.exists()
+
+            keep.value = true
+            runCurrent()
+
+            assertFalse(whileOff)
+            assertEquals(KeptRoute(DRIVER_ROUTE, DRIVER_DESTINATION, NO_CONDITIONS), files.readOrNull())
+            assertNotNull(files.readStampOrNull())
+        }
+
+    @Test
+    fun `switched off while the kept route waits for a fix, the files go and the fix restores nothing`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            nowEpochMs = UNSET_CLOCK_MS
+            val keep = MutableStateFlow(true)
+            val keeper = started(keep)
+            keep.value = false
+            runCurrent()
+            val afterTheSwitch = dir.exists() to keeper.decision.value
+
+            keeper.gpsFix(NOW_MS, this)
+
+            assertEquals(false to RouteRestoreDecision.SWITCHED_OFF, afterTheSwitch)
+            assertNull(store.active.value)
+        }
+
+    // A unit whose clock starts at its last saved time brought the route back on the wall clock's word; the first fix
+    // says the park was three days. The check clears the route from the map, which has nothing to do with the files.
+    @Test
+    fun `switched off while a restored route awaits its first-fix check, the files go and the check still runs`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = NOW_MS + 60_000L
+            val keep = MutableStateFlow(true)
+            val keeper = started(keep)
+            val restored = store.keptRouteOrNull()
+            keep.value = false
+            runCurrent()
+            val filesAfterTheSwitch = dir.exists()
+
+            keeper.gpsFix(NOW_MS + 3 * ONE_DAY_MS, this)
+
+            assertEquals(KEPT to false, restored to filesAfterTheSwitch)
+            assertNull(store.active.value)
+        }
+
+    // The setting's first value repeats the one read at the start, and the settings store emits again for a change of
+    // any other setting: neither may rewrite the route restored at the start.
+    @Test
+    fun `the setting's value again changes nothing`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS - ONE_HOUR_MS)
+            val keep = MutableSharedFlow<Boolean>(replay = 1).apply { tryEmit(true) }
+            started(keep)
+
+            keep.emit(true)
+            runCurrent()
+
+            assertEquals(emptyList(), written)
+            assertEquals(KEPT to NOW_MS - ONE_HOUR_MS, files.readOrNull() to files.readStampOrNull())
         }
 
     // --- A build without routing --------------------------------------------------------------------------------------

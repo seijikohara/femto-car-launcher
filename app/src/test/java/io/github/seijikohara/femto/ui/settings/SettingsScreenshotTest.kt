@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
+import io.github.seijikohara.femto.testfixtures.routingOfferedSettingsState
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -20,7 +21,8 @@ import org.robolectric.annotation.GraphicsMode
  * restyle (rows as Expressive list items in segmented groups) diffs against —
  * without them, that restyle could move or drop a row unnoticed.
  *
- * Each pane renders from [SettingsUiState.Initial] and is captured unscrolled,
+ * Each pane renders from [SettingsUiState.Initial] (Navigation's with routing
+ * offered, the only state that lists it) and is captured unscrolled,
  * so a golden shows only the rows above the fold. The Updates pane's version
  * row reads `BuildConfig.VERSION_NAME`, which falls back to "1.0" whenever the
  * `VERSION_NAME` environment variable is unset — as it is for the CI unit-test
@@ -50,6 +52,16 @@ class SettingsScreenshotTest {
     @Test
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun settings_map_head_unit() = captureHeadUnit(SettingsCategoryId.MAP)
+
+    // Navigation shows only where routing is offered, so its state offers it;
+    // every other golden keeps a state without routing, and its eight categories.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun settings_navigation_head_unit() =
+        captureHeadUnit(
+            SettingsCategoryId.NAVIGATION,
+            uiState = routingOfferedSettingsState(),
+        )
 
     @Test
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
@@ -89,21 +101,24 @@ class SettingsScreenshotTest {
     private fun captureHeadUnit(
         category: SettingsCategoryId,
         darkTheme: Boolean = false,
+        uiState: SettingsUiState = SettingsUiState.Initial,
     ) = capture(
         name = "settings-${category.name.lowercase()}-head-unit-853x512" + if (darkTheme) "-dark" else "",
         initialCategory = category,
         darkTheme = darkTheme,
+        uiState = uiState,
     )
 
     private fun capture(
         name: String,
         initialCategory: SettingsCategoryId?,
         darkTheme: Boolean = false,
+        uiState: SettingsUiState = SettingsUiState.Initial,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
             FemtoTheme(darkTheme = darkTheme) {
                 SettingsScreen(
-                    uiState = SettingsUiState.Initial,
+                    uiState = uiState,
                     onAction = {},
                     onBack = {},
                     onOpenNotificationAccess = {},

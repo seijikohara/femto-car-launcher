@@ -60,6 +60,9 @@
     <string name="speed_metric_avg">AVG.</string>
     <!-- The active route's row under the address (issue #389 phase 3); %1$s = the arrival clock time. -->
     <string name="speed_route_arrival">ETA %1$s</string>
+    <!-- In place of the arrival time when Settings → Navigation picks the time remaining; %1$s = the travel time left,
+         in the locale's units ("1 hr, 5 min"). -->
+    <string name="speed_route_remaining">%1$s left</string>
     <string name="speed_route_clear">Clear route</string>
     <!-- In place of the arrival time while the launcher reroutes after the vehicle left the route, and after a reroute
          that needed routing data the device does not hold or found no route; the old line stays in both cases. -->
@@ -353,6 +356,7 @@
     <string name="settings_cancel">Cancel</string>
     <string name="settings_section_units">Units</string>
     <string name="settings_section_map">Map</string>
+    <string name="settings_section_navigation">Navigation</string>
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_section_location">Location</string>
     <string name="settings_section_panels">Panels</string>
@@ -500,6 +504,19 @@
         <item quantity="one">%1$d area · %2$s</item>
         <item quantity="other">%1$d areas · %2$s</item>
     </plurals>
+    <!-- The Navigation category (issue #389, nightly builds only): what the route preview does besides the line on the
+         map. Listed only where routing is offered. -->
+    <string name="settings_navigation_route">Route</string>
+    <string name="settings_navigation_reroute">Reroute automatically</string>
+    <string name="settings_navigation_reroute_desc">Compute a new route when the vehicle leaves the one on the map.</string>
+    <string name="settings_navigation_other_routes">Suggest other routes</string>
+    <string name="settings_navigation_other_routes_desc">After the first route, look for up to two more to choose from.</string>
+    <string name="settings_navigation_restore">Bring the route back after a restart</string>
+    <string name="settings_navigation_restore_desc">Keep the route on this device so it returns when the launcher starts again. Off deletes the kept route.</string>
+    <string name="settings_navigation_row_time">Time shown for a route</string>
+    <string name="settings_navigation_row_time_desc">Shown in the speed readout, beside the distance left.</string>
+    <string name="settings_navigation_row_time_arrival">Arrival time</string>
+    <string name="settings_navigation_row_time_remaining">Time remaining</string>
     <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->
     <string name="routing_data_intro">Each file covers a 5° × 5° area. A route checks the areas it uses for newer data from brouter.de at most once a week, and asks before downloading any.</string>
     <!-- %1$s = the file's size, %2$s = the date of the last check. -->

@@ -25,6 +25,8 @@ import io.github.seijikohara.femto.data.location.LocationQualitySetting
 import io.github.seijikohara.femto.data.location.LocationSettings
 import io.github.seijikohara.femto.data.location.TripAutoResetSetting
 import io.github.seijikohara.femto.data.location.VehicleMotion
+import io.github.seijikohara.femto.data.routing.NavigationSettings
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
@@ -34,6 +36,7 @@ import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
+import io.github.seijikohara.femto.testfixtures.FakeNavigationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
@@ -78,6 +81,7 @@ class SettingsViewModelTest {
     private val dockStore = FakeDockSettingsStore()
     private val updater = FakeUpdaterPort()
     private val updateStore = FakeUpdateSettingsStore()
+    private val navigationStore = FakeNavigationSettingsStore()
     private val motion = MutableStateFlow(VehicleMotion.PARKED)
     private val manifest = fakeUpdateManifest(versionCode = 26092501)
     private val dispatcher = StandardTestDispatcher()
@@ -465,6 +469,100 @@ class SettingsViewModelTest {
             assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
             // Map is a different section — untouched by a Panels reset.
             assertEquals(11, store.settings.first().mapZoom)
+        }
+
+    @Test
+    fun `SetRerouteAutomatically writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetRerouteAutomatically(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.rerouteAutomatically)
+        }
+
+    @Test
+    fun `SetSuggestOtherRoutes writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetSuggestOtherRoutes(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.suggestOtherRoutes)
+        }
+
+    @Test
+    fun `SetRestoreRouteAfterRestart writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetRestoreRouteAfterRestart(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.restoreRouteAfterRestart)
+        }
+
+    @Test
+    fun `SetRouteRowTime writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetRouteRowTime(RouteRowTime.REMAINING))
+            advanceUntilIdle()
+            assertEquals(RouteRowTime.REMAINING, navigationStore.current.routeRowTime)
+        }
+
+    @Test
+    fun `the navigation rows mirror the navigation store`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+            assertEquals(NavigationSettingsUi.Initial, vm.uiState.value.navigation)
+
+            navigationStore.setSuggestOtherRoutes(false)
+            navigationStore.setRouteRowTime(RouteRowTime.REMAINING)
+            advanceUntilIdle()
+
+            assertEquals(
+                NavigationSettingsUi.Initial.copy(suggestOtherRoutes = false, routeRowTime = RouteRowTime.REMAINING),
+                vm.uiState.value.navigation,
+            )
+        }
+
+    @Test
+    fun `ResetSection(NAVIGATION) resets the navigation store only, leaves the display store alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetRerouteAutomatically(false))
+            vm.onAction(SettingsAction.SetRouteRowTime(RouteRowTime.REMAINING))
+            vm.onAction(SettingsAction.SetMapZoom(11))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.NAVIGATION))
+            advanceUntilIdle()
+
+            assertEquals(NavigationSettings.Default, navigationStore.current)
+            // NAVIGATION owns no DisplayPreferences key, so the display store is untouched.
+            assertEquals(11, store.settings.first().mapZoom)
+        }
+
+    @Test
+    fun `ResetToDefaults also restores the navigation settings`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetRestoreRouteAfterRestart(false))
+            vm.onAction(SettingsAction.SetSuggestOtherRoutes(false))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetToDefaults)
+            advanceUntilIdle()
+
+            assertEquals(NavigationSettings.Default, navigationStore.current)
+        }
+
+    @Test
+    fun `a section reset elsewhere leaves the navigation settings alone`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            vm.onAction(SettingsAction.SetRerouteAutomatically(false))
+            advanceUntilIdle()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.MAP))
+            advanceUntilIdle()
+
+            assertEquals(false, navigationStore.current.rerouteAutomatically)
         }
 
     @Test
@@ -1592,6 +1690,7 @@ class SettingsViewModelTest {
         motion = motion,
         videoPreferences = FakeVideoSettingsStore(),
         videoGrants = FakeVideoSourceGrants(),
+        navigationPreferences = navigationStore,
         offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = dispatcher,
         routingData = routingData,

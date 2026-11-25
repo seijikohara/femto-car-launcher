@@ -8,10 +8,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
@@ -60,8 +65,10 @@ internal data class CandidateSearch(
  * says so in the session ([ActiveRouteStore.completeSearch]), so the card can tell "no other route" from a search cut
  * short. The search stops when the choice closes, when the session ends, or on [cancel] (a reroute, or the panel's
  * next route, needs the planner). Once the choice closes, the reference files of the candidates not chosen are
- * deleted, whether the search was stopped or not. The constructor stays injectable for JVM tests; production wiring
- * goes through [get].
+ * deleted, whether the search was stopped or not. Switching the "Suggest other routes" setting ([enabled]) off stops
+ * the search and closes the choice of the active session at once, keeping the route being followed; a search reads the
+ * setting again as it starts, and with it off closes its choice and looks for nothing. The constructor stays
+ * injectable for JVM tests; production wiring goes through [get].
  */
 internal class CandidateFinder(
     private val route: suspend (
@@ -74,6 +81,9 @@ internal class CandidateFinder(
     private val scope: CoroutineScope,
     private val pruneReferences: (Collection<File>) -> Unit,
     private val nowMs: () -> Long = SystemClock::elapsedRealtime,
+    // The "Suggest other routes" setting. The panel reads it too, as each route is found, and opens no choice while it
+    // is off; this one only closes a choice that is open when it turns off.
+    private val enabled: Flow<Boolean> = flowOf(true),
 ) {
     private val lock = Any()
 
@@ -84,6 +94,11 @@ internal class CandidateFinder(
 
     /** The last search of this process, for the diagnostics report; null before the first one. */
     val lastSearch: StateFlow<CandidateSearch?> = mutableLastSearch.asStateFlow()
+
+    // After the fields above: the collector may start on another thread before the constructor returns.
+    init {
+        scope.launch { enabled.distinctUntilChanged().filter { !it }.collect { stopForSwitchOff() } }
+    }
 
     /** Look for more routes for [session], from [origin], the start its first route was found from. */
     fun start(
@@ -122,12 +137,26 @@ internal class CandidateFinder(
         }
     }
 
+    // Switched off, the card closes on the route being followed, with or without a search running; the clean-up that
+    // follows a closed choice deletes the other routes' references.
+    private fun stopForSwitchOff() {
+        cancel()
+        store.active.value?.let { store.closeChoice(it.session) }
+    }
+
     private suspend fun search(
         active: ActiveRoute,
         origin: RoutePoint,
         references: MutableList<File>,
     ) {
         val session = active.session
+        // Read again as the search starts: the panel read the setting as the route was found, and a switch-off since
+        // then found no choice of this session open to close. The clean-up after the closed choice runs as for any.
+        if (!enabled.first()) {
+            store.closeChoice(session)
+            mutableLastSearch.update { it?.copy(ending = CandidateSearchEnding.STOPPED) }
+            return
+        }
         val ending =
             if (store.setFinding(session, true)) {
                 whileChoosing(session) { findAlternatives(active, origin, references) } ?: CandidateSearchEnding.STOPPED
@@ -250,6 +279,10 @@ internal class CandidateFinder(
                             store = ActiveRouteStore.shared,
                             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
                             pruneReferences = planner::pruneReferences,
+                            enabled =
+                                NavigationPreferences(context.applicationContext).settings.map {
+                                    it.suggestOtherRoutes
+                                },
                         )
                     }.also { instance = it }
             }

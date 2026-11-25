@@ -215,6 +215,7 @@ private fun RouteRestoreDecision.label(): String =
         RouteRestoreDecision.REPLACED -> "replaced by a new route"
         RouteRestoreDecision.UNDATED -> "no time of the last drive, deleted"
         RouteRestoreDecision.FIX_BEFORE_LAST_DRIVE -> "GPS time before the last drive, deleted"
+        RouteRestoreDecision.SWITCHED_OFF -> "off in Settings"
     }
 
 // "3: 0.5 s, 1.1 s, 1.6 s; all found": how many candidates, each one's time in the order they were found, and how

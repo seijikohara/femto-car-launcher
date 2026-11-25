@@ -50,11 +50,13 @@ import io.github.seijikohara.femto.data.places.ReceivedPlaceInbox
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.FollowEvent
+import io.github.seijikohara.femto.data.routing.NavigationPreferences
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePersistence
 import io.github.seijikohara.femto.data.routing.RoutePoint
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.routing.followFlow
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.system.SystemStatus
@@ -165,6 +167,9 @@ internal class HomeViewModel(
     // Where a place another app sent waits for the dashboard. Defaults to an
     // inbox of its own, so previews and tests receive nothing.
     private val receivedPlaces: ReceivedPlaceInbox = ReceivedPlaceInbox(),
+    // Which time the speed readout's route row shows (Settings → Navigation).
+    // Defaults to the arrival time, the row as it was before the setting.
+    routeRowTimeFlow: Flow<RouteRowTime> = flowOf(RouteRowTime.ARRIVAL),
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -336,13 +341,23 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "routing available", false)
 
+    // Seeded with the arrival time for the same reason; the row takes the
+    // stored choice as soon as it is read.
+    private val routeRowTime: Flow<RouteRowTime> =
+        routeRowTimeFlow
+            .onStart { emit(RouteRowTime.ARRIVAL) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "route row time", RouteRowTime.ARRIVAL)
+
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
             calendarFlow.catchAsDefault(TAG, "calendar", HomeUiState.Initial.calendar),
             systemStatusFlow.catchAsDefault(TAG, "system status", HomeUiState.Initial.systemStatus),
             tripStateFlow.catchAsDefault(TAG, "trip state", HomeUiState.Initial.tripState),
-            combine(activeRoute, routingOffered, routeChoiceAutoClose) { route, offered, _ -> route to offered },
+            combine(activeRoute, routingOffered, routeChoiceAutoClose, routeRowTime) { route, offered, _, time ->
+                route?.copy(rowTime = time) to offered
+            },
         ) { core, calendar, systemStatus, tripState, (route, offered) ->
             HomeUiState(
                 location = core.location,
@@ -878,6 +893,7 @@ internal class HomeViewModelFactory(
             closeRouteChoice = { session -> ActiveRouteStore.shared.closeChoice(session) },
             onGpsFix = routeKeeper::onGpsFix,
             receivedPlaces = ReceivedPlaceInbox.shared,
+            routeRowTimeFlow = NavigationPreferences(application).settings.map { it.routeRowTime },
         ) as T
     }
 }

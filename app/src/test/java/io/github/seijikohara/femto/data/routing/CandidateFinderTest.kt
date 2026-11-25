@@ -4,6 +4,9 @@ import io.github.seijikohara.femto.testfixtures.fakeEquatorRoute
 import io.github.seijikohara.femto.testfixtures.fakeRoute
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -24,14 +27,16 @@ class CandidateFinderTest {
     private val pruned = mutableListOf<Collection<File>>()
     private var nowMs = START_MS
 
-    // The finder searches on the test's background scope, so each test steps it with runCurrent.
-    private fun TestScope.finder(): CandidateFinder =
+    // The finder searches on the test's background scope, so each test steps it with runCurrent. The "Suggest other
+    // routes" setting is on unless a test passes its own.
+    private fun TestScope.finder(enabled: Flow<Boolean> = flowOf(true)): CandidateFinder =
         CandidateFinder(
             route = planner::route,
             store = store,
             scope = backgroundScope,
             pruneReferences = { pruned += it },
             nowMs = { nowMs },
+            enabled = enabled,
         )
 
     private fun startSession(): Long = store.start(FIRST, DESTINATION, CONDITIONS, firstReference, computingMs = 500L)
@@ -314,6 +319,85 @@ class CandidateFinderTest {
 
             assertEquals(listOf(true, false), listOf(firstReference, secondReference).map { it.exists() })
             assertEquals(listOf<Collection<File>>(setOf(firstReference)), pruned)
+        }
+
+    // --- The "Suggest other routes" setting ----------------------------------------------------------------------------
+
+    // The driver had picked the second route; the search for the third still runs.
+    @Test
+    fun `switching other routes off mid-search stops it, closes the choice and keeps the selected route`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            val finder = finder(enabled = setting)
+            val session = startSession()
+            val secondReference = tempFolder.newFile("route-1.bin")
+            planner.answer(1, RouteResult.Found(SECOND, secondReference))
+            finder.start(session, ORIGIN)
+            runCurrent()
+            store.select(session, 1)
+
+            setting.value = false
+            runCurrent()
+
+            val active = store.active.value
+            assertTrue(planner.cancelled)
+            assertEquals(false to SECOND, active?.let { it.choosing to it.route })
+            assertEquals(listOf(SECOND), active?.candidates?.map { it.route })
+            assertEquals(listOf(false, true), listOf(firstReference, secondReference).map { it.exists() })
+        }
+
+    // The search ended with no other route, and the card waits for the driver.
+    @Test
+    fun `switching other routes off with no search running closes an open choice`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            val finder = finder(enabled = setting)
+            val session = startSession()
+            planner.answer(1, RouteResult.Failed("no track found"))
+            finder.start(session, ORIGIN)
+            runCurrent()
+            val openBefore = store.active.value?.choosing
+
+            setting.value = false
+            runCurrent()
+
+            assertEquals(true to false, openBefore to store.active.value?.choosing)
+        }
+
+    // The panel read the setting as on just before the driver switched it off; the switch-off found no choice of the
+    // new route open yet, so the search's own read is what closes it.
+    @Test
+    fun `a search started while other routes are off closes the choice and never calls the planner`() =
+        runTest {
+            val finder = finder(enabled = MutableStateFlow(false))
+            runCurrent()
+            val session = startSession()
+
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            assertEquals(emptyList(), planner.calls)
+            assertEquals(false, store.active.value?.choosing)
+        }
+
+    @Test
+    fun `switched off a second time, a running search stops again`() =
+        runTest {
+            val setting = MutableStateFlow(true)
+            val finder = finder(enabled = setting)
+            runCurrent()
+            setting.value = false
+            runCurrent()
+            setting.value = true
+            runCurrent()
+            val session = startSession()
+            finder.start(session, ORIGIN)
+            runCurrent()
+
+            setting.value = false
+            runCurrent()
+
+            assertEquals(true to false, planner.cancelled to store.active.value?.choosing)
         }
 
     private data class AlternativeCall(

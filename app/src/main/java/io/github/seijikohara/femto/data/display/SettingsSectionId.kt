@@ -10,7 +10,8 @@ import androidx.datastore.preferences.core.Preferences
  * owned other-store reset the section needs (the font store for
  * [APPEARANCE], the location store for [LOCATION], the calendar store's
  * hidden-ID set for [PANELS], the update store's auto-check setting for
- * [UPDATES] — see `SettingsViewModel` for the wiring).
+ * [UPDATES], the navigation store for [NAVIGATION] — see `SettingsViewModel`
+ * for the wiring).
  *
  * `SettingsSectionIdTest` asserts the union of every entry's [displayKeys]
  * equals [DisplayPreferences.ALL_KEYS], so a new persisted key that is not
@@ -81,6 +82,10 @@ internal enum class SettingsSectionId(
             DisplayPreferences.MAP_MARKER_POS_KEY,
         ),
     ),
+
+    // Every Navigation-section row persists in the navigation store
+    // (NavigationPreferences); SettingsViewModel resets that store for this section.
+    NAVIGATION(emptySet()),
 
     // Every Location-section row persists in the LOCATION store (LocationPreferences),
     // not DisplayPreferences — an empty set here; SettingsViewModel resets it

@@ -38,6 +38,7 @@ import com.composables.icons.lucide.Map
 import com.composables.icons.lucide.MapPin
 import com.composables.icons.lucide.Monitor
 import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Route
 import com.composables.icons.lucide.Ruler
 import com.composables.icons.lucide.Settings
 import io.github.seijikohara.femto.R
@@ -49,20 +50,21 @@ import io.github.seijikohara.femto.ui.theme.FemtoIcon
 /**
  * The wide master-detail layout's category navigator: an expanded Material 3
  * Expressive navigation rail ([WideNavigationRail]) with one icon-and-label
- * item per [SettingsCategoryId], in enum declaration order. The item matching
- * [selectedId] carries the active indicator, so the rail always shows which
- * category the detail pane is showing. The items of [badged] categories carry
- * the update dot ([UpdateBadge]): today only Updates, while an update is on
- * offer.
+ * item per entry of [categories] (visibleSettingsCategories), in that order.
+ * The item matching [selectedId] carries the active indicator, so the rail
+ * always shows which category the detail pane is showing. The items of
+ * [badged] categories carry the update dot ([UpdateBadge]): today only
+ * Updates, while an update is on offer.
  *
  * The rail has no container of its own (it sits on the settings sheet) and no
  * window insets (the sheet already handles them). Its items are floored at
- * [FemtoDimens.MinTouchTarget], and scroll as one column: eight such items do
- * not fit the height a head unit leaves under the settings header, and the
- * rail itself lays its items out without scrolling.
+ * [FemtoDimens.MinTouchTarget], and scroll as one column: eight such items (nine
+ * with Navigation) do not fit the height a head unit leaves under the settings
+ * header, and the rail itself lays its items out without scrolling.
  */
 @Composable
 internal fun SettingsCategoryRail(
+    categories: List<SettingsCategoryId>,
     selectedId: SettingsCategoryId,
     onSelect: (SettingsCategoryId) -> Unit,
     modifier: Modifier = Modifier,
@@ -76,7 +78,7 @@ internal fun SettingsCategoryRail(
 ) {
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides FemtoDimens.MinTouchTarget) {
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            SettingsCategoryId.entries.forEach { id ->
+            categories.forEach { id ->
                 val title = stringResource(id.titleRes)
                 val selectDescription = stringResource(R.string.settings_category_select, title)
                 WideNavigationRailItem(
@@ -95,19 +97,21 @@ internal fun SettingsCategoryRail(
 
 /**
  * The narrow list-detail layout's category navigator: one segmented group with
- * a row per [SettingsCategoryId], in enum declaration order. The row matching
- * [selectedId] is highlighted; the rows of [badged] categories carry the update
- * dot ([UpdateBadge]), as in [SettingsCategoryRail].
+ * a row per entry of [categories] (visibleSettingsCategories), in that order.
+ * The row matching [selectedId] is highlighted; the rows of [badged]
+ * categories carry the update dot ([UpdateBadge]), as in
+ * [SettingsCategoryRail].
  */
 @Composable
 internal fun SettingsCategoryList(
+    categories: List<SettingsCategoryId>,
     selectedId: SettingsCategoryId,
     onSelect: (SettingsCategoryId) -> Unit,
     modifier: Modifier = Modifier,
     badged: Set<SettingsCategoryId> = emptySet(),
 ) = Column(modifier = modifier.verticalScroll(rememberScrollState())) {
     SettingsGroup {
-        SettingsCategoryId.entries.forEach { id ->
+        categories.forEach { id ->
             item(key = id) { shapes ->
                 SettingsCategoryListItem(
                     title = stringResource(id.titleRes),
@@ -184,11 +188,21 @@ private val SettingsCategoryId.icon: ImageVector
     get() =
         when (this) {
             SettingsCategoryId.APPEARANCE -> Lucide.Palette
+
             SettingsCategoryId.SCREEN -> Lucide.Monitor
+
             SettingsCategoryId.UNITS -> Lucide.Ruler
+
             SettingsCategoryId.MAP -> Lucide.Map
+
+            // The icon of the destination panel's Show route button.
+            SettingsCategoryId.NAVIGATION -> Lucide.Route
+
             SettingsCategoryId.LOCATION -> Lucide.MapPin
+
             SettingsCategoryId.PANELS -> Lucide.LayoutDashboard
+
             SettingsCategoryId.UPDATES -> Lucide.Download
+
             SettingsCategoryId.SYSTEM -> Lucide.Settings
         }
