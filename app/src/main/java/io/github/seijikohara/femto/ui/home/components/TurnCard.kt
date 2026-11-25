@@ -281,13 +281,20 @@ private fun ThenColumn(
     TurnArrow(maneuver = then, modifier = Modifier.size(ThenArrowSize), color = color, showExitNumber = false)
 }
 
-// The arrows: the turn's own at the size of a tap target, so it reads at a glance; the turn after next's under half
-// that, a step down. The compact form's own arrow sits between the two.
-private val TurnArrowSize = 64.dp
-private val ThenArrowSize = 28.dp
+/** The turn's arrow, at the size of a tap target so it reads at a glance; the arrows' golden grid draws it too. */
+internal val TurnArrowSize = FemtoDimens.MinTouchTarget
+
+/** The arrow of the turn after next, under half the turn's own, a step down. */
+internal val ThenArrowSize = 28.dp
+
+// The compact form's arrow sits between the two.
 private val CompactArrowSize = 40.dp
 
-private val CardPaddingHorizontal = 16.dp
+// The card's sides line up with the clock's and the speed readout's.
+private val CardPaddingHorizontal = FemtoDimens.OverlayPaddingHorizontal
+
+// The card's own: no spacing token has this value, and the full card's height, which TurnCardHeight states and the
+// dashboard's room is measured against, is built on it.
 private val CardPaddingVertical = 12.dp
 private val CompactPaddingVertical = FemtoDimens.CardSectionGapCompact
 private val ContentGap = 12.dp

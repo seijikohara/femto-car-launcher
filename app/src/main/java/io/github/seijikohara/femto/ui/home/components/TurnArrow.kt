@@ -511,10 +511,10 @@ private fun GridCell(maneuver: TurnManeuver) =
             horizontalArrangement = Arrangement.Absolute.spacedBy(GridGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TurnArrow(maneuver, Modifier.size(64.dp), color = MaterialTheme.colorScheme.onSurface)
+            TurnArrow(maneuver, Modifier.size(TurnArrowSize), color = MaterialTheme.colorScheme.onSurface)
             TurnArrow(
                 maneuver,
-                Modifier.size(28.dp),
+                Modifier.size(ThenArrowSize),
                 color = MaterialTheme.colorScheme.onSurface,
                 showExitNumber = false,
             )
