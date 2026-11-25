@@ -756,12 +756,20 @@ internal fun remainingDistanceText(
     speedUnit: SpeedUnit,
     locale: Locale = Locale.getDefault(),
 ): String =
-    speedUnit.tripDistanceFromMeters(meters).let { distance ->
-        // The threshold judges the value as shown, rounded to tenths: 9.96
-        // shows as 10.0, which belongs with the whole units.
-        val tenths = (distance * 10.0).roundToLong() / 10.0
-        if (tenths < WHOLE_DISTANCE_FROM) String.format(locale, "%.1f", tenths) else "${distance.roundToInt()}"
-    }
+    remainingDistanceTenthsOrNull(meters, speedUnit)?.let { String.format(locale, "%.1f", it) }
+        ?: "${speedUnit.tripDistanceFromMeters(meters).roundToInt()}"
+
+/**
+ * Return the remaining distance [meters] in [speedUnit]'s distance unit rounded to tenths where it shows a decimal
+ * ([remainingDistanceText]), or null where it shows whole units.
+ */
+internal fun remainingDistanceTenthsOrNull(
+    meters: Double,
+    speedUnit: SpeedUnit,
+): Double? =
+    // The threshold judges the value as shown, rounded to tenths: 9.96 shows as 10.0, which belongs with the whole
+    // units.
+    ((speedUnit.tripDistanceFromMeters(meters) * 10.0).roundToLong() / 10.0).takeIf { it < WHOLE_DISTANCE_FROM }
 
 /**
  * Return the arrival clock time [remainingSeconds] after [now] in [zone], on

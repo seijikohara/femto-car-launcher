@@ -10,6 +10,10 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
 import io.github.seijikohara.femto.ui.locale.shortDistanceFromMeters
 import io.github.seijikohara.femto.ui.locale.shortDistanceLabel
+import io.github.seijikohara.femto.ui.locale.tripDistanceFromMeters
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 import kotlin.math.roundToLong
 
@@ -25,29 +29,48 @@ private const val COARSE_STEP = 50L
 /**
  * Return the turn card's distance [meters] as its value and its unit label, in [speedUnit]'s family. Below 1,000
  * metres or feet in whole metres or feet, rounded to 10 below 200 and to 50 from there; from 1,000 (after rounding)
- * in kilometres or miles as the route row prints them ([remainingDistanceText]). [locale] picks the digits and the
- * decimal separator.
+ * in kilometres or miles, rounded as the route row rounds them ([remainingDistanceTenthsOrNull]). The digits are ASCII
+ * whatever the locale ([cardNumber]); [locale] picks the decimal separator.
  */
 internal fun turnDistance(
     meters: Double,
     speedUnit: SpeedUnit,
     locale: Locale = Locale.getDefault(),
-): Pair<String, String> =
-    speedUnit
-        .shortDistanceFromMeters(meters.coerceAtLeast(0.0))
-        .let { short ->
-            (
-                if (short <
-                    FINE_STEP_BELOW
-                ) {
-                    FINE_STEP
-                } else {
-                    COARSE_STEP
-                }
-            ).let { step -> (short / step).roundToLong() * step }
-        }.takeIf { it < SHORT_DISTANCE_UP_TO }
-        ?.let { rounded -> String.format(locale, "%d", rounded) to speedUnit.shortDistanceLabel() }
-        ?: (remainingDistanceText(meters, speedUnit, locale) to speedUnit.distanceLabel())
+): Pair<String, String> {
+    val short = speedUnit.shortDistanceFromMeters(meters.coerceAtLeast(0.0))
+    val step = if (short < FINE_STEP_BELOW) FINE_STEP else COARSE_STEP
+    return ((short / step).roundToLong() * step)
+        .takeIf { it < SHORT_DISTANCE_UP_TO }
+        ?.let { rounded -> cardNumber(rounded.toDouble(), decimals = 0, locale) to speedUnit.shortDistanceLabel() }
+        ?: (longDistanceValue(meters, speedUnit, locale) to speedUnit.distanceLabel())
+}
+
+// A distance from 1,000 m or ft on, in kilometres or miles: tenths below ten units, whole units from there.
+private fun longDistanceValue(
+    meters: Double,
+    speedUnit: SpeedUnit,
+    locale: Locale,
+): String =
+    remainingDistanceTenthsOrNull(meters, speedUnit)?.let { cardNumber(it, decimals = 1, locale) }
+        ?: cardNumber(speedUnit.tripDistanceFromMeters(meters), decimals = 0, locale)
+
+/**
+ * Return [value] with [decimals] decimals as the turn card writes every number: in ASCII digits whatever the locale,
+ * since the card's sentence is English and its numbers read as one, with the separator [locale] uses beside those
+ * digits.
+ */
+internal fun cardNumber(
+    value: Double,
+    decimals: Int,
+    locale: Locale = Locale.getDefault(),
+): String =
+    DecimalFormat(
+        if (decimals > 0) "0." + "0".repeat(decimals) else "0",
+        DecimalFormatSymbols
+            .getInstance(Locale.Builder().setLocale(locale).setUnicodeLocaleKeyword("nu", "latn").build())
+            .apply { zeroDigit = '0' },
+    ).apply { roundingMode = RoundingMode.HALF_UP }
+        .format(value)
 
 /**
  * Return the turn card's line of text for [maneuver]: "Turn left", "Take exit 2", "Destination". The exit number is a
@@ -57,7 +80,7 @@ internal fun turnDistance(
 internal fun turnText(maneuver: TurnManeuver): String =
     when {
         maneuver is TurnManeuver.Turn && maneuver.kind.roundabout && maneuver.exitNumber > 0 -> {
-            stringResource(R.string.turn_card_roundabout_exit, maneuver.exitNumber)
+            stringResource(R.string.turn_card_roundabout_exit, cardNumber(maneuver.exitNumber.toDouble(), decimals = 0))
         }
 
         else -> {

@@ -22,10 +22,11 @@ class TurnTextTest {
         assertEquals(EXPECTED.values.toList(), texts())
     }
 
-    // The app ships English strings only: under a Japanese device the sentence, and the number in it, stay English.
+    // The app ships English strings only: under a device language that writes native digits, the sentence stays
+    // English and the exit number in it stays in ASCII digits, as every number on the card does.
     @Test
-    @Config(qualifiers = "ja")
-    fun `under a Japanese locale the texts are the same English sentences`() {
+    @Config(qualifiers = "ar-rEG")
+    fun `under a native-digit locale the texts are the same English sentences with ASCII digits`() {
         assertEquals(EXPECTED.values.toList(), texts())
     }
 

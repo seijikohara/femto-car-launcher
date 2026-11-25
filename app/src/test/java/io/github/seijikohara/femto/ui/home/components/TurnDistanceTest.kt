@@ -54,13 +54,16 @@ class TurnDistanceTest {
         )
     }
 
+    // An Egyptian Arabic locale writes native digits by default; the card's numbers stay ASCII below and above
+    // 1,000, as the English sentence beside them does.
     @Test
-    fun `under a Japanese locale the value uses ASCII digits and a full stop only`() {
-        assertTrue(
-            listOf(90.0, 990.0, 3_420.0, 123_600.0)
-                .map { turnDistance(it, SpeedUnit.KILOMETERS_PER_HOUR, Locale.JAPAN).first }
-                .all { it.matches(Regex("[0-9.]+")) },
-        )
+    fun `under a native-digit locale every distance uses ASCII digits`() {
+        val values =
+            listOf(90.0, 950.0, 3_420.0, 123_600.0)
+                .map { turnDistance(it, SpeedUnit.KILOMETERS_PER_HOUR, EGYPTIAN_ARABIC).first }
+
+        assertTrue(values.all { value -> value.all { !it.isDigit() || it in '0'..'9' } }, "values $values")
+        assertEquals(listOf("90", "950", "124"), listOf(values[0], values[1], values[3]))
     }
 
     @Test
@@ -74,5 +77,7 @@ class TurnDistanceTest {
 
     private companion object {
         const val METERS_PER_FOOT = 0.3048
+
+        val EGYPTIAN_ARABIC: Locale = Locale.forLanguageTag("ar-EG")
     }
 }

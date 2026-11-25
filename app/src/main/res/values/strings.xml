@@ -86,9 +86,10 @@
     <string name="turn_card_keep_left">Keep left</string>
     <string name="turn_card_keep_right">Keep right</string>
     <string name="turn_card_u_turn">Make a U-turn</string>
-    <!-- %1$d = the roundabout's exit to take, counted from the entry, as a plain number: no ordinal, whose words would
-         follow the device's language rather than this sentence's. -->
-    <string name="turn_card_roundabout_exit">Take exit %1$d</string>
+    <!-- %1$s = the roundabout's exit to take, counted from the entry, as a plain number in ASCII digits: no ordinal,
+         whose words would follow the device's language rather than this sentence's, and no native digits, which the
+         device's language would give a %d. -->
+    <string name="turn_card_roundabout_exit">Take exit %1$s</string>
     <!-- A roundabout whose exit the routing data does not give. -->
     <string name="turn_card_roundabout_enter">Enter the roundabout</string>
     <!-- A motorway exit to either side: the arrow beside the text shows which. -->
