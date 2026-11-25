@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -32,6 +34,8 @@ import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.ui.home.TurnCardState
 import io.github.seijikohara.femto.ui.home.TurnManeuver
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
+import io.github.seijikohara.femto.ui.locale.distanceLabel
+import io.github.seijikohara.femto.ui.locale.shortDistanceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
@@ -39,7 +43,6 @@ import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.heroNumeral
-import io.github.seijikohara.femto.ui.theme.lineBoxHeight
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.unitLabel
 
@@ -49,15 +52,13 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  * ([TurnCardState.then]), a small arrow for that one under "Then" at the end. No road names: the routing data has
  * none.
  *
- * The card shows in the first of its forms ([TurnCardForm]) that fits the room the caller gives it: the width at least
- * the form's [TurnCardForm.minWidth], and the form's measured height within the caller's height cap. Measured, so a
- * larger Display size and a larger font both count. Where no form fits, the card shows nothing. The caller gives the
- * width, up to [TurnCardMaxWidth].
+ * The card shows in the first of its forms ([TurnCardForm]) that fits the room the caller gives it, as
+ * [TurnCardSizes.formOrNull] measures it, so a larger Display size and a larger font both count. Where no form fits,
+ * the card shows nothing. The caller gives the width, up to [TurnCardMaxWidth], and caps the height.
  *
  * The card carries no control. In every form it reads as one sentence to a screen reader ("Turn left in 300 m. Then:
  * Turn right."), so its parts are merged into one node. The full form is at least [TurnCardHeight] tall, more where a
- * larger font needs it; its line of text shrinks to fit rather than wrap, at most to the 16 sp floor, which the longest
- * text still fits at [TurnCardMinWidth] (TurnCardTest).
+ * larger font needs it; its line of text shrinks to fit rather than wrap, never below the 16 sp floor.
  */
 @Composable
 internal fun TurnCard(
@@ -74,13 +75,11 @@ internal fun TurnCard(
             stringResource(R.string.turn_card_description_then, text, value, unit, turnText(then))
         } ?: stringResource(R.string.turn_card_description, text, value, unit)
     val content = TurnCardContent(state = state, value = value, unit = unit, text = text)
-    val sizes = turnCardSizes(content)
+    val sizes = rememberTurnCardSizes(state, speedUnit)
     // Only the form that shows is composed: a form tried and left out would stay in the semantics tree beside it.
     BoxWithConstraints(modifier = modifier) {
-        val width = if (constraints.hasBoundedWidth) maxWidth else TurnCardMaxWidth
-        TurnCardForm.entries
-            .filter { it != TurnCardForm.COMPACT_THEN || state.then != null }
-            .firstOrNull { form -> width >= form.minWidth && sizes.fits(form, width, maxHeight) }
+        sizes
+            .formOrNull(width = if (constraints.hasBoundedWidth) maxWidth else TurnCardMaxWidth, height = maxHeight)
             ?.let { form ->
                 Box(
                     modifier =
@@ -122,70 +121,131 @@ private data class TurnCardContent(
     val text: String,
 )
 
-// What each form needs, worked out from the card's own sizes and its text as measured in the current font and
-// Display size, so a larger font asks for more room just as a larger Display size does. The full form's line of text
-// shrinks to fit any width from TurnCardMinWidth; the compact form keeps its text's size and needs its measured width.
-private data class TurnCardSizes(
+/**
+ * The width and the height each form of a turn card needs, measured in the current font and Display size, so a larger
+ * font asks for more room just as a larger Display size does. Everything that can be cut counts: the line of text at
+ * the 16 sp floor it may shrink to, the distance, and the turn after next. The distance counts at the widest its unit
+ * family shows, so the form does not change as the digits do from fix to fix.
+ */
+internal data class TurnCardSizes(
+    /** Whether the card has a turn after next to show. */
+    val hasThen: Boolean,
+    val fullWidth: Dp,
     val fullHeight: Dp,
-    val compactHeight: Dp,
+    val compactThenWidth: Dp,
     val compactThenHeight: Dp,
     val compactWidth: Dp,
-    val compactThenWidth: Dp,
+    val compactHeight: Dp,
 ) {
+    /** Return the height [form] takes. */
+    fun heightOf(form: TurnCardForm): Dp =
+        when (form) {
+            TurnCardForm.FULL -> fullHeight
+            TurnCardForm.COMPACT_THEN -> compactThenHeight
+            TurnCardForm.COMPACT -> compactHeight
+        }
+
+    /** Return whether [form] fits [width] by [height]: no narrower than its minimum, and its measured size within. */
     fun fits(
         form: TurnCardForm,
         width: Dp,
         height: Dp,
     ): Boolean =
-        when (form) {
-            TurnCardForm.FULL -> fullHeight <= height
-            TurnCardForm.COMPACT_THEN -> compactThenWidth <= width && compactThenHeight <= height
-            TurnCardForm.COMPACT -> compactWidth <= width && compactHeight <= height
-        }
+        width >= form.minWidth &&
+            heightOf(form) <= height &&
+            when (form) {
+                TurnCardForm.FULL -> fullWidth
+                TurnCardForm.COMPACT_THEN -> compactThenWidth
+                TurnCardForm.COMPACT -> compactWidth
+            } <= width
+
+    /** Return the first form that fits [width] by [height], or null where none does. */
+    fun formOrNull(
+        width: Dp,
+        height: Dp,
+    ): TurnCardForm? =
+        TurnCardForm.entries
+            .filter { it != TurnCardForm.COMPACT_THEN || hasThen }
+            .firstOrNull { fits(it, width, height) }
 }
 
-// Every line on the card is pinned to its style's line box (singleLineBox), so the line boxes give the heights; the
-// texts the compact form keeps at their size are measured for the widths.
+/**
+ * Return what each form of the turn card for [state] needs ([TurnCardSizes]). Every line on the card is pinned to its
+ * style's line box (singleLineBox), so the line boxes give the heights; the texts are measured for the widths. Kept
+ * while the texts, their styles and the density stay the same.
+ */
 @Composable
-private fun turnCardSizes(content: TurnCardContent): TurnCardSizes {
+internal fun rememberTurnCardSizes(
+    state: TurnCardState,
+    speedUnit: SpeedUnit,
+): TurnCardSizes {
     val typography = MaterialTheme.typography
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
     val distanceStyle = typography.heroNumeral()
-    val captionStyle = typography.glanceCaption()
-    val distanceLine = lineBoxHeight(distanceStyle)
-    val textLine = lineBoxHeight(typography.titleMedium)
-    val thenHeight = lineBoxHeight(captionStyle) + ThenArrowSize
-    val fullThenHeight = if (content.state.then != null) thenHeight else 0.dp
-    val caption = stringResource(R.string.turn_card_then)
     val unitStyle = typography.unitLabel()
+    val captionStyle = typography.glanceCaption()
+    val textStyle = typography.titleMedium
+    // The line of text as narrow as it may shrink: FitText's floor.
+    val textFloorStyle = textStyle.copy(fontSize = FemtoDimens.MinBodyTextSize)
+    val text = turnText(state.maneuver)
+    val (value, unit) = turnDistance(state.distanceMeters, speedUnit)
+    val caption = stringResource(R.string.turn_card_then)
+    val hasThen = state.then != null
+    return remember(text, value, unit, caption, hasThen, speedUnit, distanceStyle, textStyle, captionStyle, density) {
+        fun widthOf(
+            measured: String,
+            style: TextStyle,
+        ): Dp = with(density) { measurer.measure(measured, style, maxLines = 1, density = density).size.width.toDp() }
 
-    fun widthOf(
-        text: String,
-        style: TextStyle,
-    ): Dp =
-        with(density) {
-            measurer
-                .measure(text, style, maxLines = 1)
-                .size.width
-                .toDp()
-        }
-
-    val distanceWidth = widthOf(content.value, distanceStyle) + DistanceUnitGap + widthOf(content.unit, unitStyle)
-    val thenWidth = maxOf(widthOf(caption, captionStyle), ThenArrowSize)
-    val compactWidth = CardPaddingHorizontal * 2 + CompactArrowSize + ContentGap + distanceWidth
-    val compactHeight = maxOf(CompactArrowSize, distanceLine) + CompactPaddingVertical * 2
-    return TurnCardSizes(
-        fullHeight =
-            (maxOf(TurnArrowSize, distanceLine + textLine, fullThenHeight) + CardPaddingVertical * 2)
-                .coerceAtLeast(TurnCardHeight),
-        compactHeight = compactHeight,
-        compactThenHeight = maxOf(compactHeight, thenHeight + CompactPaddingVertical * 2),
-        compactWidth = compactWidth,
-        // The spacer that carries the turn after next to the end sits between two gaps.
-        compactThenWidth = compactWidth + ContentGap * 2 + thenWidth,
-    )
+        // The widest distance the unit family shows: three digits beside the wider of its two unit labels. A turn
+        // farther than 999 km or mi widens it to its own digits.
+        val distanceWidth =
+            maxOf(
+                widthOf(cardNumber(WIDEST_DISTANCE_VALUE, decimals = 0), distanceStyle) +
+                    maxOf(
+                        widthOf(speedUnit.shortDistanceLabel(), unitStyle),
+                        widthOf(speedUnit.distanceLabel(), unitStyle),
+                    ),
+                widthOf(value, distanceStyle) + widthOf(unit, unitStyle),
+            ) + DistanceUnitGap
+        val distanceLine = lineBoxHeight(distanceStyle, density)
+        val thenWidth = maxOf(widthOf(caption, captionStyle), ThenArrowSize)
+        val thenHeight = lineBoxHeight(captionStyle, density) + ThenArrowSize
+        val compactWidth = CardPaddingHorizontal * 2 + CompactArrowSize + ContentGap + distanceWidth
+        val compactHeight = maxOf(CompactArrowSize, distanceLine) + CompactPaddingVertical * 2
+        TurnCardSizes(
+            hasThen = hasThen,
+            fullWidth =
+                CardPaddingHorizontal * 2 + TurnArrowSize + ContentGap +
+                    maxOf(distanceWidth, widthOf(text, textFloorStyle)) +
+                    (if (hasThen) ContentGap + thenWidth else 0.dp),
+            fullHeight =
+                (
+                    maxOf(
+                        TurnArrowSize,
+                        distanceLine + lineBoxHeight(textStyle, density),
+                        if (hasThen) thenHeight else 0.dp,
+                    ) + CardPaddingVertical * 2
+                ).coerceAtLeast(TurnCardHeight),
+            // The spacer that carries the turn after next to the end sits between two gaps.
+            compactThenWidth = compactWidth + ContentGap * 2 + thenWidth,
+            compactThenHeight = maxOf(compactHeight, thenHeight + CompactPaddingVertical * 2),
+            compactWidth = compactWidth,
+            compactHeight = compactHeight,
+        )
+    }
 }
+
+// The widest distance value the card shows below 1,000 km or mi: three digits, which the hero numeral's tabular figures
+// set at one width whatever they are.
+private const val WIDEST_DISTANCE_VALUE = 999.0
+
+// A style's line box in dp under [density]: lineBoxHeight's conversion, outside composition.
+private fun lineBoxHeight(
+    style: TextStyle,
+    density: Density,
+): Dp = with(density) { style.lineHeight.toDp() }
 
 // A form's content inside the chrome, filling the width the card is given.
 @Composable

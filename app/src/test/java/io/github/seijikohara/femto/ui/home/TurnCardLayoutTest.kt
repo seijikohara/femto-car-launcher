@@ -156,6 +156,21 @@ class TurnCardLayoutTest {
         )
     }
 
+    // The full card measures its line of text at the 16 sp floor: where even that would be cut, it falls back to the
+    // compact card rather than cut it.
+    @Test
+    fun `a larger font cuts no text on any geometry`() {
+        fontScale = LARGER_FONT_SCALE
+        setDashboard()
+
+        assertEquals(
+            emptyList(),
+            each(DashboardGeometries.all) { case ->
+                if (shownForm() == null) emptyList() else roomFailures(case) + cutLines(case)
+            },
+        )
+    }
+
     private fun setDashboard() =
         rule.setContent {
             // The geometry's box and the font scale sit outside the theme, so the display size scales the dashboard

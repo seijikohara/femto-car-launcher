@@ -126,10 +126,10 @@ class TurnCardTest {
     }
 
     // A larger system font grows the distance and the text past the arrow: the card grows with them, so nothing is
-    // clipped at its top or bottom.
+    // clipped at its top or bottom. At its widest, where the full card still fits the larger text.
     @Test
     fun `a larger system font grows the card and keeps its text inside it`() {
-        setCard(TurnCardFixtures.turnThen, fontScale = LARGE_FONT_SCALE)
+        setCard({ TurnCardFixtures.turnThen }, width = TurnCardMaxWidth, fontScale = LARGE_FONT_SCALE)
 
         val card = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot()
         val inside =
@@ -234,10 +234,58 @@ class TurnCardTest {
         assertEquals(emptyList(), cutShort.map { "${it.value} ${it.label}" })
     }
 
+    // --- What the forms measure ----------------------------------------------------------------------------------
+
+    // Between the compact card's minimum and the width its turn after next needs, the form must not follow the
+    // digits: "90 m" and "100 m" at a red light would switch the small arrow on and off.
+    @Test
+    fun `a slot between the two compact widths keeps its form at 94 m and at 104 m`() {
+        var meters by mutableStateOf(94.0)
+        setCard({ TurnCardFixtures.turnThen.copy(distanceMeters = meters) }, width = BETWEEN_COMPACT_WIDTHS)
+        val near = countOf("90") to countOf("Then")
+
+        meters = 104.0
+        rule.waitForIdle()
+
+        assertEquals(1 to near.second, near.first to near.second, "the card shows 90 m")
+        assertEquals(1 to near.second, countOf("100") to countOf("Then"))
+    }
+
+    // The widest distances at a larger font, at the card's widest: whichever form shows cuts nothing short.
+    @Test
+    fun `at a larger font the longest distances are cut short in no form`() {
+        var reading by mutableStateOf(LONG_DISTANCES.first())
+        setCard(
+            { TurnCardFixtures.turnThen.copy(distanceMeters = reading.meters) },
+            width = TurnCardMaxWidth,
+            fontScale = LARGER_FONT_SCALE,
+            speedUnit = { reading.unit },
+        )
+        val cutShort =
+            LONG_DISTANCES.filter { candidate ->
+                reading = candidate
+                rule.waitForIdle()
+                val card = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot()
+                listOf(candidate.value, candidate.label, "Turn left").any { text ->
+                    rule.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() &&
+                        (
+                            rule.onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot().let { box ->
+                                box.left < card.left || box.right > card.right
+                            } ||
+                                textLayout(text).isLineEllipsized(0)
+                        )
+                }
+            }
+        assertEquals(emptyList(), cutShort.map { "${it.value} ${it.label}" })
+    }
+
     private fun setCard(
         state: TurnCardState,
         fontScale: Float = 1f,
     ) = setCard({ state }, fontScale = fontScale)
+
+    private fun countOf(text: String): Int =
+        rule.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().size
 
     private fun setCard(
         state: () -> TurnCardState,
@@ -292,6 +340,12 @@ class TurnCardTest {
 
         // Just under the full card's height, so the card falls back to the compact one.
         val BELOW_FULL = TurnCardHeight - 1.dp
+
+        // Wider than the compact card's minimum, narrower than its turn after next needs beside three digits.
+        val BETWEEN_COMPACT_WIDTHS = 210.dp
+
+        // A larger step of Android's own font-size setting.
+        const val LARGER_FONT_SCALE = 1.3f
 
         // The widest distance each unit family shows: three digits below 1,000 m or ft, three whole digits above.
         val LONG_DISTANCES =
