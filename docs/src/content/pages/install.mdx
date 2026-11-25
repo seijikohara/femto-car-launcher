@@ -24,7 +24,7 @@ The two channels use different application IDs and install side by side, so a ni
     adb install -r <file>.apk
     ```
 
-3. Open the app. The app asks for the permissions its panels need: location for the map and the speed readout, calendar for the agenda, and notification access for now playing. A permission you deny renders a reduced card instead of an error screen.
+3. Open the app. The app asks for the permissions the dashboard needs: location for the map, the speed readout, local weather and the current address; calendar for the agenda; phone state for the cellular signal indicator; and Bluetooth to show whether a Bluetooth device is connected. A permission you deny renders a reduced card or indicator instead of an error screen. Notification access for the music card comes later: tap **Tap to connect a player** on the music card, or open **Settings → System → Notification access**.
 
 The in-app diagnostics report (**Settings → System → Diagnostics**) names the installed build by its version name. Quote that version name in a bug report.
 
@@ -51,13 +51,16 @@ The app checks its own channel for a newer build: stable checks the latest stabl
 - **Skip a version.** **Skip this version** removes the dot on the dock's Settings button and the one on **Settings → Updates**, closes the dashboard's question for that version, and deletes its download. **Settings → Updates** still names the version, marked "Skipped", and **Update to …** still installs it if you change your mind. The app offers newer versions as usual.
 - **Signed with a different key.** If Android refuses an update because a key other than the installed app's key signed it, the app deletes the download. The app then stops offering that version and any older one, and offers newer versions as usual.
 - **Developer verification.** From Android 16 QPR2 (Quarterly Platform Release 2, API level 36.1), Android may verify the app's developer before installing. If the check needs a connection, **Settings → Updates** asks you to try again online. If verification blocks the install outright, **Settings → Updates** says the update was blocked.
+- **Version and release page.** **Settings → Updates → Installed version** names the running version and its channel. **Open release page** opens the channel's release page in a browser, where you can download the APK by hand.
 - **Where to look.** A dot on the dock's Settings button shows that an update is waiting, while the vehicle is parked with a live GPS fix. The same dot shows on **Settings → Updates**, which is where to check if the Settings button is hidden from your dock.
 
 A copy you build from source does not check for updates.
 
 ## Optional: Google Maps provider
 
-To enable the optional paid Google Maps provider, enter a personal Google Maps Platform API key under **Settings → Map**. The key needs the Maps JavaScript API enabled and an HTTP-referrer restriction that allows `https://appassets.androidplatform.net/*`. The **Settings → Map → Rendering** setting (Automatic, Raster, or Vector) chooses heading-up vector or flat north-up raster rendering; the Map ID does not. Vector needs no Map ID. On a device with no Web Graphics Library (WebGL) context, Vector shows a notice instead of a map; choose Raster or Automatic there. Automatic follows the Map ID's cloud configuration and renders raster when none is set. An optional Map ID, created in the Google Cloud console, adds cloud styling and advanced markers. Usage bills your own Google Cloud account.
+To enable the optional paid Google Maps provider, enter a personal Google Maps Platform API key under **Settings → Map**. The key needs a Google Cloud project with billing enabled, the Maps JavaScript API enabled, and an HTTP-referrer restriction that allows `https://appassets.androidplatform.net/*`.
+
+The **Settings → Map → Rendering** setting (Automatic, Raster, or Vector) chooses heading-up vector or flat north-up raster rendering; the Map ID does not. Vector needs no Map ID. On a device with no Web Graphics Library (WebGL) context, Vector shows a notice instead of a map; choose Raster or Automatic there. Automatic follows the Map ID's cloud configuration and renders raster when none is set. An optional Map ID, created in the Google Cloud console, adds cloud styling and advanced markers. For the map to darken with the dark theme, associate a dark-mode style with the Map ID in the Cloud console; without a Map ID, the default dark scheme applies. Usage bills your own Google Cloud account.
 
 ## Build from source
 
