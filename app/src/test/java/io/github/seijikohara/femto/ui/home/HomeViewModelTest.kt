@@ -1724,6 +1724,90 @@ class HomeViewModelTest {
             assertEquals(0.0, atTheEnd.distanceMeters, 1.0)
         }
 
+    @Test
+    fun `with the turn card setting off no card shows`() =
+        runTest {
+            val viewModel =
+                routeViewModel(
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = flowOf(NavigationSettings.Default.copy(turnCard = false)),
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(
+                true to null,
+                (viewModel.uiState.value.activeRoute != null) to
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard,
+            )
+        }
+
+    // "Continue straight" counts only with its switch on, and the turn after next shows only with its own.
+    @Test
+    fun `the turn card's two refinements reach the card`() =
+        runTest {
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel =
+                routeViewModel(available = true, route = STRAIGHT_THEN_LEFT_ROUTE, navigationSettingsFlow = settings)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val shown =
+                listOf(
+                    NavigationSettings.Default,
+                    NavigationSettings.Default.copy(turnCardStraight = true),
+                    NavigationSettings.Default.copy(turnCardStraight = true, turnCardNextAfter = false),
+                ).map { value ->
+                    settings.value = value
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard
+                        ?.let { it.maneuver to it.then }
+                }
+
+            assertEquals(
+                listOf(
+                    TurnManeuver.Turn(TurnKind.LEFT) to null,
+                    TurnManeuver.Turn(TurnKind.STRAIGHT) to TurnManeuver.Turn(TurnKind.LEFT),
+                    TurnManeuver.Turn(TurnKind.STRAIGHT) to null,
+                ),
+                shown,
+            )
+        }
+
+    // A follow that started over would see no fix until the next one arrives and count the turn from the start of the
+    // line again, 11 km away.
+    @Test
+    fun `switching the turn card off and on again keeps the follow going`() =
+        runTest {
+            // Fixes that are not replayed: a follow that started over would see none.
+            val location = MutableSharedFlow<Location?>()
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            location.emit(fakeLocation(latitude = 0.0, longitude = ROUTE_LONGITUDE))
+
+            settings.value = settings.value.copy(turnCard = false)
+            assertNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+            settings.value = settings.value.copy(turnCard = true)
+
+            assertEquals(
+                5_500.0,
+                assertNotNull(
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard,
+                ).distanceMeters,
+                1.0,
+            )
+        }
+
     // --- The route kept across a restart ---------------------------------------
 
     // The keeper's first-fix decision must run with nothing on the map too.
@@ -2069,6 +2153,24 @@ class HomeViewModelTest {
                 distanceMeters = EQUATOR_ROUTE.distanceMeters,
                 durationSeconds = EQUATOR_ROUTE.durationSeconds,
                 turns = listOf(RouteTurn(pointIndex = 1, kind = TurnKind.LEFT, exitNumber = 0, angleDegrees = -90)),
+            )
+
+        // Along the equator, straight on across a road at its halfway point and left about 55 m after it.
+        val STRAIGHT_THEN_LEFT_ROUTE =
+            fakeRoute(
+                points = listOf(
+                    RoutePoint(0.0, 0.0),
+                    RoutePoint(0.0, 0.1),
+                    RoutePoint(0.0, 0.1005),
+                    RoutePoint(0.0, 0.2),
+                ),
+                distanceMeters = EQUATOR_ROUTE.distanceMeters,
+                durationSeconds = EQUATOR_ROUTE.durationSeconds,
+                turns =
+                    listOf(
+                        RouteTurn(pointIndex = 1, kind = TurnKind.STRAIGHT, exitNumber = 0, angleDegrees = 0),
+                        RouteTurn(pointIndex = 2, kind = TurnKind.LEFT, exitNumber = 0, angleDegrees = -90),
+                    ),
             )
 
         // The session the destination panel opened for the route under test, and where the route goes.

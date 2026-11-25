@@ -729,7 +729,8 @@ private data class FollowedRoute(
 )
 
 // The route row's time, the vehicle on the line only with its setting on, and
-// the turn card, which hides while the choice card is open.
+// the turn card as its three settings shape it, which hides while the choice
+// card is open.
 private fun FollowedRoute.withSettings(settings: NavigationSettings): ActiveRouteState =
     state.copy(
         rowTime = settings.routeRowTime,
@@ -741,7 +742,12 @@ private fun FollowedRoute.withSettings(settings: NavigationSettings): ActiveRout
                 offRoute = offRoute,
                 reroute = state.reroute,
                 choosing = state.choice != null,
-                settings = TurnCardSettings(),
+                settings =
+                    TurnCardSettings(
+                        show = settings.turnCard,
+                        showNextAfter = settings.turnCardNextAfter,
+                        showStraight = settings.turnCardStraight,
+                    ),
             ),
     )
 

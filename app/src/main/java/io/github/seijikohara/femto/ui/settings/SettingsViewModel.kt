@@ -312,6 +312,9 @@ internal class SettingsViewModel(
                     restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
                     routeRowTime = settings.routeRowTime,
                     vehicleOnRouteLine = settings.vehicleOnRouteLine,
+                    turnCard = settings.turnCard,
+                    turnCardNextAfter = settings.turnCardNextAfter,
+                    turnCardStraight = settings.turnCardStraight,
                 )
             }.distinctUntilChanged()
 
@@ -644,6 +647,18 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetVehicleOnRouteLine -> {
                     navigationPreferences.setVehicleOnRouteLine(action.value)
+                }
+
+                is SettingsAction.SetTurnCard -> {
+                    navigationPreferences.setTurnCard(action.value)
+                }
+
+                is SettingsAction.SetTurnCardNextAfter -> {
+                    navigationPreferences.setTurnCardNextAfter(action.value)
+                }
+
+                is SettingsAction.SetTurnCardStraight -> {
+                    navigationPreferences.setTurnCardStraight(action.value)
                 }
 
                 SettingsAction.CheckForUpdates -> {
