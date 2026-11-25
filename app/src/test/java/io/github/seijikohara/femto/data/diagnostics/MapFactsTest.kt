@@ -561,7 +561,7 @@ class MapFactsTest {
                 "replaced by a new route",
                 "no time of the last drive, deleted",
                 "GPS time before the last drive, deleted",
-                "off in Settings, deleted",
+                "off in Settings",
             ).map { FactValue.Text(it) },
             texts,
         )
