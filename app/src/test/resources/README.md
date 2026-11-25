@@ -31,3 +31,15 @@ Regenerate the expected files only when a conversion rule changes on purpose: ru
 **Provenance.** The `properties` are copied unchanged from the index as fetched on 2026-11-19. The geometry is not Geofabrik's: every ring is replaced by its bounding box, which keeps the nesting (polygons, rings, `[longitude, latitude]` positions) and makes containment answers easy to read in a test. The sizes are the ones `scripts/update-shortbread-regions.mjs` recorded on the same day.
 
 Regenerate only when the index changes shape. The tests pin names, parents and sizes from these files, so a regenerated fixture needs its expectations revisited.
+
+## `routing/` — engine output for the turn hint tests
+
+Three files, each BRouter's JSON for one short route exactly as its `FormatJson` wrote it, with the turn instruction mode the app sets:
+
+- `brouter-left-hand.json`: 867 m across a roundabout in left-hand traffic, 38 points. A clockwise roundabout with exit number −2, then a right turn.
+- `brouter-right-hand.json`: 336 m across a roundabout in right-hand traffic, 29 points. A right turn, a slight left turn, then a counter-clockwise roundabout with exit number 3 whose angle passes −180°.
+- `brouter-no-turn.json`: 78 m without a turn, 3 points. The `voicehints` key is absent.
+
+**Provenance.** Output of the vendored BRouter (`brouter/README.md` names the version) with the shipped `car-vario.brf` and `lookups.dat` and the target speed the app passes, on the routing data tiles `E130_N30.rd5` and `W10_N35.rd5` from `brouter.de/brouter/segments4/` as fetched in November 2026, unmodified. The tiles are OpenStreetMap data: © OpenStreetMap contributors, available under the Open Database License.
+
+Regenerate only when the engine changes what it writes. No routing tile is committed, so no test can write these: run a search set up as `BRouterEngine` sets it up and save what `FormatJson(routingContext).format(track)` returns. The tests pin the rows above, so a regenerated file needs its expectations revisited.

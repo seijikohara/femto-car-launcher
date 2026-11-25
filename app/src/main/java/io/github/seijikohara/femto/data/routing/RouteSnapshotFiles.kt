@@ -81,7 +81,9 @@ internal class RouteSnapshotFiles(
 /**
  * The snapshot as the file holds it. The line is flat: the latitude and longitude of each point in whole micro-degrees,
  * BRouter's own resolution, so no point of a computed route moves, at less than half the size of a named pair of
- * decimals per point. The destination is the point the driver chose, kept in full.
+ * decimals per point. The destination is the point the driver chose, kept in full. The turns are flat too: four
+ * integers per turn (the index of its point in the line, the kind's code, the exit number and the angle). A file
+ * without the key, as an earlier build wrote it, holds no turn data, which an empty list does not: it holds no turn.
  */
 @Serializable
 private data class SnapshotRecord(
@@ -93,6 +95,7 @@ private data class SnapshotRecord(
     val distanceMeters: Int,
     val durationSeconds: Int,
     val line: List<Int>,
+    val turns: List<Int>? = null,
 )
 
 private fun KeptRoute.toRecord(): SnapshotRecord =
@@ -105,17 +108,38 @@ private fun KeptRoute.toRecord(): SnapshotRecord =
         distanceMeters = route.distanceMeters,
         durationSeconds = route.durationSeconds,
         line = route.points.flatMap { listOf(it.latitude.toMicrodegrees(), it.longitude.toMicrodegrees()) },
+        turns = route.turns?.flatMap { listOf(it.pointIndex, it.kind.code, it.exitNumber, it.angleDegrees) },
     )
 
 // A line needs two points, as a route the engine returns has.
 private fun SnapshotRecord.toKeptRouteOrNull(): KeptRoute? =
     takeIf { version == SNAPSHOT_VERSION && line.size >= 4 && line.size % 2 == 0 }?.let {
+        val points = line.toPoints()
         KeptRoute(
-            route = Route(points = line.toPoints(), distanceMeters = distanceMeters, durationSeconds = durationSeconds),
+            route =
+                Route(
+                    points = points,
+                    distanceMeters = distanceMeters,
+                    durationSeconds = durationSeconds,
+                    turns = turns?.toTurnsOrNull(pointCount = points.size),
+                ),
             destination = RoutePoint(destinationLatitude, destinationLongitude),
             conditions = RouteConditions(avoidMotorways = avoidMotorways, avoidTolls = avoidTolls),
         )
     }
+
+// The turns are an extra: a list of integers that does not fit the line costs the route its turn data and not the
+// route itself, so a restart still brings the line back. A value that is no list of integers fails the whole file,
+// like any other damage to it.
+private fun List<Int>.toTurnsOrNull(pointCount: Int): List<RouteTurn>? =
+    takeIf { it.size % TURN_FIELD_COUNT == 0 }
+        ?.chunked(TURN_FIELD_COUNT) { (pointIndex, code, exitNumber, angleDegrees) ->
+            TurnKind.ofCodeOrNull(code)?.let { RouteTurn(pointIndex, it, exitNumber, angleDegrees) }
+        }?.takeIf { null !in it }
+        ?.requireNoNulls()
+        ?.onLineOrNull(pointCount)
+
+private const val TURN_FIELD_COUNT = 4
 
 private fun List<Int>.toPoints(): List<RoutePoint> =
     chunked(2) { (latitude, longitude) -> RoutePoint(latitude.toDegrees(), longitude.toDegrees()) }
