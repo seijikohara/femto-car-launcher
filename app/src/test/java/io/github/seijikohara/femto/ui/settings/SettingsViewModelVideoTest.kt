@@ -165,15 +165,34 @@ class SettingsViewModelVideoTest {
         }
 
     @Test
-    fun `ResetToDefaults restores the video switches`() =
+    fun `a reset with Panels ticked restores the video switches and keeps the file`() =
         runTest(dispatcher) {
             videoStore.setWindowEnabled(true)
             videoStore.setHidePictureWhileDriving(false)
+            videoStore.setSourceUri(FILE)
 
-            viewModel().onAction(SettingsAction.ResetToDefaults)
+            viewModel().onAction(
+                SettingsAction.ResetSettings(setOf(SettingsSectionId.PANELS), deleteEnteredValues = false),
+            )
             advanceUntilIdle()
 
-            assertEquals(VideoSettings.Default, videoStore.current)
+            assertEquals(VideoSettings.Default.copy(sourceUri = FILE), videoStore.current)
+        }
+
+    @Test
+    fun `a reset with Panels unticked leaves the video switches alone`() =
+        runTest(dispatcher) {
+            videoStore.setWindowEnabled(true)
+
+            viewModel().onAction(
+                SettingsAction.ResetSettings(
+                    SettingsSectionId.entries.toSet() - SettingsSectionId.PANELS,
+                    deleteEnteredValues = true,
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(true, videoStore.current.windowEnabled)
         }
 
     private fun TestScope.subscribe(vm: SettingsViewModel) {

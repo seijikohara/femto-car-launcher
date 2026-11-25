@@ -18,6 +18,14 @@ class SettingsSectionIdTest {
         assertEquals(DisplayPreferences.ALL_KEYS, unionOfSectionKeys)
     }
 
+    // Each entered value still belongs to the section whose rows show it; only
+    // its deletion is held back from that section's reset.
+    @Test
+    fun `every entered value belongs to a section`() {
+        val unionOfSectionKeys = SettingsSectionId.entries.flatMap { it.displayKeys }.toSet()
+        assertTrue(unionOfSectionKeys.containsAll(SettingsSectionId.ENTERED_VALUE_KEYS))
+    }
+
     @Test
     fun `the Map section owns the offline storage limit so Reset Map clears it`() {
         assertTrue(DisplayPreferences.OFFLINE_STORAGE_LIMIT_KEY in SettingsSectionId.MAP.displayKeys)

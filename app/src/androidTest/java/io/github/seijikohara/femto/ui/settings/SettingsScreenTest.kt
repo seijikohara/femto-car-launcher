@@ -139,22 +139,24 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun confirming_reset_dispatches_reset_to_defaults() {
+    fun confirming_reset_dispatches_reset_settings_with_the_default_ticks() {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it }, category = R.string.settings_group_system)
         // The reset row sits at the bottom of the System category; scroll it in,
-        // tap to open the confirm dialog, then tap Reset to confirm.
+        // tap to open the checklist, then tap Reset with its default ticks: every
+        // listed category, and not the entered values.
         rule.onNodeWithText(resetLabel).performScrollTo().performClick()
         rule.onNodeWithText(resetConfirmLabel).performClick()
-        assertEquals(listOf(SettingsAction.ResetToDefaults), actions)
+        val listedSections = visibleSettingsCategories(SettingsUiState.Initial).mapNotNull { it.sectionId }.toSet()
+        assertEquals(listOf(SettingsAction.ResetSettings(listedSections, deleteEnteredValues = false)), actions)
     }
 
     @Test
     fun confirming_reset_dock_dispatches_reset_dock() {
         val actions = mutableListOf<SettingsAction>()
         setScreen(onAction = { actions += it }, category = R.string.settings_section_screen)
-        // The Reset-dock row lives in the Screen category and opens the same confirm
-        // dialog (ResetRow) as Reset-to-defaults; confirming dispatches ResetDock.
+        // The Reset-dock row lives in the Screen category and opens its confirm
+        // dialog (ResetRow); confirming dispatches ResetDock.
         rule.onNodeWithText(resetDockLabel).performScrollTo().performClick()
         rule.onNodeWithText(resetConfirmLabel).performClick()
         assertEquals(listOf(SettingsAction.ResetDock), actions)

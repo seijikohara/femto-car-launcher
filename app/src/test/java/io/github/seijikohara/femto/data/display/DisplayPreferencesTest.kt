@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
+import io.github.seijikohara.femto.testfixtures.mutateAllAwayFromDefault
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -337,60 +338,27 @@ class DisplayPreferencesTest {
             assertEquals(DisplayPreferences.ALL_KEYS, persistedKeys)
         }
 
-    // Sets every persisted field to a value other than DisplaySettings.Default,
-    // shared by every resetKeys(section) precision test above so each test
-    // states only which fields its section owns, not how to mutate them all.
-    private suspend fun DisplayPreferences.mutateAllAwayFromDefault(): DisplaySettings {
-        resetToDefaults()
-        setThemeMode(ThemeMode.DARK)
-        setAccentColor(AccentColor.TEAL)
-        setUiScale(UiScale.LARGE)
-        setSpeedUnit(SpeedUnitSetting.MILES)
-        setTemperatureUnit(TemperatureUnitSetting.FAHRENHEIT)
-        setClock(ClockSetting.TWENTY_FOUR_HOUR)
-        setShowClockSeconds(true)
-        setFullscreen(FullscreenSetting.OFF)
-        setDockPosition(DockPosition.LEFT)
-        setDockWidth(DockWidth.EXTENDED)
-        setDriverSide(DriverSide.LEFT)
-        setMotionTier(MotionTier.OFF)
-        setOrientation(OrientationSetting.PORTRAIT)
-        setKeepScreenOn(false)
-        setAssistantLaunch(AssistantLaunchSetting.IN_APP)
-        setMapStyle(MapStyleSetting.DARK)
-        setMapSchemeLight(MapColorScheme.BRIGHT)
-        setMapSchemeDark(MapColorScheme.FIORD)
-        setMapCustomStyleUrl("https://example.test/style.json")
-        setMapTilt(40)
-        setMapZoom(MAX_MAP_ZOOM)
-        setMapNorthUp(true)
-        setMapMarkerPos(10)
-        setMap3dBuildings(false)
-        setMapTerrain(true)
-        setGlassBlurRadius(5)
-        setGlassTintScale(90)
-        setGlassShowBorder(true)
-        setGlassShadowEnabled(false)
-        setGlassShadowIntensity(70)
-        setGlassShadowSizeDp(16)
-        setFontBaseSizeSp(20)
-        setFontWeightStep(2)
-        setFontLetterSpacingCentiEm(8)
-        setShowCalendar(false)
-        setShowWeather(false)
-        setShowMusic(false)
-        setCalendarDateOnly(true)
-        setMusicSpectrum(true)
-        setMusicShowAlbum(false)
-        setMusicShowArt(false)
-        setMapBackend(MapBackend.GOOGLEMAPS)
-        setGoogleMapsApiKey("mutated-key")
-        setGoogleMapsMapId("mutated-id")
-        setGoogleMapsRendering(GoogleMapsRendering.VECTOR)
-        setGoogleMapsMapType(GoogleMapType.HYBRID)
-        setGoogleMapsTraffic(true)
-        setMapTileHost("https://tiles.example.test")
-        setOfflineStorageLimit(OfflineStorageLimit.GB_10)
-        return settings.first()
-    }
+    // The settings checklist with every row ticked removes every section's keys
+    // plus the entered values; on the real store that must leave nothing behind,
+    // exactly as the full clear the old "Reset to defaults" made.
+    @Test
+    fun `resetKeys of every section and the entered values empties the store`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = DisplayPreferences(context)
+            store.mutateAllAwayFromDefault()
+
+            store.resetKeys(
+                SettingsSectionId.entries.flatMap { it.displayKeys }.toSet() + SettingsSectionId.ENTERED_VALUE_KEYS,
+            )
+
+            assertEquals(
+                emptySet(),
+                context.displayDataStore.data
+                    .first()
+                    .asMap()
+                    .keys,
+            )
+            assertEquals(DisplaySettings.Default, store.settings.first())
+        }
 }

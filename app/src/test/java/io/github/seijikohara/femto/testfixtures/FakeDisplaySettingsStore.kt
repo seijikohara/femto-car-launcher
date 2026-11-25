@@ -346,6 +346,10 @@ internal class FakeDisplaySettingsStore(
                 copy(googleMapsMapId = default.googleMapsMapId)
             }
 
+            DisplayPreferences.GOOGLE_MAPS_RENDERING_KEY -> {
+                copy(googleMapsRendering = default.googleMapsRendering)
+            }
+
             DisplayPreferences.GOOGLE_MAPS_MAP_TYPE_KEY -> {
                 copy(googleMapsMapType = default.googleMapsMapType)
             }
