@@ -2,9 +2,11 @@
 
 package io.github.seijikohara.femto.ui.settings
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
 import com.github.takahirom.roborazzi.captureScreenRoboImage
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
@@ -34,7 +36,10 @@ class SettingsResetDialogScreenshotTest {
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun settings_reset_dialog_head_unit() {
         rule.setContent { SettingsForCapture(initialCategory = SettingsCategoryId.SYSTEM) }
-        rule.onNodeWithText("Reset to defaults").performClick()
+        // The row sits below the fold at this height.
+        rule.onNodeWithText("Reset to defaults").performScrollTo().performClick()
+        // Without the dialog the capture would record the screen alone; fail here instead.
+        rule.onNodeWithText("Reset settings").assertIsDisplayed()
         captureScreenRoboImage(
             filePath = "src/test/screenshots/settings-reset-dialog-head-unit-853x512.png",
             roborazziOptions = ScreenshotCompareOptions,
