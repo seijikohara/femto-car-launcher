@@ -190,6 +190,45 @@ class DashboardScreenshotTest {
     fun dashboard_phone_landscape_route_choice() =
         capture("phone-landscape-915x412-route-choice", uiState = DashboardFixtures.routeChoiceState)
 
+    // The turn card over the map (issue #389 phase 4), in the choice card's
+    // corner: a turn, a turn with the turn after next, and the destination on
+    // the head unit, the turn in dark, and the turn on the narrower geometries,
+    // where the card sits under the clock or, on a phone in portrait, at its
+    // narrowest.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card() =
+        capture("head-unit-853x512-turn-card", uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card_dark() =
+        capture("head-unit-853x512-turn-card-dark", darkTheme = true, uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card_then() =
+        capture("head-unit-853x512-turn-card-then", uiState = DashboardFixtures.routeTurnThenState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card_arrive() =
+        capture("head-unit-853x512-turn-card-arrive", uiState = DashboardFixtures.routeArriveState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.FLOOR_800X480)
+    fun dashboard_floor_turn_card() = capture("floor-800x480-turn-card", uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.PHONE_PORTRAIT_412X915)
+    fun dashboard_phone_portrait_turn_card() =
+        capture("phone-portrait-412x915-turn-card", uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.PHONE_LANDSCAPE_915X412)
+    fun dashboard_phone_landscape_turn_card() =
+        capture("phone-landscape-915x412-turn-card", uiState = DashboardFixtures.routeTurnState)
+
     private fun capture(
         name: String,
         uiScale: UiScale = UiScale.MEDIUM,
