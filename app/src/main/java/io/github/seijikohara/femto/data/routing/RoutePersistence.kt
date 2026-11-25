@@ -72,7 +72,7 @@ internal enum class RouteRestoreDecision {
      */
     FIX_BEFORE_LAST_DRIVE,
 
-    /** The setting that keeps a route across a restart is off; the files went. */
+    /** The setting that keeps a route across a restart is off; any files went. */
     SWITCHED_OFF,
 }
 
