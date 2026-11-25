@@ -1,19 +1,26 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.height
 import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.testfixtures.TurnCardFixtures
 import io.github.seijikohara.femto.ui.home.TurnCardState
@@ -108,14 +115,42 @@ class TurnCardTest {
         assertEquals(emptyList(), cutShort.map { it.second })
     }
 
-    private fun setCard(state: TurnCardState) {
+    @Test
+    fun `at the default text size the card is its least height`() {
+        setCard(TurnCardFixtures.turnThen)
+
+        assertEquals(TurnCardHeight, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    // A larger system font grows the distance and the text past the arrow: the card grows with them, so nothing is
+    // clipped at its top or bottom.
+    @Test
+    fun `a larger system font grows the card and keeps its text inside it`() {
+        setCard(TurnCardFixtures.turnThen, fontScale = LARGE_FONT_SCALE)
+
+        val card = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot()
+        val inside =
+            listOf("300", "Turn left", "Then").map { text ->
+                rule.onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot().let { box ->
+                    box.top >= card.top && box.bottom <= card.bottom
+                }
+            }
+        assertEquals(true to listOf(true, true, true), (card.height > TurnCardHeight) to inside)
+    }
+
+    private fun setCard(
+        state: TurnCardState,
+        fontScale: Float = 1f,
+    ) {
         rule.setContent {
-            FemtoTheme {
-                TurnCard(
-                    state = state,
-                    speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                    modifier = Modifier.width(TurnCardMinWidth),
-                )
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                FemtoTheme {
+                    TurnCard(
+                        state = state,
+                        speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                        modifier = Modifier.width(TurnCardMinWidth).testTag(CARD),
+                    )
+                }
             }
         }
     }
@@ -135,6 +170,11 @@ class TurnCardTest {
         )
 
     private companion object {
+        const val CARD = "turn-card"
+
+        // The largest step Android's own font-size setting offers on many devices.
+        const val LARGE_FONT_SCALE = 1.5f
+
         val LONG_TEXTS =
             listOf(
                 TurnManeuver.Turn(TurnKind.ROUNDABOUT_CLOCKWISE) to "Enter the roundabout",

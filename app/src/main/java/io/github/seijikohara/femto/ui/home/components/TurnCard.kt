@@ -3,7 +3,7 @@ package io.github.seijikohara.femto.ui.home.components
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -38,9 +38,10 @@ import io.github.seijikohara.femto.ui.theme.singleLineBox
  * none.
  *
  * The card carries no control. It reads as one sentence to a screen reader ("Turn left in 300 m. Then: Turn right."),
- * so its parts are merged into one node. Its height is fixed at [TurnCardHeight]; the caller gives the width, between
- * [TurnCardMinWidth] and [TurnCardMaxWidth]. The line of text shrinks to fit rather than wrap, at most to the 16 sp
- * floor, which the longest text still fits at the narrowest width (TurnCardTest).
+ * so its parts are merged into one node. Its height is at least [TurnCardHeight], more where a larger font needs it;
+ * the caller gives the width, between [TurnCardMinWidth] and [TurnCardMaxWidth]. The line of text shrinks to fit
+ * rather than wrap, at most to the 16 sp floor, which the longest text still fits at the narrowest width
+ * (TurnCardTest).
  */
 @Composable
 internal fun TurnCard(
@@ -62,10 +63,10 @@ internal fun TurnCard(
     Row(
         modifier =
             modifier
-                .height(TurnCardHeight)
+                .heightIn(min = TurnCardHeight)
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
                 .semantics(mergeDescendants = true) { contentDescription = description }
-                .padding(horizontal = CardPaddingHorizontal),
+                .padding(horizontal = CardPaddingHorizontal, vertical = CardPaddingVertical),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(ContentGap),
     ) {
@@ -114,11 +115,12 @@ private val TurnArrowSize = 64.dp
 private val ThenArrowSize = 28.dp
 
 private val CardPaddingHorizontal = 16.dp
+private val CardPaddingVertical = 12.dp
 private val ContentGap = 12.dp
 
 /**
- * The card's height: the 64 dp arrow, or the 40 sp distance over the text's 24 sp line at the default text size, with
- * 12 dp above and below.
+ * The card's least height: the 64 dp arrow, or the 40 sp distance over the text's 24 sp line at the default text size,
+ * with 12 dp above and below. A larger system font grows the text past the arrow, and the card with it.
  */
 internal val TurnCardHeight = 88.dp
 
