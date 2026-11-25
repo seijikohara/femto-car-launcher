@@ -517,6 +517,9 @@
     <string name="settings_navigation_row_time_desc">Shown in the speed readout, beside the distance left.</string>
     <string name="settings_navigation_row_time_arrival">Arrival time</string>
     <string name="settings_navigation_row_time_remaining">Time remaining</string>
+    <string name="settings_navigation_guidance">Guidance</string>
+    <string name="settings_navigation_vehicle_on_line">Keep the vehicle on the route</string>
+    <string name="settings_navigation_vehicle_on_line_desc">Draw the vehicle on the route line while it drives along it. Off draws it at the GPS position.</string>
     <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->
     <string name="routing_data_intro">Each file covers a 5° × 5° area. A route checks the areas it uses for newer data from brouter.de at most once a week, and asks before downloading any.</string>
     <!-- %1$s = the file's size, %2$s = the date of the last check. -->

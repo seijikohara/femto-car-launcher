@@ -504,6 +504,14 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetVehicleOnRouteLine writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetVehicleOnRouteLine(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.vehicleOnRouteLine)
+        }
+
+    @Test
     fun `the navigation rows mirror the navigation store`() =
         runTest(dispatcher) {
             val vm = viewModel()
@@ -513,10 +521,15 @@ class SettingsViewModelTest {
 
             navigationStore.setSuggestOtherRoutes(false)
             navigationStore.setRouteRowTime(RouteRowTime.REMAINING)
+            navigationStore.setVehicleOnRouteLine(false)
             advanceUntilIdle()
 
             assertEquals(
-                NavigationSettingsUi.Initial.copy(suggestOtherRoutes = false, routeRowTime = RouteRowTime.REMAINING),
+                NavigationSettingsUi.Initial.copy(
+                    suggestOtherRoutes = false,
+                    routeRowTime = RouteRowTime.REMAINING,
+                    vehicleOnRouteLine = false,
+                ),
                 vm.uiState.value.navigation,
             )
         }

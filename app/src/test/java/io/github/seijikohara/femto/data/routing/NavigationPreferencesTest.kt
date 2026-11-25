@@ -27,6 +27,7 @@ class NavigationPreferencesTest {
         }
 
     // The route preview did all of this before the settings existed; a driver who never opens them sees no change.
+    // Drawing the vehicle on the line came after them, and is on unless the driver switches it off.
     @Test
     fun `the defaults keep every part of the route preview on and show the arrival time`() {
         assertEquals(
@@ -35,6 +36,7 @@ class NavigationPreferencesTest {
                 suggestOtherRoutes = true,
                 restoreRouteAfterRestart = true,
                 routeRowTime = RouteRowTime.ARRIVAL,
+                vehicleOnRouteLine = true,
             ),
             NavigationSettings.Default,
         )
@@ -49,8 +51,9 @@ class NavigationPreferencesTest {
             store.setSuggestOtherRoutes(false)
             store.setRestoreRouteAfterRestart(false)
             store.setRouteRowTime(RouteRowTime.REMAINING)
+            store.setVehicleOnRouteLine(false)
 
-            assertEquals(NavigationSettings(false, false, false, RouteRowTime.REMAINING), store.settings.first())
+            assertEquals(NavigationSettings(false, false, false, RouteRowTime.REMAINING, false), store.settings.first())
         }
 
     // A later build may add a choice; an older one that reads it shows the arrival time rather than fail.
@@ -68,13 +71,14 @@ class NavigationPreferencesTest {
         }
 
     @Test
-    fun `a reset restores all four settings`() =
+    fun `a reset restores all five settings`() =
         runTest {
             val store = clearedStore()
             store.setRerouteAutomatically(false)
             store.setSuggestOtherRoutes(false)
             store.setRestoreRouteAfterRestart(false)
             store.setRouteRowTime(RouteRowTime.REMAINING)
+            store.setVehicleOnRouteLine(false)
 
             store.resetToDefaults()
 

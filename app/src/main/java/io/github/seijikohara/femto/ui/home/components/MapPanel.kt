@@ -34,6 +34,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MapPinOff
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.location.isFresh
+import io.github.seijikohara.femto.data.routing.OnLinePoint
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
@@ -68,6 +69,10 @@ internal fun MapPanel(
     routeLine: List<RoutePoint>? = null,
     // The other routes on the open choice card, drawn thin under the route.
     alternativeLines: List<List<RoutePoint>> = emptyList(),
+    // Where the live map draws the vehicle instead of at the fix: the point of
+    // the route line it drives along, stamped with its fix; null draws it at
+    // the fix.
+    vehiclePosition: OnLinePoint? = null,
     // A point picked by a long press on the OSM map; null ignores long presses.
     onLongPress: ((RoutePoint) -> Unit)? = null,
     // Substitute for the live map surface; null means the real [WebMapView].
@@ -102,6 +107,7 @@ internal fun MapPanel(
                 attributionBottomInset = attributionBottomInset,
                 routeLine = routeLine,
                 alternativeLines = alternativeLines,
+                vehiclePosition = vehiclePosition,
                 onLongPress = onLongPress,
             )
         } else {

@@ -213,12 +213,16 @@ internal data class VideoSettingsUi(
     }
 }
 
-/** The Navigation category's rows (issue #389): what the route preview does besides the line on the map. */
+/**
+ * The Navigation category's rows (issue #389): what the route preview does besides the line on the map, and how the map
+ * draws the vehicle along it.
+ */
 internal data class NavigationSettingsUi(
     val rerouteAutomatically: Boolean,
     val suggestOtherRoutes: Boolean,
     val restoreRouteAfterRestart: Boolean,
     val routeRowTime: RouteRowTime,
+    val vehicleOnRouteLine: Boolean,
 ) {
     companion object {
         val Initial =
@@ -227,6 +231,7 @@ internal data class NavigationSettingsUi(
                 suggestOtherRoutes = NavigationSettings.Default.suggestOtherRoutes,
                 restoreRouteAfterRestart = NavigationSettings.Default.restoreRouteAfterRestart,
                 routeRowTime = NavigationSettings.Default.routeRowTime,
+                vehicleOnRouteLine = NavigationSettings.Default.vehicleOnRouteLine,
             )
     }
 }
@@ -540,6 +545,11 @@ internal sealed interface SettingsAction {
     /** Pick the time the speed readout's route row shows. */
     data class SetRouteRowTime(
         val value: RouteRowTime,
+    ) : SettingsAction
+
+    /** Draw the vehicle on the route line while it drives along it, or always at the GPS position. */
+    data class SetVehicleOnRouteLine(
+        val value: Boolean,
     ) : SettingsAction
 
     /** Check this channel's release feed now. */

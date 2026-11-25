@@ -151,6 +151,7 @@ internal fun navigationSettingsFacts(navigation: NavigationSettings): List<Diagn
                 RouteRowTime.REMAINING -> "time remaining"
             },
         ),
+        entry("Vehicle on the route line", "${navigation.vehicleOnRouteLine}"),
     )
 
 private fun entry(

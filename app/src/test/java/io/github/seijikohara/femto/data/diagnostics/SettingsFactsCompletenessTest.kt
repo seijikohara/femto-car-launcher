@@ -64,6 +64,7 @@ class SettingsFactsCompletenessTest {
             "suggestOtherRoutes" to "Suggest other routes",
             "restoreRouteAfterRestart" to "Restore route after restart",
             "routeRowTime" to "Route row time",
+            "vehicleOnRouteLine" to "Vehicle on the route line",
         )
 
     private val propertyToFactLabel: Map<String, String> =
@@ -183,10 +184,11 @@ class SettingsFactsCompletenessTest {
     fun `the navigation facts read true or false like their neighbours and name the route row's time`() {
         val defaults = navigationSettingsFacts(NavigationSettings.Default).map { it.value }
         val changed =
-            navigationSettingsFacts(NavigationSettings(false, false, false, RouteRowTime.REMAINING)).map { it.value }
+            navigationSettingsFacts(NavigationSettings(false, false, false, RouteRowTime.REMAINING, false))
+                .map { it.value }
 
-        assertEquals(listOf("true", "true", "true", "arrival time").map { FactValue.Text(it) }, defaults)
-        assertEquals(listOf("false", "false", "false", "time remaining").map { FactValue.Text(it) }, changed)
+        assertEquals(listOf("true", "true", "true", "arrival time", "true").map { FactValue.Text(it) }, defaults)
+        assertEquals(listOf("false", "false", "false", "time remaining", "false").map { FactValue.Text(it) }, changed)
     }
 
     @Test

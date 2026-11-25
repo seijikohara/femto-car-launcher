@@ -311,6 +311,7 @@ internal class SettingsViewModel(
                     suggestOtherRoutes = settings.suggestOtherRoutes,
                     restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
                     routeRowTime = settings.routeRowTime,
+                    vehicleOnRouteLine = settings.vehicleOnRouteLine,
                 )
             }.distinctUntilChanged()
 
@@ -639,6 +640,10 @@ internal class SettingsViewModel(
 
                 is SettingsAction.SetRouteRowTime -> {
                     navigationPreferences.setRouteRowTime(action.value)
+                }
+
+                is SettingsAction.SetVehicleOnRouteLine -> {
+                    navigationPreferences.setVehicleOnRouteLine(action.value)
                 }
 
                 SettingsAction.CheckForUpdates -> {
