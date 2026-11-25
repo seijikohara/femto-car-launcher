@@ -554,6 +554,45 @@ class RouteProgressTest {
             assertEquals(listOf(END_TURN), assertNotNull(past16.upcomingTurns).map { it.turn })
         }
 
+    // Stopped just past a turn, GPS noise moves the fix back within the follower's backtrack; the turn must not come
+    // back, at no distance, as if the vehicle had yet to take it.
+    @Test
+    fun `a turn once passed stays passed while the fix drifts a little back`() =
+        runTest {
+            val fixes = flowOf(pastTheHalfwayTurn(meters = 16.0), pastTheHalfwayTurn(meters = 14.0, second = 1))
+
+            val turns = TURNING_ROUTE
+                .followFlow(fixes)
+                .toList()
+                .last()
+                .upcomingTurns
+
+            assertEquals(listOf(END_TURN), assertNotNull(turns).map { it.turn })
+        }
+
+    // Three quarters of the way, then back at a quarter: 5.5 km back, farther than the follower's backtrack, as only a
+    // real jump back goes (a detour, a vehicle that turned round). The turns ahead start again from there.
+    @Test
+    fun `after a jump back farther than the backtrack the passed turns come back`() =
+        runTest {
+            val fixes =
+                flowOf(
+                    fakeRouteFix(RoutePoint(0.0, 0.15), elapsedMs = 0L),
+                    fakeRouteFix(RoutePoint(0.0, 0.05), elapsedMs = 1_000L),
+                )
+
+            val turns = TURNING_ROUTE
+                .followFlow(fixes)
+                .toList()
+                .last()
+                .upcomingTurns
+
+            assertEquals(
+                listOf(HALFWAY_TURN to 5_500.0, END_TURN to 16_500.0),
+                assertNotNull(turns).map { it.turn to it.distanceMeters.roundTo(MILLIMETERS) },
+            )
+        }
+
     @Test
     fun `a route without turn data has no turns ahead, and one without turns an empty list`() =
         runTest {
@@ -614,9 +653,11 @@ class RouteProgressTest {
             accuracyMeters = accuracyMeters,
         )
 
-    // A fix on the line [meters] past the equator route's halfway point.
-    private fun pastTheHalfwayTurn(meters: Double): RouteFix =
-        fakeRouteFix(RoutePoint(0.0, 0.1 + meters / METERS_PER_DEGREE), elapsedMs = 0L)
+    // A fix on the line [meters] past the equator route's halfway point, taken at [second] on the boot clock.
+    private fun pastTheHalfwayTurn(
+        meters: Double,
+        second: Int = 0,
+    ): RouteFix = fakeRouteFix(RoutePoint(0.0, 0.1 + meters / METERS_PER_DEGREE), elapsedMs = second * 1_000L)
 
     private fun Double.roundTo(step: Double): Double = (this / step).roundToLong() * step
 
