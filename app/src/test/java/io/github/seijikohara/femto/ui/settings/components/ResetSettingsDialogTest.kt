@@ -241,8 +241,18 @@ class ResetSettingsDialogTest {
 
         runBlocking {
             assertEquals(DisplaySettings.Default, stores.display.settings.first())
-            assertEquals(FontSource.SystemDefault, stores.fonts.selection.first().latin)
-            assertEquals(FontSource.SystemDefault, stores.fonts.selection.first().cjk)
+            assertEquals(
+                FontSource.SystemDefault,
+                stores.fonts.selection
+                    .first()
+                    .latin,
+            )
+            assertEquals(
+                FontSource.SystemDefault,
+                stores.fonts.selection
+                    .first()
+                    .cjk,
+            )
             assertEquals(LocationSettings.Default, stores.location.settings.first())
             assertEquals(emptySet(), stores.calendar.hiddenCalendarIds.first())
             assertEquals(UpdateSettings.Default.autoCheck, stores.update.current.autoCheck)
