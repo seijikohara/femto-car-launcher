@@ -40,10 +40,10 @@ private class BRouterSearch(
             // The profile is parsed with these in place of its own values. They also enter the profile's
             // checksum, so a reference written under other parameters is refused and the search runs in full.
             if (request.parameters.isNotEmpty()) keyValues = HashMap(request.parameters)
-            // Set on the field and not through keyValues, which would enter the profile's checksum and make every
-            // reference refuse the reroutes that rely on it. Mode 2 is one of the two that name a motorway exit
-            // (commands 17 and 18) where the others fold it into keep left and keep right, and its rows are always
-            // five numbers.
+            // Set on the field and not through keyValues: the mode changes nothing about the route, so it stays out
+            // of the profile's checksum, which then still says only what the driver asked of the route. Mode 2 is
+            // one of the two that name a motorway exit (commands 17 and 18) where the others fold it into keep left
+            // and keep right, and its rows are always five numbers.
             turnInstructionMode = TURN_INSTRUCTION_MODE
             // BRouter's fast partial recalculation: a search to the reference's destination stops where it
             // rejoins the reference. BRouter checks the destination and the profile's checksum itself.
@@ -81,14 +81,22 @@ private class BRouterSearch(
                     positions = track.nodes.map { EnginePosition(it.iLon, it.iLat) },
                     distanceMeters = track.distance,
                     durationSeconds = track.totalSeconds,
-                    // The hints are an extra: a formatter that throws leaves the route without them.
-                    turns = runCatching { brouterTurnsOrNull(FormatJson(routingContext).format(track)) }.getOrNull(),
+                    turns = turnsOrNull(track),
                 )
             }
             ?: EngineOutcome.Error("no track found")
     }
 
     override fun terminate() = engine.terminate()
+
+    // The hints are an extra: a formatter that throws leaves the route without them. A profile that assigns a mode
+    // of its own replaces the one set above while the engine is constructed (only the value 1, "automatic", which
+    // the shipped profile assigns, leaves it alone). With the hints switched off that way the text has no hint to
+    // read, which must not pass for a route without a turn.
+    private fun turnsOrNull(track: OsmTrack): List<EngineTurn>? =
+        track
+            .takeIf { routingContext.turnInstructionMode == TURN_INSTRUCTION_MODE }
+            ?.let { runCatching { brouterTurnsOrNull(FormatJson(routingContext).format(it)) }.getOrNull() }
 
     // A reference only saves time on the next search, so one that cannot be written is left out rather than failing
     // the route. The rename keeps a half-written file from ever standing as a reference.

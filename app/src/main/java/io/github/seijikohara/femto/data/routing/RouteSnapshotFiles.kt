@@ -128,8 +128,9 @@ private fun SnapshotRecord.toKeptRouteOrNull(): KeptRoute? =
         )
     }
 
-// The turns are an extra: a damaged list costs the route its turn data and never the route itself, so a restart still
-// brings the line back.
+// The turns are an extra: a list of integers that does not fit the line costs the route its turn data and not the
+// route itself, so a restart still brings the line back. A value that is no list of integers fails the whole file,
+// like any other damage to it.
 private fun List<Int>.toTurnsOrNull(pointCount: Int): List<RouteTurn>? =
     takeIf { it.size % TURN_FIELD_COUNT == 0 }
         ?.chunked(TURN_FIELD_COUNT) { (pointIndex, code, exitNumber, angleDegrees) ->
