@@ -11,8 +11,13 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import kotlin.math.IEEErem
 import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.hypot
+import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class RouteProgressTest {
     private val route = fakeEquatorRoute()
@@ -232,9 +237,153 @@ class RouteProgressTest {
             assertEquals(listOf<FollowEvent>(FollowEvent.LeftRoute(offLine.last())), events)
         }
 
+    // --- Points of the line --------------------------------------------------
+    //
+    // The expected points come from the projection's definition, not from pointAt: the plane is an affine map of the
+    // degrees (longitude scaled by the cosine of the line's middle latitude, latitude by a degree's length), so a share
+    // of a leg's length in the plane is the same share of the leg in degrees.
+
+    @Test
+    fun `pointAt gives the start, a point of the route, a place within a leg and the end of the line`() {
+        assertPoint(RoutePoint(0.0, 0.0), line.pointAt(LinePosition.Start))
+        assertPoint(RoutePoint(0.0, 0.1), line.pointAt(LinePosition(0.1 * METERS_PER_DEGREE)))
+        assertPoint(RoutePoint(0.0, 0.15), line.pointAt(LinePosition(0.15 * METERS_PER_DEGREE)))
+        assertPoint(RoutePoint(0.0, 0.2), line.pointAt(LinePosition(0.2 * METERS_PER_DEGREE)))
+    }
+
+    @Test
+    fun `pointAt follows a leg north and a leg east away from the equator`() {
+        // 0.2° north, then 0.3° east, around 10.1° north, where a degree of longitude is cos(10.1°) of one of latitude.
+        val northThenEast =
+            RouteLine(
+                fakeRoute(points = listOf(RoutePoint(10.0, 20.0), RoutePoint(10.2, 20.0), RoutePoint(10.2, 20.3))),
+            )
+        val northLeg = 0.2 * METERS_PER_DEGREE
+        val eastDegree = cos(10.1 * PI / 180.0) * METERS_PER_DEGREE
+
+        assertPoint(RoutePoint(10.05, 20.0), northThenEast.pointAt(LinePosition(0.05 * METERS_PER_DEGREE)))
+        assertPoint(RoutePoint(10.2, 20.0), northThenEast.pointAt(LinePosition(northLeg)))
+        assertPoint(RoutePoint(10.2, 20.1), northThenEast.pointAt(LinePosition(northLeg + 0.1 * eastDegree)))
+        assertPoint(RoutePoint(10.2, 20.3), northThenEast.pointAt(LinePosition(northLeg + 0.3 * eastDegree)))
+    }
+
+    @Test
+    fun `pointAt on a line of two points gives the point at that share of it`() {
+        // 0.1° north and 0.2° east, around 35.05° north.
+        val diagonal = RouteLine(fakeRoute(points = listOf(RoutePoint(35.0, 139.0), RoutePoint(35.1, 139.2))))
+        val length = hypot(0.2 * cos(35.05 * PI / 180.0) * METERS_PER_DEGREE, 0.1 * METERS_PER_DEGREE)
+
+        assertPoint(RoutePoint(35.025, 139.05), diagonal.pointAt(LinePosition(0.25 * length)))
+        assertPoint(RoutePoint(35.05, 139.1), diagonal.pointAt(LinePosition(0.5 * length)))
+        assertPoint(RoutePoint(35.1, 139.2), diagonal.pointAt(LinePosition(length)))
+    }
+
+    @Test
+    fun `pointAt on a line across the antimeridian gives longitudes from -180 to 180`() {
+        val alongEquator = RouteLine(fakeRoute(points = listOf(RoutePoint(0.0, 179.9), RoutePoint(0.0, -179.9))))
+        // 0.4° east and 0.2° north, around 16.8° south, from 179.8° east to 179.8° west.
+        val diagonal = RouteLine(fakeRoute(points = listOf(RoutePoint(-16.9, 179.8), RoutePoint(-16.7, -179.8))))
+        val diagonalLength = hypot(0.4 * cos(-16.8 * PI / 180.0) * METERS_PER_DEGREE, 0.2 * METERS_PER_DEGREE)
+
+        val points =
+            listOf(
+                RoutePoint(0.0, 179.95) to alongEquator.pointAt(LinePosition(0.05 * METERS_PER_DEGREE)),
+                RoutePoint(0.0, -179.95) to alongEquator.pointAt(LinePosition(0.15 * METERS_PER_DEGREE)),
+                RoutePoint(0.0, -179.9) to alongEquator.pointAt(LinePosition(0.2 * METERS_PER_DEGREE)),
+                RoutePoint(-16.85, 179.9) to diagonal.pointAt(LinePosition(0.25 * diagonalLength)),
+                RoutePoint(-16.75, -179.9) to diagonal.pointAt(LinePosition(0.75 * diagonalLength)),
+            )
+
+        points.forEach { (expected, actual) ->
+            assertTrue(actual.longitude in -180.0..180.0, "$actual")
+            assertPoint(expected, actual)
+        }
+    }
+
+    @Test
+    fun `pointAt past either end gives that end`() {
+        assertPoint(RoutePoint(0.0, 0.0), line.pointAt(LinePosition(-10.0)))
+        assertPoint(RoutePoint(0.0, 0.2), line.pointAt(LinePosition(1.0 * METERS_PER_DEGREE)))
+    }
+
+    @Test
+    fun `every position the follow finds lies on the line`() {
+        // Fixes up to about 220 m from the line, on each of the lines above; the nearest point of the whole line to
+        // each matched point is that point.
+        val lines =
+            listOf(
+                fakeEquatorRoute(),
+                fakeOutAndBackRoute(),
+                fakeRoute(points = listOf(RoutePoint(10.0, 20.0), RoutePoint(10.2, 20.0), RoutePoint(10.2, 20.3))),
+                fakeRoute(points = listOf(RoutePoint(35.0, 139.0), RoutePoint(35.1, 139.2))),
+                fakeRoute(points = listOf(RoutePoint(-16.9, 179.8), RoutePoint(-16.7, -179.8))),
+            )
+        val random = Random(SEED)
+
+        lines.forEach { route ->
+            val line = RouteLine(route)
+            route.points.zipWithNext().forEach { (from, to) ->
+                repeat(FIXES_PER_LEG) {
+                    val share = random.nextDouble()
+                    val fix =
+                        RoutePoint(
+                            latitude = from.latitude + share * (to.latitude - from.latitude) + random.nearby(),
+                            longitude =
+                                from.longitude + share * shortWay(from.longitude, to.longitude) + random.nearby(),
+                        )
+                    val point = line.pointAt(line.follow(fix, LinePosition.Start))
+
+                    assertTrue(point.longitude in -180.0..180.0, "$point")
+                    assertEquals(0.0, line.offLineMeters(point), ON_LINE_TOLERANCE_METERS, "$fix on ${route.points}")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `distanceMeters is how far a fix lies from the point of the line at a position`() {
+        val beside = RoutePoint(latitude = 10.0 / METERS_PER_DEGREE, longitude = 0.15)
+
+        assertEquals(10.0, line.distanceMeters(LinePosition(0.15 * METERS_PER_DEGREE), beside), 1e-6)
+    }
+
+    @Test
+    fun `travelledAt gives the length of line to each point`() {
+        assertEquals(0.0, line.travelledAt(0).travelledMeters, 1e-6)
+        assertEquals(0.1 * METERS_PER_DEGREE, line.travelledAt(1).travelledMeters, 1e-6)
+        assertEquals(0.2 * METERS_PER_DEGREE, line.travelledAt(2).travelledMeters, 1e-6)
+    }
+
+    // The two points within a micro-degree on each axis; longitudes compared the short way round.
+    private fun assertPoint(
+        expected: RoutePoint,
+        actual: RoutePoint,
+    ) {
+        assertEquals(expected.latitude, actual.latitude, TOLERANCE_DEGREES, "latitude of $actual")
+        assertEquals(0.0, shortWay(expected.longitude, actual.longitude), TOLERANCE_DEGREES, "longitude of $actual")
+    }
+
+    // How far east [to] lies from [from], from -180 to 180 degrees, without rounding away a small difference.
+    private fun shortWay(
+        from: Double,
+        to: Double,
+    ): Double = (to - from).IEEErem(360.0)
+
+    // Up to 0.002° (about 220 m) either way.
+    private fun Random.nearby(): Double = nextDouble(-0.002, 0.002)
+
     private companion object {
         const val TOLERANCE_METERS = 1.0
         const val TOLERANCE_SECONDS = 0.1
+
+        // A micro-degree, the precision of an engine route's points.
+        const val TOLERANCE_DEGREES = 1e-6
+
+        // A point of the line lies on it to the last bits of the arithmetic.
+        const val ON_LINE_TOLERANCE_METERS = 1e-6
+
+        const val SEED = 389L
+        const val FIXES_PER_LEG = 200
 
         // A degree of the equator, in the metres RouteLine measures in.
         const val METERS_PER_DEGREE = 6_371_008.8 * PI / 180.0

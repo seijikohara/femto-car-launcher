@@ -153,11 +153,43 @@ internal class RouteLine(
         return segments().minOfOrNull { nearestOn(it, x, y, from = 0.0).distanceSquared }?.let(::sqrt) ?: 0.0
     }
 
+    /**
+     * Return the point of the line at [at], back in degrees: the projection undone, with the longitude folded back
+     * into -180..180 where the line crosses the antimeridian.
+     */
+    fun pointAt(at: LinePosition): RoutePoint =
+        planePointAt(at).let { point ->
+            RoutePoint(
+                latitude = originLatitude + point.y / METERS_PER_DEGREE,
+                longitude = longitudeDelta(originLongitude + point.x / scaleX, origin = 0.0),
+            )
+        }
+
+    /** Return how far [position] lies from the point of the line at [at], in the line's plane. */
+    fun distanceMeters(
+        at: LinePosition,
+        position: RoutePoint,
+    ): Double = planePointAt(at).let { point -> hypot(xOf(position) - point.x, yOf(position) - point.y) }
+
+    /** Return the length of line from its start to point [index] of the route. */
+    fun travelledAt(index: Int): LinePosition = LinePosition(travelledAt[index])
+
     private fun xOf(position: RoutePoint): Double = longitudeDelta(position.longitude, originLongitude) * scaleX
 
     private fun yOf(position: RoutePoint): Double = (position.latitude - originLatitude) * METERS_PER_DEGREE
 
     private fun segments(): Sequence<Int> = (0 until xs.size - 1).asSequence()
+
+    // The point of the line at [at] in the plane, on the segment whose span of travelled length holds it; a position
+    // past either end is that end. A line of one point is that point, and one of none the plane's origin.
+    private fun planePointAt(at: LinePosition): PlanePoint =
+        at.travelledMeters.coerceIn(0.0, length).let { travelled ->
+            segments().firstOrNull { travelledAt[it + 1] >= travelled }?.let { i ->
+                val segment = travelledAt[i + 1] - travelledAt[i]
+                val t = if (segment > 0.0) (travelled - travelledAt[i]) / segment else 0.0
+                PlanePoint(x = xs[i] + t * (xs[i + 1] - xs[i]), y = ys[i] + t * (ys[i + 1] - ys[i]))
+            } ?: PlanePoint(x = xs.firstOrNull() ?: 0.0, y = ys.firstOrNull() ?: 0.0)
+        }
 
     // The point of segment [i] nearest (x, y), kept at or past [from] along the line.
     private fun nearestOn(
@@ -231,6 +263,12 @@ private data class FollowStep(
 private data class LineMatch(
     val distanceSquared: Double,
     val travelled: Double,
+)
+
+// A point in [RouteLine]'s plane, in metres east and north of its origin.
+private data class PlanePoint(
+    val x: Double,
+    val y: Double,
 )
 
 // The longitude difference folded into -180..180, so a line across the antimeridian stays short.
