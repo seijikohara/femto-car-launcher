@@ -8,7 +8,7 @@ The speed overlay sits on the map in large, high-contrast numerals sized for a g
 
 ## Speed overlay
 
-- **Current speed**, in kilometers or miles per hour. The unit follows the system setting by default; **Settings → Units → Speed & distance** sets it explicitly.
+- **Current speed**, in kilometers or miles per hour. The unit follows the device's region by default; **Settings → Units → Speed & distance** sets it explicitly.
 - **Trip distance**, **average speed** and **altitude** for the current trip.
 - **Address** of the current position, from the device's own geocoder by default. A self-hosted geocoding host can replace that geocoder if you run one. [Privacy and data](/features/privacy/) says where the position goes in each case.
 - A tap on the **reset** button starts a new trip. The readout then shows a "Since" timestamp, which marks the period the numbers cover. A trip also ends automatically after a parked pause, so the readout starts fresh on the next drive without a tap. **Settings → Location → Start a new trip automatically** sets the pause: after 30 minutes, 1 hour, 2 hours (the default), 4 hours or 12 hours parked, or **Never (tap Reset only)**.
@@ -30,4 +30,4 @@ A row of chips lists the recorded trips by start date and time; the trip in prog
 - **Accuracy** chooses **High accuracy** (the default), **Balanced** or **Low power**. The lower settings suit hardware that cannot keep up with high-accuracy requests.
 - **Update interval** sets how often the launcher asks for a new position. A shorter interval moves the map more smoothly; a longer one reduces the load on slow head units. Many GPS receivers deliver at most one position per second regardless.
 - **Minimum distance** skips a position closer than this to the previous one; 0 delivers every fix.
-- **Background ranging**, off by default, keeps measuring the trip distance and average speed while you use another app, such as a navigation app. It runs the GPS continuously and shows an ongoing **Trip tracking** notification with the current speed, distance and average speed, so it uses more power. When you switch it on, Android asks for permission to show notifications if the app does not have it yet.
+- **Background ranging**, off by default, keeps measuring the trip distance and average speed while you use another app, such as a navigation app. It runs the GPS continuously and shows an ongoing **Trip tracking** notification with the current speed, distance and average speed, so it uses more power. When you switch it on while the app has location access, Android asks for permission to show notifications if the app does not have it yet.

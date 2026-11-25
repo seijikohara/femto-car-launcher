@@ -29,13 +29,13 @@ Femto Car Launcher targets three hardware classes: aftermarket CarPlay / Android
 Each area has a page on the project site with the details, the settings behind it, and what happens when a permission or a data source is missing.
 
 - **[Live map](https://seijikohara.github.io/femto-car-launcher/features/live-map/).** The dashboard background is a map that fills the display, follows the vehicle, and keeps the direction of travel pointing up. OpenStreetMap data works without an account or a key; Google Maps is available with your own API key.
-- **[Driving data and trips](https://seijikohara.github.io/femto-car-launcher/features/driving-data/).** Current speed, trip distance, average speed, altitude, and the address of the current position in high-contrast numerals. The launcher records each trip on the device, exports it as a GPS Exchange Format (GPX) file, and replays it as a three-dimensional flythrough.
+- **[Driving data and trips](https://seijikohara.github.io/femto-car-launcher/features/driving-data/).** Current speed, trip distance, average speed, altitude, and the address of the current position in high-contrast numerals. The launcher records trips on the device, exports the track history as a GPS Exchange Format (GPX) file, and replays a trip as a three-dimensional flythrough.
 - **[Glanceable panels](https://seijikohara.github.io/femto-car-launcher/features/panels/).** Weather, calendar, now-playing controls for any media app, an optional video window, a clock, and connectivity and battery status, as floating cards over the map. The weather, calendar, and music cards open full-screen panels.
 - **[Apps and voice](https://seijikohara.github.io/femto-car-launcher/features/apps-and-voice/).** A dock on any screen edge, a full-screen app panel with search and pinned apps, a destination panel that hands a place to your navigation app, and a microphone button for the device's assistant.
 - **[Automotive defaults and adjustments](https://seijikohara.github.io/femto-car-launcher/features/made-for-the-car/).** Text and touch targets sized for the car by default, a layout anchored on the driver's side, landscape and portrait orientations, and settings for display size, colors, fonts, motion, and units. The launcher has no driving lockout; a few features pause themselves while the vehicle moves.
 - **[Privacy and data](https://seijikohara.github.io/femto-car-launcher/features/privacy/).** No account, no advertising, and no analytics of its own. Calendar, media, and trip data stay on the device, and location leaves it only inside requests to the services you use.
 
-Nightly builds also carry features that are still being checked on in-car hardware; at present, a route to a destination drawn on the launcher's own map and computed on the device.
+Nightly builds also carry features that are still being checked on in-car hardware; at present, a route to a destination drawn on the launcher's own map and computed on the device, and saving map regions on the device.
 
 ## Documentation
 
