@@ -143,8 +143,8 @@ class DashboardScreenshotTest {
     fun dashboard_head_unit_route_dark() =
         capture("head-unit-853x512-route-dark", darkTheme = true, uiState = DashboardFixtures.routeState)
 
-    // The route row set to the time remaining (Settings → Navigation): "18 min
-    // left" in place of the arrival time.
+    // The route row set to the time remaining (Settings → Navigation): the bare
+    // duration, "18 min", in place of the arrival time.
     @Test
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_route_remaining() =
