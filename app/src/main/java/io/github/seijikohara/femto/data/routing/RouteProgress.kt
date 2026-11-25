@@ -11,6 +11,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.sqrt
 
 /** The mean earth radius; the projection below only needs the scale of a metre per degree. */
@@ -35,6 +36,17 @@ private const val BACKTRACK_METERS = 30.0
 // back along a road with one carriageway repeats the same line, so a fix off that road is as far from one pass as
 // from the other, give or take the arithmetic.
 private const val SAME_DISTANCE_METERS = 1.0
+
+// The vehicle is drawn on the line while its fix lies within DRAWN_ON_LINE_METERS of the point of the line it was
+// matched to, or within the fix's own accuracy where that is wider, and never farther than DRAWN_ON_LINE_MAX_METERS.
+// Close to the line, the line is the road the vehicle is on and the GPS error is the only gap; a good fix farther out
+// is on another road, such as one beside the route, and shows the vehicle there. Both are a start, to tune on the road.
+private const val DRAWN_ON_LINE_METERS = 20.0
+private const val DRAWN_ON_LINE_MAX_METERS = 50.0
+
+// A turn stays ahead, at no distance, until the vehicle is this far past its point along the line: on reaching the
+// point the vehicle is still in the corner. A start, to tune on the road.
+private const val TURN_PASSED_METERS = 15.0
 
 /** What is left of a route from one position on it. */
 internal data class RouteProgress(
@@ -218,45 +230,108 @@ internal class RouteLine(
     }
 }
 
-/** What [followFlow] reports at a fix: what is left of the route, and what the off-route watch noticed there. */
+/** A turn ahead on the route and how far along the line it is from the vehicle. */
+internal data class UpcomingTurn(
+    val turn: RouteTurn,
+    /** In the route's own distance, as [RouteProgress.remainingMeters] counts it; 0 while the vehicle is at the turn. */
+    val distanceMeters: Double,
+)
+
+/**
+ * What [followFlow] reports at a fix: what is left of the route, what the off-route watch noticed there, where the map
+ * draws the vehicle, and the turns ahead.
+ */
 internal data class RouteFollow(
     val progress: RouteProgress,
     val event: FollowEvent?,
+    /**
+     * The point of the line the last fix was matched to, while the fix is close enough to it to be drawn there; else
+     * null.
+     */
+    val onLine: RoutePoint? = null,
+    /** Every turn from the vehicle on, nearest first; null when the route has no turn data. */
+    val upcomingTurns: List<UpcomingTurn>? = null,
+    /** Whether the vehicle has left the route and is not back on it yet ([OffRouteWatch.left]). */
+    val offRoute: Boolean = false,
 )
 
 /**
  * What is left of this route from each fix in [fixes], each placed on the line from where the last one lay
- * ([RouteLine.follow]), and whether the vehicle has left the route ([OffRouteWatch]); the whole route until the first
- * fix. Emits when the progress changes or the watch raises an event. The line is flattened once, when the flow is
- * collected, and each fix costs one more pass over it, for its distance from the whole line.
+ * ([RouteLine.follow]), whether the vehicle has left the route ([OffRouteWatch]), the point of the line it is drawn at
+ * while the fix is close to it, and the turns ahead; the whole route, and every turn, until the first fix. Emits when
+ * any of it changes. The line is flattened once, when the flow is collected, and each fix costs a few more passes over
+ * it: for its distance from the whole line, and for the point it was matched to.
  */
 internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
     flow {
         val line = RouteLine(this@followFlow)
+        // Where along the line each turn lies, worked out once with the line.
+        val turnsAlong = turns?.map { turn -> TurnAlong(turn, line.travelledAt(turn.pointIndex)) }
         emitAll(
             fixes
                 .filterNotNull()
-                .runningFold(FollowStep(LinePosition.Start, line.progressAt(LinePosition.Start), OffRouteWatch())) {
-                    step,
-                    fix,
-                    ->
+                .runningFold(
+                    FollowStep(LinePosition.Start, line.progressAt(LinePosition.Start), OffRouteWatch(), onLine = null),
+                ) { step, fix ->
                     val position = line.follow(fix.point, step.position)
                     val progress = line.progressAt(position)
                     FollowStep(
                         position = position,
                         progress = progress,
                         watch = step.watch.advance(fix, line.offLineMeters(fix.point), progress.remainingMeters),
+                        onLine =
+                            line
+                                .pointAt(position)
+                                .takeIf { line.distanceMeters(position, fix.point) <= drawnOnLineMeters(fix) },
                     )
-                }.map { step -> RouteFollow(step.progress, step.watch.event) }
-                .distinctUntilChanged(),
+                }.map { step ->
+                    RouteFollow(
+                        progress = step.progress,
+                        event = step.watch.event,
+                        onLine = step.onLine,
+                        upcomingTurns = turnsAlong?.let { line.turnsAhead(it, step.position, step.progress) },
+                        offRoute = step.watch.left,
+                    )
+                }.distinctUntilChanged(),
         )
     }
 
-// The follow's state between fixes: where the last fix lay on the line, what was left from there, and the watch.
+// How far from the point of the line it was matched to [fix] may lie and still be drawn there: DRAWN_ON_LINE_METERS,
+// or the fix's own accuracy where that is wider, never past DRAWN_ON_LINE_MAX_METERS. A fix that reports no accuracy
+// counts as exact.
+private fun drawnOnLineMeters(fix: RouteFix): Double =
+    max(DRAWN_ON_LINE_METERS, (fix.accuracyMeters ?: 0f).toDouble()).coerceAtMost(DRAWN_ON_LINE_MAX_METERS)
+
+// The turns of [turnsAlong] the vehicle at [position], with [progress] left, has not passed, each with its distance
+// along the line. The distance is what is left from the vehicle less what is left from the turn, both scaled as
+// progressAt scales them, so a turn at the end is exactly as far as the distance left.
+private fun RouteLine.turnsAhead(
+    turnsAlong: List<TurnAlong>,
+    position: LinePosition,
+    progress: RouteProgress,
+): List<UpcomingTurn> =
+    turnsAlong
+        .filter { position.travelledMeters - it.at.travelledMeters <= TURN_PASSED_METERS }
+        .map {
+            UpcomingTurn(
+                turn = it.turn,
+                distanceMeters = (progress.remainingMeters - progressAt(it.at).remainingMeters).coerceAtLeast(0.0),
+            )
+        }
+
+// A turn of the route and where along its line the turn's point lies.
+private data class TurnAlong(
+    val turn: RouteTurn,
+    val at: LinePosition,
+)
+
+// The follow's state between fixes: where the last fix lay on the line, what was left from there, the watch, and the
+// point the vehicle is drawn at on the line, if any.
 private data class FollowStep(
     val position: LinePosition,
     val progress: RouteProgress,
     val watch: OffRouteWatch,
+    val onLine: RoutePoint?,
 )
 
 // A segment's point nearest a fix: the squared distance to it, and the length of line behind it.

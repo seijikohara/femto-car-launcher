@@ -15,8 +15,11 @@ import kotlin.math.IEEErem
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.hypot
+import kotlin.math.roundToLong
 import kotlin.random.Random
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class RouteProgressTest {
@@ -354,6 +357,182 @@ class RouteProgressTest {
         assertEquals(0.2 * METERS_PER_DEGREE, line.travelledAt(2).travelledMeters, 1e-6)
     }
 
+    // --- Drawing the vehicle on the line ------------------------------------
+
+    @Test
+    fun `before the first fix nothing is drawn on the line`() =
+        runTest {
+            assertNull(
+                route
+                    .followFlow(flowOf(null))
+                    .toList()
+                    .single()
+                    .onLine,
+            )
+        }
+
+    @Test
+    fun `a fix 10 m beside the line is drawn at the point of the line it was matched to`() =
+        runTest {
+            val onLine = followOne(route, besideTheLine(meters = 10.0, accuracyMeters = null)).onLine
+
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine))
+        }
+
+    // A road beside the route: a good fix shows the vehicle where it is, not on a road it is not on.
+    @Test
+    fun `a fix on a parallel road 30 m away with an accuracy of 10 m is drawn where it is`() =
+        runTest {
+            assertNull(followOne(route, besideTheLine(meters = 30.0, accuracyMeters = 10f)).onLine)
+        }
+
+    @Test
+    fun `a fix 30 m away with an accuracy of 40 m is drawn on the line`() =
+        runTest {
+            val onLine = followOne(route, besideTheLine(meters = 30.0, accuracyMeters = 40f)).onLine
+
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine))
+        }
+
+    @Test
+    fun `a fix 60 m away is drawn where it is, however poor its accuracy`() =
+        runTest {
+            assertNull(followOne(route, besideTheLine(meters = 60.0, accuracyMeters = 100f)).onLine)
+        }
+
+    @Test
+    fun `a fix without an accuracy counts as an exact one`() =
+        runTest {
+            assertNull(followOne(route, besideTheLine(meters = 25.0, accuracyMeters = null)).onLine)
+        }
+
+    // A route kept by an earlier build carries no turn data; the vehicle goes on the line all the same.
+    @Test
+    fun `a route without turn data still draws the vehicle on the line`() =
+        runTest {
+            val follow = followOne(route.copy(turns = null), besideTheLine(meters = 10.0, accuracyMeters = null))
+
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(follow.onLine))
+        }
+
+    // --- The turns ahead ----------------------------------------------------
+
+    @Test
+    fun `before the first fix the turns count from the start of the line`() =
+        runTest {
+            val turns = TURNING_ROUTE
+                .followFlow(flowOf(null))
+                .toList()
+                .single()
+                .upcomingTurns
+
+            assertEquals(
+                listOf(11_000.0, 22_000.0),
+                assertNotNull(turns).map { it.distanceMeters.roundTo(MILLIMETERS) },
+            )
+        }
+
+    @Test
+    fun `the turns ahead shrink as the vehicle passes them, by their distance along the line`() =
+        runTest {
+            // A quarter of the way, then three quarters: the turn halfway is behind by then. The route's 22 km over its
+            // line's 22.2 km scale each distance, as they scale the distance left.
+            val fixes =
+                flowOf(
+                    fakeRouteFix(RoutePoint(0.0, 0.05), elapsedMs = 0L),
+                    fakeRouteFix(RoutePoint(0.0, 0.15), elapsedMs = 1_000L),
+                )
+
+            val turns = TURNING_ROUTE
+                .followFlow(fixes)
+                .toList()
+                .drop(1)
+                .map { assertNotNull(it.upcomingTurns) }
+
+            assertEquals(
+                listOf(
+                    listOf(HALFWAY_TURN to 5_500.0, END_TURN to 16_500.0),
+                    listOf(END_TURN to 5_500.0),
+                ),
+                turns.map { ahead -> ahead.map { it.turn to it.distanceMeters.roundTo(MILLIMETERS) } },
+            )
+        }
+
+    @Test
+    fun `a turn at the end of the route is as far as the distance left`() =
+        runTest {
+            val follow = followOne(TURNING_ROUTE, fakeRouteFix(RoutePoint(0.0, 0.123), elapsedMs = 0L))
+
+            assertEquals(follow.progress.remainingMeters, assertNotNull(follow.upcomingTurns).last().distanceMeters)
+        }
+
+    @Test
+    fun `a turn stays ahead at no distance until the vehicle is 15 m past it`() =
+        runTest {
+            val past14 = followOne(TURNING_ROUTE, pastTheHalfwayTurn(meters = 14.0))
+            val past16 = followOne(TURNING_ROUTE, pastTheHalfwayTurn(meters = 16.0))
+
+            assertEquals(UpcomingTurn(HALFWAY_TURN, 0.0), assertNotNull(past14.upcomingTurns).first())
+            assertEquals(listOf(END_TURN), assertNotNull(past16.upcomingTurns).map { it.turn })
+        }
+
+    @Test
+    fun `a route without turn data has no turns ahead, and one without turns an empty list`() =
+        runTest {
+            val fix = fakeRouteFix(RoutePoint(0.0, 0.05), elapsedMs = 0L)
+
+            assertNull(followOne(route.copy(turns = null), fix).upcomingTurns)
+            assertEquals(emptyList(), followOne(route.copy(turns = emptyList()), fix).upcomingTurns)
+        }
+
+    // --- Off the route ------------------------------------------------------
+
+    @Test
+    fun `the vehicle is off the route from leaving it, through a repeat of it, until it is back`() =
+        runTest {
+            // Moving east at 10 m/s: on the line at 0 s, about 110 m north of it from 1 s to 11 s, on it again from
+            // 12 s. The watch says the vehicle left at 6 s, says so again at 11 s, and has it back on at 14 s.
+            val fixes =
+                (0..14).map { second ->
+                    fakeRouteFix(
+                        RoutePoint(
+                            latitude = if (second in 1..11) 0.001 else 0.0,
+                            longitude = 0.05 + second * 10.0 / METERS_PER_DEGREE,
+                        ),
+                        elapsedMs = second * 1_000L,
+                    )
+                }
+
+            val follows = route.followFlow(fixes.asFlow()).toList().drop(1)
+
+            assertEquals(
+                listOf(6 to true, 11 to true, 14 to false),
+                follows.mapIndexedNotNull { second, follow ->
+                    follow.event?.let { second to (it is FollowEvent.LeftRoute) }
+                },
+            )
+            assertEquals((0..14).map { it in 6..13 }, follows.map { it.offRoute })
+        }
+
+    // What the follow reports at [fix], the one fix on [route].
+    private suspend fun followOne(
+        route: Route,
+        fix: RouteFix,
+    ): RouteFollow = route.followFlow(flowOf(fix)).toList().last()
+
+    // A fix [meters] north of the equator route a quarter of the way along it.
+    private fun besideTheLine(
+        meters: Double,
+        accuracyMeters: Float?,
+    ): RouteFix =
+        fakeRouteFix(RoutePoint(meters / METERS_PER_DEGREE, 0.05), elapsedMs = 0L, accuracyMeters = accuracyMeters)
+
+    // A fix on the line [meters] past the equator route's halfway point.
+    private fun pastTheHalfwayTurn(meters: Double): RouteFix =
+        fakeRouteFix(RoutePoint(0.0, 0.1 + meters / METERS_PER_DEGREE), elapsedMs = 0L)
+
+    private fun Double.roundTo(step: Double): Double = (this / step).roundToLong() * step
+
     // The two points within a micro-degree on each axis; longitudes compared the short way round.
     private fun assertPoint(
         expected: RoutePoint,
@@ -399,5 +578,13 @@ class RouteProgressTest {
 
         // Halfway along fakeOutAndBackRoute and fakeSameRoadOutAndBackRoute: at the turn.
         val MIDWAY = LinePosition(0.1 * METERS_PER_DEGREE)
+
+        // The equator route with a turn halfway, at its middle point, and one at its end.
+        val HALFWAY_TURN = RouteTurn(pointIndex = 1, kind = TurnKind.LEFT, exitNumber = 0, angleDegrees = -90)
+        val END_TURN = RouteTurn(pointIndex = 2, kind = TurnKind.RIGHT, exitNumber = 0, angleDegrees = 90)
+        val TURNING_ROUTE = fakeEquatorRoute().copy(turns = listOf(HALFWAY_TURN, END_TURN))
+
+        // Distances compared to the millimetre, past the arithmetic's last bits.
+        const val MILLIMETERS = 0.001
     }
 }
