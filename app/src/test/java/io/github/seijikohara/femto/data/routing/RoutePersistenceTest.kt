@@ -836,6 +836,26 @@ class RoutePersistenceTest {
             assertNull(store.active.value)
         }
 
+    // A unit whose clock starts at its last saved time brought the route back on the wall clock's word; the first fix
+    // says the park was three days. The check clears the route from the map, which has nothing to do with the files.
+    @Test
+    fun `switched off while a restored route awaits its first-fix check, the files go and the check still runs`() =
+        runTest {
+            keptBefore(lastDrivenMs = NOW_MS)
+            nowEpochMs = NOW_MS + 60_000L
+            val keep = MutableStateFlow(true)
+            val keeper = started(keep)
+            val restored = store.keptRouteOrNull()
+            keep.value = false
+            runCurrent()
+            val filesAfterTheSwitch = dir.exists()
+
+            keeper.gpsFix(NOW_MS + 3 * ONE_DAY_MS, this)
+
+            assertEquals(KEPT to false, restored to filesAfterTheSwitch)
+            assertNull(store.active.value)
+        }
+
     // The setting's first value repeats the one read at the start, and the settings store emits again for a change of
     // any other setting: neither may rewrite the route restored at the start.
     @Test

@@ -273,7 +273,8 @@ internal class RoutePersistence(
     }
 
     private fun mirror(route: MirroredRoute) {
-        // Off, the files went when the setting was switched off, and nothing writes them until it is on again.
+        // Off, the files went when the setting was switched off, and nothing writes them until it is on again. Every
+        // write passes here, a route change's and a fix's retry alike, so this one check covers them all.
         if (!keeping) return
         // A route the driver set replaces a kept one still waiting for its fix, even one that is gone again by now.
         if (phase == Phase.WAITING_FOR_FIX) replaceKept()
@@ -297,7 +298,7 @@ internal class RoutePersistence(
     // and the store may not change again for an hour: a fix writes it again, at most once per
     // [LAST_DRIVEN_STAMP_INTERVAL_MS], and the session's own time goes back with it (stampSession). Whether it did.
     private fun retryMirror(): Boolean {
-        if (!keeping || mirrored != null) return false
+        if (mirrored != null) return false
         val route = store.active.value?.mirrored() ?: return false
         val nowMs = nowElapsedMs()
         if (lastFailedWriteElapsedMs?.let { nowMs - it < LAST_DRIVEN_STAMP_INTERVAL_MS } == true) return false
