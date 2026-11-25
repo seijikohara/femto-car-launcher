@@ -78,6 +78,28 @@
     <string name="route_choice_none">No other route found</string>
     <!-- Closes the card and keeps the route chosen. -->
     <string name="route_choice_close">Done</string>
+    <!-- The turn card over the map (issue #389 phase 4): what to do at the next turn, under its distance. -->
+    <string name="turn_card_straight">Continue straight</string>
+    <string name="turn_card_left">Turn left</string>
+    <string name="turn_card_right">Turn right</string>
+    <string name="turn_card_slight_left">Turn slightly left</string>
+    <string name="turn_card_slight_right">Turn slightly right</string>
+    <string name="turn_card_sharp_left">Turn sharply left</string>
+    <string name="turn_card_sharp_right">Turn sharply right</string>
+    <string name="turn_card_keep_left">Keep left</string>
+    <string name="turn_card_keep_right">Keep right</string>
+    <string name="turn_card_u_turn">Make a U-turn</string>
+    <!-- %1$d = the roundabout's exit to take, counted from the entry, as a plain number: no ordinal, whose words would
+         follow the device's language rather than this sentence's. -->
+    <string name="turn_card_roundabout_exit">Take exit %1$d</string>
+    <!-- A roundabout whose exit the routing data does not give. -->
+    <string name="turn_card_roundabout_enter">Enter the roundabout</string>
+    <string name="turn_card_exit_left">Take the exit on the left</string>
+    <string name="turn_card_exit_right">Take the exit on the right</string>
+    <!-- No turn is left before the destination. -->
+    <string name="turn_card_arrive">Destination</string>
+    <!-- Caption over the small arrow of the turn that follows closely after the announced one. -->
+    <string name="turn_card_then">Then</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>
