@@ -338,11 +338,20 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `onAction Shortcut emits LaunchAppCategory carrying the shortcut category`() =
+    fun `onAction Shortcut Music emits LaunchAppCategory APP_MUSIC`() =
         runTest {
             stubViewModel().assertEvent(
                 action = HomeAction.Shortcut(AppsBarShortcut.Music),
-                expected = HomeEvent.LaunchAppCategory(AppsBarShortcut.Music.intentCategory),
+                expected = HomeEvent.LaunchAppCategory(Intent.CATEGORY_APP_MUSIC),
+            )
+        }
+
+    @Test
+    fun `onAction Shortcut Phone emits LaunchDialer, not a contacts category`() =
+        runTest {
+            stubViewModel().assertEvent(
+                action = HomeAction.Shortcut(AppsBarShortcut.Phone),
+                expected = HomeEvent.LaunchDialer,
             )
         }
 
