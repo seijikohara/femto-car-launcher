@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RouteProgress
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.ui.home.ActiveRouteState
 import io.github.seijikohara.femto.ui.home.CandidateSummary
 import io.github.seijikohara.femto.ui.home.HomeUiState
@@ -56,6 +57,10 @@ internal object DashboardFixtures {
                     progress = RouteProgress(remainingMeters = 12_400.0, remainingSeconds = 1_080.0),
                 ),
         )
+
+    /** [routeState] with the route row set to the time remaining (Settings → Navigation): "18 min left". */
+    val routeRemainingState: HomeUiState =
+        routeState.copy(activeRoute = routeState.activeRoute?.copy(rowTime = RouteRowTime.REMAINING))
 
     /** [routeState] while the launcher reroutes after the vehicle left the route: the row says so in place of the ETA. */
     val reroutingState: HomeUiState =

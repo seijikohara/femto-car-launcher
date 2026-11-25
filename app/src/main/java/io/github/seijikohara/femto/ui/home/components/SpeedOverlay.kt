@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.location.Location
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,7 @@ import io.github.seijikohara.femto.data.location.MIN_MOVING_SPEED_MS
 import io.github.seijikohara.femto.data.location.TripState
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.RouteProgress
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
 import io.github.seijikohara.femto.ui.locale.fromMetersPerSecond
@@ -90,7 +92,8 @@ import kotlin.math.roundToLong
  *    average speed | separator | reset-trip button (top-right).
  *  - Below: a 1 dp top border, then a MapPin · short-address row.
  *  - With an active route: another border, then a Flag · remaining distance ·
- *    arrival time (or a reroute's status) row with a clear button ([RouteRow]).
+ *    arrival or remaining time (or a reroute's status) row with a clear button
+ *    ([RouteRow]).
  *  - MaterialTheme.shapes.large corner and a 1 dp outline border. The Column wraps its
  *    content rather than claiming a fixed width, so the metric cells sit
  *    tight with a consistent 16 dp gap and the overlay never stretches to
@@ -136,11 +139,13 @@ internal fun SpeedOverlay(
     // What is left of the active route (issue #389 phase 3); null hides the
     // route row. [reroute] is where an automatic reroute of it stands,
     // [onClearRoute] its clear button, and [clock] the "now" its arrival time
-    // counts from (the dashboard's injected clock).
+    // counts from (the dashboard's injected clock). [routeTime] picks the
+    // arrival time or the time remaining (Settings → Navigation).
     route: RouteProgress? = null,
     reroute: RerouteStatus = RerouteStatus.NONE,
     onClearRoute: () -> Unit = {},
     clock: Clock = Clock.systemDefaultZone(),
+    routeTime: RouteRowTime = RouteRowTime.ARRIVAL,
 ) {
     val expandLabel = stringResource(R.string.speed_expand_trip)
     // Source the hero numeral from the trip's effective speed, not
@@ -271,6 +276,7 @@ internal fun SpeedOverlay(
                     speedUnit = speedUnit,
                     is24Hour = is24Hour,
                     clock = clock,
+                    time = routeTime,
                     onClear = onClearRoute,
                 )
             }
@@ -626,16 +632,20 @@ private fun RowEndButton(
 
 /**
  * The route row under the address: the remaining distance in the speed
- * unit's family, the arrival time on the user's clock format, and the clear
- * button. It shares the address row's caption style and glyph size, so it
- * carries the same air ([AddressRowAir]) and the card's row spacing holds.
+ * unit's family, the arrival time on the user's clock format or the travel
+ * time left, as [time] picks, and the clear button. It shares the address
+ * row's caption style and glyph size, so it carries the same air
+ * ([AddressRowAir]) and the card's row spacing holds.
  * Its clear button reports the glyph's height, so the 48 dp target overhangs
  * into the gaps around the row rather than growing it.
  *
  * The arrival time is read from [clock] whenever the progress changes (each
  * fix), and once a minute besides, so it keeps moving while no fix arrives.
+ * The time left is in the locale's short units ("1 hr, 5 min left"), which
+ * fit the row whole up to a day's drive on the head unit (RouteRowTimeTest),
+ * so the row never needs the narrow ones the route choice card falls back to.
  * While a reroute runs, or after one that found nothing, its status takes the
- * arrival time's place: the old line's arrival time no longer holds.
+ * time's place: the old line's time no longer holds.
  */
 @Composable
 private fun RouteRow(
@@ -644,6 +654,7 @@ private fun RouteRow(
     speedUnit: SpeedUnit,
     is24Hour: Boolean,
     clock: Clock,
+    time: RouteRowTime,
     onClear: () -> Unit,
 ) = Row(
     modifier = Modifier.fillMaxWidth(),
@@ -656,9 +667,13 @@ private fun RouteRow(
             value++
         }
     }
-    val arrival =
-        remember(minute, progress.remainingSeconds, is24Hour, clock) {
-            routeArrivalText(clock.instant(), clock.zone, progress.remainingSeconds, is24Hour)
+    val timeText =
+        remember(minute, progress.remainingSeconds, is24Hour, clock, time) {
+            val seconds = progress.remainingSeconds
+            when (time) {
+                RouteRowTime.ARRIVAL -> routeArrivalText(clock.instant(), clock.zone, seconds, is24Hour)
+                RouteRowTime.REMAINING -> travelTimeText(seconds.roundToInt())
+            }
         }
     val style = rowCaptionStyle(tabularFigures = true)
     val color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f)
@@ -681,7 +696,7 @@ private fun RouteRow(
     Text(
         text =
             when (reroute) {
-                RerouteStatus.NONE -> stringResource(R.string.speed_route_arrival, arrival)
+                RerouteStatus.NONE -> stringResource(routeRowFormat(time), timeText)
                 RerouteStatus.REROUTING -> stringResource(R.string.speed_route_rerouting)
                 RerouteStatus.NO_DATA -> stringResource(R.string.speed_route_reroute_no_data)
                 RerouteStatus.FAILED -> stringResource(R.string.speed_route_reroute_failed)
@@ -699,6 +714,14 @@ private fun RouteRow(
         onClick = onClear,
     )
 }
+
+// The route row's text around its time: "ETA 10:26" or "18 min left".
+@StringRes
+private fun routeRowFormat(time: RouteRowTime): Int =
+    when (time) {
+        RouteRowTime.ARRIVAL -> R.string.speed_route_arrival
+        RouteRowTime.REMAINING -> R.string.speed_route_remaining
+    }
 
 // The caption style the address and route rows share: the glance caption on
 // the body lineage, on a 16 sp line. Tabular figures keep a ticking value

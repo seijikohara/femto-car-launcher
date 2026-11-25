@@ -26,6 +26,7 @@ import io.github.seijikohara.femto.data.routing.RouteCandidate
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteProgress
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.update.UpdateSettings
@@ -1477,6 +1478,37 @@ class HomeViewModelTest {
             assertEquals(11_000.0, route.progress.remainingMeters, 1.0)
         }
 
+    @Test
+    fun `the route row shows the arrival time until the setting picks the time remaining`() =
+        runTest {
+            val rowTime = MutableStateFlow(RouteRowTime.ARRIVAL)
+            val viewModel = routeViewModel(available = true, routeRowTimeFlow = rowTime)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            assertEquals(
+                RouteRowTime.ARRIVAL,
+                viewModel.uiState.value.activeRoute
+                    ?.rowTime,
+            )
+
+            rowTime.value = RouteRowTime.REMAINING
+
+            assertEquals(
+                RouteRowTime.REMAINING,
+                viewModel.uiState.value.activeRoute
+                    ?.rowTime,
+            )
+        }
+
+    // Like the route itself, the setting is seeded, so a slow settings store never holds the dashboard back.
+    @Test
+    fun `a route row time not yet read shows the route with the arrival time`() =
+        runTest {
+            val viewModel = routeViewModel(available = true, routeRowTimeFlow = flow { awaitCancellation() })
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(RouteRowTime.ARRIVAL, assertNotNull(viewModel.uiState.value.activeRoute).rowTime)
+        }
+
     // Cheap GPS receivers leave the speed unset while moving.
     @Test
     fun `a GPS fix without speed moves at the trip's speed, so leaving the route is noticed`() =
@@ -1795,6 +1827,7 @@ class HomeViewModelTest {
         closeRouteChoice: (Long) -> Unit = {},
         onGpsFix: (Long) -> Unit = {},
         nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
+        routeRowTimeFlow: Flow<RouteRowTime> = flowOf(RouteRowTime.ARRIVAL),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1814,6 +1847,7 @@ class HomeViewModelTest {
             routeDispatcher = UnconfinedTestDispatcher(testScheduler),
             onGpsFix = onGpsFix,
             nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
+            routeRowTimeFlow = routeRowTimeFlow,
         )
 
     private fun stubViewModel(

@@ -54,6 +54,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.routing.RerouteStatus
+import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.ui.destination.DestinationPanelHost
 import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
@@ -876,6 +877,7 @@ private fun DashboardOverlays(
                 reroute = uiState.activeRoute?.reroute ?: RerouteStatus.NONE,
                 onClearRoute = { onAction(HomeAction.ClearRoute) },
                 clock = clock,
+                routeTime = uiState.activeRoute?.rowTime ?: RouteRowTime.ARRIVAL,
                 modifier =
                     Modifier
                         .onSizeChanged {
