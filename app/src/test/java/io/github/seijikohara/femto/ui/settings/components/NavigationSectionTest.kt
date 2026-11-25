@@ -157,6 +157,6 @@ class NavigationSectionTest {
         const val VEHICLE_ON_LINE = "Keep the vehicle on the route"
         const val TURN_CARD = "Turn card"
         const val NEXT_AFTER = "Show the turn after next"
-        const val STRAIGHT = "Show \"continue straight\""
+        const val STRAIGHT = "Show \"Continue straight\""
     }
 }

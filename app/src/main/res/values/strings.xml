@@ -547,8 +547,9 @@
     <string name="settings_navigation_turn_card_desc">Show the next turn over the map while a route is on.</string>
     <string name="settings_navigation_turn_card_next_after">Show the turn after next</string>
     <string name="settings_navigation_turn_card_next_after_desc">A small second arrow when two turns follow closely.</string>
-    <string name="settings_navigation_turn_card_straight">Show \"continue straight\"</string>
-    <string name="settings_navigation_turn_card_straight_desc">Also announce where the route goes straight on across a bigger road.</string>
+    <!-- The quoted words are the turn card's own line of text for going straight on (turn_card_straight). -->
+    <string name="settings_navigation_turn_card_straight">Show \"Continue straight\"</string>
+    <string name="settings_navigation_turn_card_straight_desc">Also show where the route goes straight on across a bigger road.</string>
     <string name="settings_navigation_vehicle_on_line">Keep the vehicle on the route</string>
     <string name="settings_navigation_vehicle_on_line_desc">Draw the vehicle on the route line while it drives along it. Off draws it at the GPS position.</string>
     <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->
