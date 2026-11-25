@@ -34,7 +34,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The speed readout's route row under the Navigation setting "Time on the route row": the arrival time by default, the
+ * The speed readout's route row under the Navigation setting "Time shown for a route": the arrival time by default, the
  * travel time left on request, and a reroute's status in place of either. Laid out on the head unit (853×512 dp) at the
  * default scale, the geometry the route row was measured on.
  */

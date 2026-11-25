@@ -5,6 +5,7 @@ import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
+import io.github.seijikohara.femto.testfixtures.routingOfferedSettingsState
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,7 +60,7 @@ class SettingsScreenshotTest {
     fun settings_navigation_head_unit() =
         captureHeadUnit(
             SettingsCategoryId.NAVIGATION,
-            uiState = SettingsUiState.Initial.copy(routingData = RoutingDataSummary(tileCount = 0, totalBytes = 0L)),
+            uiState = routingOfferedSettingsState(),
         )
 
     @Test

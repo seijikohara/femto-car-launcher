@@ -108,8 +108,10 @@ internal fun SettingsScreen(
         // navigation state, not a persisted setting. rememberSaveable keeps it
         // across rotation the same way the old per-section expand flags did.
         var selectedId by rememberSaveable { mutableStateOf(initialCategory ?: SettingsCategoryId.entries.first()) }
-        // A category that stops showing while selected (Navigation, once the
-        // map backend no longer offers routing) gives way to the first one.
+        // A selected category that is not listed gives way to the first one.
+        // Navigation is the one that can be missing: it is listed only once the
+        // routing data summary has arrived, which a sheet restored on Navigation
+        // waits for, and not at all when reading that summary failed.
         val shownId = selectedId.takeIf { it in categories } ?: categories.first()
         // Narrow list-detail only — whether the detail view covers the list.
         // Meaningless in the wide layout, where the rail and detail pane are

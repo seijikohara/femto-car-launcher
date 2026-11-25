@@ -13,7 +13,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.R
-import io.github.seijikohara.femto.ui.settings.RoutingDataSummary
+import io.github.seijikohara.femto.testfixtures.routingOfferedSettingsState
 import io.github.seijikohara.femto.ui.settings.SettingsCategoryId
 import io.github.seijikohara.femto.ui.settings.SettingsScreen
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -50,7 +50,7 @@ class SettingsCategoryListTest {
 
     private val selectNavigation = selectDescription(SettingsCategoryId.NAVIGATION)
 
-    private val routingOffered = SettingsUiState.Initial.copy(routingData = RoutingDataSummary(0, 0L))
+    private val routingOffered = routingOfferedSettingsState()
 
     private fun setList(
         badged: Set<SettingsCategoryId> = emptySet(),
@@ -151,8 +151,9 @@ class SettingsCategoryListTest {
         rule.onNodeWithContentDescription(selectNavigation).performScrollTo().assertExists()
     }
 
-    // Navigation selected, then routing stops being offered (the map backend changed): the screen shows the first
-    // category rather than a detail pane for a category it no longer lists.
+    // Navigation selected while it is not listed (a restored selection before the routing data summary has arrived,
+    // or a summary that could not be read): the screen shows the first category rather than a detail pane for a
+    // category it does not list.
     @Test
     fun `a selected Navigation that stops showing gives way to the first category`() {
         var uiState by mutableStateOf(routingOffered)

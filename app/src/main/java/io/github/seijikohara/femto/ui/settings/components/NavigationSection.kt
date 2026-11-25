@@ -57,6 +57,7 @@ internal fun NavigationSection(
             selected = uiState.navigation.routeRowTime,
             onSelect = { onAction(SettingsAction.SetRouteRowTime(it)) },
             shapes = shapes,
+            summary = stringResource(R.string.settings_navigation_row_time_desc),
         )
     }
 }
