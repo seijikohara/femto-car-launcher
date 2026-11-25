@@ -215,6 +215,13 @@ class DashboardScreenshotTest {
     fun dashboard_head_unit_turn_card_arrive() =
         capture("head-unit-853x512-turn-card-arrive", uiState = DashboardFixtures.routeArriveState)
 
+    // The largest Display size leaves the turn card less room above the speed
+    // readout than the full card needs: the compact card shows instead.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_large_scale_turn_card() =
+        capture("head-unit-853x512-large-turn-card", UiScale.LARGE, uiState = DashboardFixtures.routeTurnState)
+
     @Test
     @Config(qualifiers = DashboardGeometries.FLOOR_800X480)
     fun dashboard_floor_turn_card() = capture("floor-800x480-turn-card", uiState = DashboardFixtures.routeTurnState)

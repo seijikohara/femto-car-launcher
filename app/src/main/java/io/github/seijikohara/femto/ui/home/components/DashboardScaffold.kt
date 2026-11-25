@@ -1039,10 +1039,9 @@ private fun DashboardOverlays(
 
         // The turn card (issue #389 phase 4), in the choice card's corner by
         // the same rules; the two never show together (turnCardStateOrNull).
-        // Its height is not capped: it grows with a larger font rather than
-        // clip. TurnCardLayoutTest checks that it ends above the speed readout
-        // and the chevron at the default display size, and above the chevron
-        // at the largest.
+        // The cap keeps it above the speed readout: the card shows in the
+        // first of its forms that fits under it, or not at all (TurnCard).
+        // TurnCardLayoutTest checks every geometry at every display size.
         uiState.activeRoute?.turnCard?.let { turn ->
             val placement = routeCardPlacementFor(TurnCardMinWidth, TurnCardMaxWidth)
             TurnCard(
@@ -1055,6 +1054,7 @@ private fun DashboardOverlays(
                         .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
                         .padding(placement.insets(mirror))
                         .width(placement.width)
+                        .heightIn(max = placement.maxHeight)
                         .testTag(DashboardTags.TURN_CARD),
             )
         }
@@ -1352,9 +1352,10 @@ private data class RouteCardPlacement(
 // line), where it has the most height, as on a phone in landscape; otherwise
 // it drops below the clock and takes the map area's width, up to
 // [cardMaxWidth]. Either way the compass, the control column, the clock and
-// the cards stay uncovered. [maxHeight] keeps the choice card above the speed
-// readout's top edge ([speedTop], from the top of the overlay box); the turn
-// card, its height uncapped, ends above it by its own height. The choice
+// the cards stay uncovered. [maxHeight] keeps either card above the speed
+// readout's top edge ([speedTop], from the top of the overlay box): the
+// choice card scrolls its tiles under it, the turn card picks a form that
+// fits under it or does not show. The choice
 // card's own height, a header and one row of tiles, and the turn card's also
 // end them above the vehicle's chevron, which the map drops below the middle
 // of the screen; RouteChoiceLayoutTest and TurnCardLayoutTest check both on

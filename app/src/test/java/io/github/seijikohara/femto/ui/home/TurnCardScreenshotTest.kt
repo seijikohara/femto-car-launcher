@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.testfixtures.RobolectricHaze
@@ -26,8 +27,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The turn card in its three shapes (issue #389 phase 4), a turn, a turn with the turn after next, and the
- * destination, at its narrowest, in light and dark. Over a theme backdrop standing in for the map, so the glass and
- * its shadow read. Recorded on CI like every golden.
+ * destination, in light and dark: in full at its narrowest, and in the compact form a slot too narrow for the full
+ * card gets. Over a theme backdrop standing in for the map, so the glass and its shadow read. Recorded on CI like
+ * every golden.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -39,17 +41,24 @@ class TurnCardScreenshotTest {
     @Test
     fun turn_card_dark() = capture("turn-card-dark", darkTheme = true)
 
+    @Test
+    fun turn_card_compact_light() = capture("turn-card-compact-light", darkTheme = false, width = CompactSlotWidth)
+
+    @Test
+    fun turn_card_compact_dark() = capture("turn-card-compact-dark", darkTheme = true, width = CompactSlotWidth)
+
     private fun capture(
         name: String,
         darkTheme: Boolean,
+        width: Dp = TurnCardMinWidth,
     ) = captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
         FemtoTheme(darkTheme = darkTheme) {
-            RobolectricHaze { Cards() }
+            RobolectricHaze { Cards(width) }
         }
     }
 
     @Composable
-    private fun Cards() =
+    private fun Cards(width: Dp) =
         Column(
             modifier =
                 Modifier
@@ -62,8 +71,11 @@ class TurnCardScreenshotTest {
                 TurnCard(
                     state = state,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                    modifier = Modifier.width(TurnCardMinWidth),
+                    modifier = Modifier.width(width),
                 )
             }
         }
 }
+
+// A slot narrower than the full card's minimum, and wide enough for the compact card to keep the turn after next.
+private val CompactSlotWidth = 280.dp

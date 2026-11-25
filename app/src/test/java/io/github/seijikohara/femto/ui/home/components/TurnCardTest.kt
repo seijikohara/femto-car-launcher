@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -20,6 +21,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.testfixtures.TurnCardFixtures
@@ -138,17 +141,122 @@ class TurnCardTest {
         assertEquals(true to listOf(true, true, true), (card.height > TurnCardHeight) to inside)
     }
 
+    // --- The compact form ----------------------------------------------------------------------------------------
+
+    // Below the full card's height the card keeps the arrow and the distance on one line.
+    @Test
+    fun `under the full card's height the compact card shows, 56 dp tall and 64 with the turn after next`() {
+        var state by mutableStateOf(TurnCardFixtures.turn)
+        setCard({ state }, width = TurnCardMinWidth, maxHeight = BELOW_FULL)
+        val alone = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height
+        val aloneText = rule.onAllNodesWithText("Turn left").fetchSemanticsNodes().size
+
+        state = TurnCardFixtures.turnThen
+        rule.waitForIdle()
+
+        assertEquals(
+            Triple(56.dp, 64.dp, 0),
+            Triple(alone, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height, aloneText),
+        )
+        rule.onNodeWithText("Then", useUnmergedTree = true).assertExists()
+    }
+
+    // The sentence is not drawn, but a screen reader hears the same as from the full card.
+    @Test
+    fun `the compact card reads as the same sentence`() {
+        setCard({ TurnCardFixtures.turnThen }, width = TurnCardMinWidth, maxHeight = BELOW_FULL)
+
+        rule.onNodeWithContentDescription("Turn left in 300 m. Then: Turn right.").assertExists()
+    }
+
+    @Test
+    fun `a slot narrower than the full card's minimum gets the compact card`() {
+        setCard({ TurnCardFixtures.turn }, width = TurnCardMinWidth - 1.dp)
+
+        assertEquals(
+            1 to 0,
+            rule.onAllNodesWithText("300").fetchSemanticsNodes().size to
+                rule.onAllNodesWithText("Turn left").fetchSemanticsNodes().size,
+        )
+    }
+
+    // At the compact card's narrowest the turn after next does not fit beside the distance, and is left out.
+    @Test
+    fun `at the compact card's minimum width the turn after next is left out`() {
+        setCard({ TurnCardFixtures.turnThen }, width = TurnCardCompactMinWidth)
+
+        assertEquals(
+            1 to 0,
+            rule.onAllNodesWithText("300").fetchSemanticsNodes().size to
+                rule.onAllNodesWithText("Then", useUnmergedTree = true).fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun `below the compact card's minimum width the card shows nothing`() {
+        setCard({ TurnCardFixtures.turnThen }, width = TurnCardCompactMinWidth - 1.dp)
+
+        assertEquals(
+            0 to 0.dp,
+            rule.onAllNodes(hasContentDescription("Turn left", substring = true)).fetchSemanticsNodes().size to
+                rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height,
+        )
+    }
+
+    @Test
+    fun `under the compact card's height the card shows nothing`() {
+        setCard({ TurnCardFixtures.turn }, width = TurnCardMinWidth, maxHeight = 55.dp)
+
+        assertEquals(0.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    // The longest distances in metres, kilometres, feet and miles, at the compact card's narrowest.
+    @Test
+    fun `the compact card cuts no distance short at its minimum width`() {
+        var reading by mutableStateOf(LONG_DISTANCES.first())
+        setCard(
+            { TurnCardFixtures.turn.copy(distanceMeters = reading.meters) },
+            width = TurnCardCompactMinWidth,
+            speedUnit = { reading.unit },
+        )
+        val cutShort =
+            LONG_DISTANCES.filter { candidate ->
+                reading = candidate
+                rule.waitForIdle()
+                val card = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot()
+                listOf(candidate.value, candidate.label).any { text ->
+                    rule.onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot().let { box ->
+                        box.left < card.left || box.right > card.right
+                    } ||
+                        textLayout(text).isLineEllipsized(0)
+                }
+            }
+        assertEquals(emptyList(), cutShort.map { "${it.value} ${it.label}" })
+    }
+
     private fun setCard(
         state: TurnCardState,
         fontScale: Float = 1f,
+    ) = setCard({ state }, fontScale = fontScale)
+
+    private fun setCard(
+        state: () -> TurnCardState,
+        width: Dp = TurnCardMinWidth,
+        maxHeight: Dp = Dp.Infinity,
+        fontScale: Float = 1f,
+        speedUnit: () -> SpeedUnit = { SpeedUnit.KILOMETERS_PER_HOUR },
     ) {
         rule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                 FemtoTheme {
                     TurnCard(
-                        state = state,
-                        speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                        modifier = Modifier.width(TurnCardMinWidth).testTag(CARD),
+                        state = state(),
+                        speedUnit = speedUnit(),
+                        modifier =
+                            Modifier
+                                .width(width)
+                                .heightIn(max = maxHeight)
+                                .testTag(CARD),
                     )
                 }
             }
@@ -169,11 +277,30 @@ class TurnCardTest {
                 }.firstOrNull(),
         )
 
+    private data class LongDistance(
+        val meters: Double,
+        val unit: SpeedUnit,
+        val value: String,
+        val label: String,
+    )
+
     private companion object {
         const val CARD = "turn-card"
 
         // The largest step Android's own font-size setting offers on many devices.
         const val LARGE_FONT_SCALE = 1.5f
+
+        // Just under the full card's height, so the card falls back to the compact one.
+        val BELOW_FULL = TurnCardHeight - 1.dp
+
+        // The widest distance each unit family shows: three digits below 1,000 m or ft, three whole digits above.
+        val LONG_DISTANCES =
+            listOf(
+                LongDistance(950.0, SpeedUnit.KILOMETERS_PER_HOUR, "950", "m"),
+                LongDistance(999_000.0, SpeedUnit.KILOMETERS_PER_HOUR, "999", "km"),
+                LongDistance(289.56, SpeedUnit.MILES_PER_HOUR, "950", "ft"),
+                LongDistance(1_607_733.0, SpeedUnit.MILES_PER_HOUR, "999", "mi"),
+            )
 
         val LONG_TEXTS =
             listOf(
