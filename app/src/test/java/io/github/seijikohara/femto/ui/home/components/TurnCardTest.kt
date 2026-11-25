@@ -85,7 +85,8 @@ class TurnCardTest {
     }
 
     // The narrowest card with the turn after next leaves its text the least room: every text still fits on its line,
-    // shrunk at most to the 16 sp floor, never cut short.
+    // shrunk at most to the 16 sp floor, never cut short. FitText cuts a line short only once even the floor would
+    // overflow, so a line not cut short is one at 16 sp or more.
     @Test
     fun `no text is cut short at the card's minimum width`() {
         var state by mutableStateOf(TurnCardFixtures.turnThen)

@@ -123,10 +123,11 @@ private val ContentGap = 12.dp
 internal val TurnCardHeight = 88.dp
 
 /**
- * The card's narrowest: the longest line of text ("Enter the roundabout") at the 16 sp floor beside the arrow
- * and the turn after next. Its widest keeps it from spreading over the map on a wide screen.
+ * The card's narrowest: the longest line of text ("Enter the roundabout") at the 16 sp floor beside the arrow and the
+ * turn after next. The test's face fits it from 300 dp; the rest is room for a wider face the driver may pick. A
+ * phone in portrait leaves the card 328 dp. Its widest keeps it from spreading over the map on a wide screen.
  */
-internal val TurnCardMinWidth = 360.dp
+internal val TurnCardMinWidth = 320.dp
 internal val TurnCardMaxWidth = 420.dp
 
 @PreviewLightDark
