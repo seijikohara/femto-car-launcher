@@ -45,7 +45,9 @@ import kotlin.math.sin
 
 /**
  * The turn card's arrow for [maneuver] (issue #389 phase 4), drawn on a Canvas in the square the caller sizes it to,
- * in [color]; faint parts take the same colour at a lower alpha. The destination is a flag in the same stroke.
+ * in [color]; faint parts take the same colour at a lower alpha. The destination is a flag in the same stroke. A
+ * roundabout's ring carries its exit number only with [showExitNumber]: in the small arrow of the turn after next the
+ * number would be about 10 dp tall and sit on the arrowheads.
  *
  * The arrow shows a physical direction, so it never mirrors in a right-to-left layout: a Canvas draws in absolute
  * coordinates whatever the layout direction, and the glyph is composed under a left-to-right direction besides, so the
@@ -57,8 +59,13 @@ internal fun TurnArrow(
     maneuver: TurnManeuver,
     modifier: Modifier = Modifier,
     color: Color = LocalContentColor.current,
+    showExitNumber: Boolean = true,
 ) = CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-    GlyphCanvas(shape = turnGlyph(maneuver).shape(), color = color, modifier = modifier)
+    GlyphCanvas(
+        shape = turnGlyph(maneuver).shape().let { shape -> if (showExitNumber) shape else shape.copy(label = null) },
+        color = color,
+        modifier = modifier,
+    )
 }
 
 /** The kind of glyph a manoeuvre gets, before any geometry: what the shape tests check. */
@@ -159,7 +166,7 @@ private const val GLYPH_STROKE = 0.12f
 // The arrowhead: a filled triangle three strokes wide, its corners rounded by an outline of HEAD_OUTLINE.
 private const val HEAD_LENGTH = 0.26f
 private const val HEAD_HALF_WIDTH = 0.18f
-private const val HEAD_OUTLINE = 0.05f
+internal const val HEAD_OUTLINE = 0.05f
 
 /** The clear band every glyph's ink keeps from its square's edges, so nothing is clipped at any size. */
 internal const val GLYPH_MARGIN = 0.04f
@@ -202,9 +209,12 @@ private const val PENNANT_WIDTH = 0.46f
 private const val CURVE_STEPS = 24
 
 // The share of the square the ring's exit number is set at: one digit large in the ring, and two a size smaller so
-// they stay inside it.
+// they keep clear of the arrowheads, whose inner corners reach to within half the ring's radius of its middle.
 private const val LABEL_SIZE = 0.38f
-private const val TWO_DIGIT_LABEL_SIZE = 0.30f
+private const val TWO_DIGIT_LABEL_SIZE = 0.20f
+
+/** Return the share of the square the ring's exit number [label] is set at. */
+internal fun ringLabelSize(label: String): Float = if (label.length > 1) TWO_DIGIT_LABEL_SIZE else LABEL_SIZE
 
 /** The alpha of a faint part, against the glyph's own colour. */
 private const val FAINT_ALPHA = 0.35f
@@ -445,9 +455,7 @@ private fun GlyphCanvas(
                     measurer.measure(
                         text = label,
                         style =
-                            typography.turnExitNumber(
-                                ((if (label.length > 1) TWO_DIGIT_LABEL_SIZE else LABEL_SIZE) * side).toSp(),
-                            ),
+                            typography.turnExitNumber((ringLabelSize(label) * side).toSp()),
                     ),
                 color = solid,
                 center = origin + Offset(side / 2f, side / 2f),
@@ -504,7 +512,12 @@ private fun GridCell(maneuver: TurnManeuver) =
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TurnArrow(maneuver, Modifier.size(64.dp), color = MaterialTheme.colorScheme.onSurface)
-            TurnArrow(maneuver, Modifier.size(28.dp), color = MaterialTheme.colorScheme.onSurface)
+            TurnArrow(
+                maneuver,
+                Modifier.size(28.dp),
+                color = MaterialTheme.colorScheme.onSurface,
+                showExitNumber = false,
+            )
         }
         // The names are the code's, read left to right whatever the direction around them.
         CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {

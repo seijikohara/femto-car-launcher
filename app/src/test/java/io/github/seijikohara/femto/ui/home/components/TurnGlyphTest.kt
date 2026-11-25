@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.ui.home.TurnManeuver
 import org.junit.Test
@@ -110,6 +111,26 @@ class TurnGlyphTest {
     }
 
     // Keep right: one arrowhead, on the right-hand branch; the left-hand branch faint and ending below that head.
+    // The number's box taken generously, each digit 0.6 of the number's size wide and 0.75 of it tall, as no face's
+    // digits reach; its gap to each arrowhead, past the arrowhead's outline, must stay open.
+    @Test
+    fun `a two-digit exit number keeps clear of the ring's arrowheads`() {
+        val label = "12"
+        val size = ringLabelSize(label)
+        val box =
+            Rect(
+                left = 0.5f - label.length * DIGIT_ADVANCE * size / 2f,
+                top = 0.5f - DIGIT_HEIGHT * size / 2f,
+                right = 0.5f + label.length * DIGIT_ADVANCE * size / 2f,
+                bottom = 0.5f + DIGIT_HEIGHT * size / 2f,
+            )
+        val gaps =
+            listOf(TurnKind.ROUNDABOUT_CLOCKWISE, TurnKind.ROUNDABOUT_COUNTERCLOCKWISE).flatMap { kind ->
+                ring(kind, exitNumber = 12).heads.map { head -> gap(box, head.points) }
+            }
+        assertTrue(gaps.all { it > HEAD_OUTLINE / 2f }, "gaps $gaps")
+    }
+
     @Test
     fun `keep is a fork with the branch to take headed and the other faint and shorter`() {
         val shape = shapeOf(TurnKind.KEEP_RIGHT)
@@ -189,6 +210,42 @@ class TurnGlyphTest {
         )
     }
 
+    // The distance between [box] and [triangle], or -1 where they meet: each outline sampled finely and measured
+    // against the other's edges.
+    private fun gap(
+        box: Rect,
+        triangle: List<Offset>,
+    ): Float {
+        val boxEdges = listOf(box.topLeft, box.topRight, box.bottomRight, box.bottomLeft).closedEdges()
+        val triangleEdges = triangle.closedEdges()
+        val boxPoints = boxEdges.flatMap { it.samples() }
+        val trianglePoints = triangleEdges.flatMap { it.samples() }
+        return if (boxPoints.any { it.inside(triangle) } || trianglePoints.any { box.contains(it) }) {
+            -1f
+        } else {
+            minOf(
+                boxPoints.minOf { point -> triangleEdges.minOf { point.distanceTo(it) } },
+                trianglePoints.minOf { point -> boxEdges.minOf { point.distanceTo(it) } },
+            )
+        }
+    }
+
+    private fun List<Offset>.closedEdges(): List<Pair<Offset, Offset>> = zipWithNext() + (last() to first())
+
+    private fun Pair<Offset, Offset>.samples(): List<Offset> =
+        (0..EDGE_SAMPLES).map { step -> first + (second - first) * (step.toFloat() / EDGE_SAMPLES) }
+
+    private fun Offset.distanceTo(edge: Pair<Offset, Offset>): Float {
+        val along = edge.second - edge.first
+        val t = (((this - edge.first).x * along.x + (this - edge.first).y * along.y) / along.getDistanceSquared())
+        return (this - (edge.first + along * t.coerceIn(0f, 1f))).getDistance()
+    }
+
+    private fun Offset.inside(triangle: List<Offset>): Boolean =
+        triangle.closedEdges().map { (a, b) -> (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) }.let { sides ->
+            sides.all { it >= 0f } || sides.all { it <= 0f }
+        }
+
     private fun shapeOf(kind: TurnKind): GlyphShape = turnGlyph(TurnManeuver.Turn(kind)).shape()
 
     private fun ring(
@@ -251,6 +308,12 @@ class TurnGlyphTest {
 
     private companion object {
         const val EPSILON = 1e-4f
+
+        // A generous digit box, as a share of the number's size: wider and taller than any face's digits.
+        const val DIGIT_ADVANCE = 0.6f
+        const val DIGIT_HEIGHT = 0.75f
+
+        const val EDGE_SAMPLES = 40
 
         val SIDED_KINDS =
             listOf(

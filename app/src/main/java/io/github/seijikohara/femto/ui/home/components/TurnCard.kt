@@ -279,7 +279,7 @@ private fun ThenColumn(
         maxLines = 1,
         modifier = Modifier.singleLineBox(captionStyle),
     )
-    TurnArrow(maneuver = then, modifier = Modifier.size(ThenArrowSize), color = color)
+    TurnArrow(maneuver = then, modifier = Modifier.size(ThenArrowSize), color = color, showExitNumber = false)
 }
 
 // The arrows: the turn's own at the size of a tap target, so it reads at a glance; the turn after next's under half
