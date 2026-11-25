@@ -354,14 +354,16 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "routing available", false)
 
-    // Seeded with the defaults for the same reason; the dashboard takes the
-    // stored settings as soon as they are read. Applied to the route below,
-    // after the follow and outside its restart keys: switching a setting
-    // never restarts the follow, which would put the progress back to the
-    // start of the line.
-    private val navigationSettings: Flow<NavigationSettings> =
+    // Seeded with null, "not read yet", for the same reason; the dashboard
+    // takes the stored settings as soon as they are read (withSettings).
+    // Applied to the route below, after the follow and outside its restart
+    // keys: switching a setting never restarts the follow, which would put
+    // the progress back to the start of the line. A store that fails reads as
+    // the defaults.
+    private val navigationSettings: Flow<NavigationSettings?> =
         navigationSettingsFlow
-            .onStart { emit(NavigationSettings.Default) }
+            .map<NavigationSettings, NavigationSettings?> { it }
+            .onStart { emit(null) }
             .distinctUntilChanged()
             .catchAsDefault(TAG, "navigation settings", NavigationSettings.Default)
 
@@ -738,27 +740,31 @@ private data class FollowedRoute(
 
 // The route row's time, the vehicle on the line only with its setting on, and
 // the turn card as its three settings shape it, which hides while the choice
-// card is open.
-private fun FollowedRoute.withSettings(settings: NavigationSettings): ActiveRouteState =
-    state.copy(
-        rowTime = settings.routeRowTime,
-        vehicleOnLine = state.vehicleOnLine?.takeIf { settings.vehicleOnRouteLine },
-        turnCard =
-            turnCardStateOrNull(
-                upcomingTurns = upcomingTurns,
-                remainingMeters = state.progress.remainingMeters,
-                fixPlaced = fixPlaced,
-                offRoute = offRoute,
-                reroute = state.reroute,
-                choosing = state.choice != null,
-                settings =
-                    TurnCardSettings(
-                        show = settings.turnCard,
-                        showNextAfter = settings.turnCardNextAfter,
-                        showStraight = settings.turnCardStraight,
-                    ),
-            ),
-    )
+// card is open. Until the [stored] settings are read the row and the line take
+// the defaults, and the card stays hidden, so a driver who switched it off
+// never sees it flash.
+private fun FollowedRoute.withSettings(stored: NavigationSettings?): ActiveRouteState =
+    (stored ?: NavigationSettings.Default).let { settings ->
+        state.copy(
+            rowTime = settings.routeRowTime,
+            vehicleOnLine = state.vehicleOnLine?.takeIf { settings.vehicleOnRouteLine },
+            turnCard =
+                turnCardStateOrNull(
+                    upcomingTurns = upcomingTurns,
+                    remainingMeters = state.progress.remainingMeters,
+                    fixPlaced = fixPlaced,
+                    offRoute = offRoute,
+                    reroute = state.reroute,
+                    choosing = state.choice != null,
+                    settings =
+                        TurnCardSettings(
+                            show = stored != null && settings.turnCard,
+                            showNextAfter = settings.turnCardNextAfter,
+                            showStraight = settings.turnCardStraight,
+                        ),
+                ),
+        )
+    }
 
 private fun ActiveRoute?.sessionView(session: Long): SessionView =
     this

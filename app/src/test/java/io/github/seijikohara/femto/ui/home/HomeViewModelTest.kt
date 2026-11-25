@@ -1673,6 +1673,30 @@ class HomeViewModelTest {
             )
         }
 
+    // A driver who switched the card off must not see it flash while the settings store is still being read.
+    @Test
+    fun `the card stays hidden until the stored settings are read`() =
+        runTest {
+            val settings = MutableSharedFlow<NavigationSettings>()
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val notReadYet = assertNotNull(viewModel.uiState.value.activeRoute, "the route shows before the read")
+
+            settings.emit(NavigationSettings.Default)
+
+            assertNull(notReadYet.turnCard)
+            assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+        }
+
     @Test
     fun `the card shows only once the choice card closes`() =
         runTest {
