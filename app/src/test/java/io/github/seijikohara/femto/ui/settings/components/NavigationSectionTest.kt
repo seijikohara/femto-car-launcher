@@ -65,7 +65,18 @@ class NavigationSectionTest {
 
     @Test
     fun `the rows follow the stored settings`() {
-        setSection(NavigationSettingsUi(false, false, false, RouteRowTime.REMAINING, false, true, false, true))
+        setSection(
+            NavigationSettingsUi(
+                rerouteAutomatically = false,
+                suggestOtherRoutes = false,
+                restoreRouteAfterRestart = false,
+                routeRowTime = RouteRowTime.REMAINING,
+                vehicleOnRouteLine = false,
+                turnCard = true,
+                turnCardNextAfter = false,
+                turnCardStraight = true,
+            ),
+        )
 
         rule.onNodeWithText(REROUTE).assertIsOff()
         rule.onNodeWithText(OTHER_ROUTES).assertIsOff()

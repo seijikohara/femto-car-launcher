@@ -36,6 +36,7 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
+import io.github.seijikohara.femto.ui.theme.PreviewTextStress
 import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.lineBoxHeight
@@ -314,6 +315,7 @@ internal val TurnCardMaxWidth = 420.dp
 internal val TurnCardCompactMinWidth = 200.dp
 
 @PreviewLightDark
+@PreviewTextStress
 @Composable
 private fun TurnCardPreview() {
     FemtoTheme {
