@@ -44,6 +44,11 @@ private const val SAME_DISTANCE_METERS = 1.0
 private const val DRAWN_ON_LINE_METERS = 20.0
 private const val DRAWN_ON_LINE_MAX_METERS = 50.0
 
+// Once drawn on the line, the vehicle stays there until its fix lies this much farther out than the gate it joins by,
+// still never beyond DRAWN_ON_LINE_MAX_METERS: a fix at the gate's edge would otherwise throw it 20 to 50 m sideways
+// and back every second. A start, to tune on the road.
+private const val LEAVE_LINE_MARGIN_METERS = 10.0
+
 // A turn stays ahead, at no distance, until the vehicle is this far past its point along the line: on reaching the
 // point the vehicle is still in the corner. A start, to tune on the road.
 private const val TURN_PASSED_METERS = 15.0
@@ -257,7 +262,7 @@ internal data class RouteFollow(
     val event: FollowEvent?,
     /**
      * The point of the line the last fix was matched to, with that fix's stamp, while the fix is close enough to it to
-     * be drawn there; else null.
+     * be drawn there; else null. A vehicle already drawn on the line stays there a little farther out than it joins.
      */
     val onLine: OnLinePoint? = null,
     /** Every turn from the vehicle on, nearest first; null when the route has no turn data. */
@@ -293,7 +298,10 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                         watch = step.watch.advance(fix, line.offLineMeters(fix.point), progress.remainingMeters),
                         onLine =
                             OnLinePoint(line.pointAt(position), fixElapsedMs = fix.elapsedMs)
-                                .takeIf { line.distanceMeters(position, fix.point) <= drawnOnLineMeters(fix) },
+                                .takeIf {
+                                    line.distanceMeters(position, fix.point) <=
+                                        drawnOnLineMeters(fix, wasOnLine = step.onLine != null)
+                                },
                     )
                 }.map { step ->
                     RouteFollow(
@@ -308,10 +316,15 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
     }
 
 // How far from the point of the line it was matched to [fix] may lie and still be drawn there: DRAWN_ON_LINE_METERS,
-// or the fix's own accuracy where that is wider, never past DRAWN_ON_LINE_MAX_METERS. A fix that reports no accuracy
-// counts as exact.
-private fun drawnOnLineMeters(fix: RouteFix): Double =
-    max(DRAWN_ON_LINE_METERS, (fix.accuracyMeters ?: 0f).toDouble()).coerceAtMost(DRAWN_ON_LINE_MAX_METERS)
+// or the fix's own accuracy where that is wider, and LEAVE_LINE_MARGIN_METERS more while the last fix was drawn there
+// ([wasOnLine]); never past DRAWN_ON_LINE_MAX_METERS. A fix that reports no accuracy counts as exact.
+private fun drawnOnLineMeters(
+    fix: RouteFix,
+    wasOnLine: Boolean,
+): Double =
+    max(DRAWN_ON_LINE_METERS, (fix.accuracyMeters ?: 0f).toDouble())
+        .plus(if (wasOnLine) LEAVE_LINE_MARGIN_METERS else 0.0)
+        .coerceAtMost(DRAWN_ON_LINE_MAX_METERS)
 
 // The turns of [turnsAlong] the vehicle at [position], with [progress] left, has not passed, each with its distance
 // along the line. The distance is what is left from the vehicle less what is left from the turn, both scaled as
@@ -337,7 +350,7 @@ private data class TurnAlong(
 )
 
 // The follow's state between fixes: where the last fix lay on the line, what was left from there, the watch, and the
-// point the vehicle is drawn at on the line, if any.
+// point the vehicle is drawn at on the line, if any, which also says whether the next fix keeps the leave margin.
 private data class FollowStep(
     val position: LinePosition,
     val progress: RouteProgress,

@@ -406,6 +406,38 @@ class RouteProgressTest {
             assertNull(followOne(route, besideTheLine(meters = 25.0, accuracyMeters = null)).onLine)
         }
 
+    // Once on the line, the vehicle stays until its fix is 10 m beyond the gate it joined by: a fix at the gate's edge
+    // must not throw the vehicle 20 m sideways and back every second.
+    @Test
+    fun `a vehicle drawn on the line stays on it while its fix is less than 10 m beyond the gate`() =
+        runTest {
+            val onLine = followAfterTheLine(besideTheLine(meters = 25.0, accuracyMeters = 10f, second = 1)).onLine
+
+            assertPoint(RoutePoint(0.0, 0.05), assertNotNull(onLine).point)
+        }
+
+    @Test
+    fun `a vehicle not drawn on the line does not join it beyond the gate`() =
+        runTest {
+            assertNull(followOne(route, besideTheLine(meters = 25.0, accuracyMeters = 10f)).onLine)
+        }
+
+    @Test
+    fun `a vehicle drawn on the line leaves it more than 10 m beyond the gate`() =
+        runTest {
+            assertNull(followAfterTheLine(besideTheLine(meters = 31.0, accuracyMeters = 10f, second = 1)).onLine)
+        }
+
+    @Test
+    fun `past 50 m the vehicle is drawn at the fix, whether it was on the line or not`() =
+        runTest {
+            // An accuracy of 45 m would put the gate at 45 m and the way off the line at 55 m.
+            val fix = besideTheLine(meters = 52.0, accuracyMeters = 45f, second = 1)
+
+            assertNull(followAfterTheLine(fix).onLine)
+            assertNull(followOne(route, fix).onLine)
+        }
+
     // The map hears from every fix drawn on the line through these: a fix that matches the point the last one did must
     // not read as no news, or the page greys the vehicle as if the signal were lost and its heading stops turning.
     @Test
@@ -566,12 +598,21 @@ class RouteProgressTest {
         fix: RouteFix,
     ): RouteFollow = route.followFlow(flowOf(fix)).toList().last()
 
-    // A fix [meters] north of the equator route a quarter of the way along it.
+    // What the follow reports at [fix] on the equator route, a second after a fix on the line drew the vehicle there.
+    private suspend fun followAfterTheLine(fix: RouteFix): RouteFollow =
+        route.followFlow(flowOf(besideTheLine(meters = 0.0, accuracyMeters = null), fix)).toList().last()
+
+    // A fix [meters] north of the equator route a quarter of the way along it, taken at [second] on the boot clock.
     private fun besideTheLine(
         meters: Double,
         accuracyMeters: Float?,
+        second: Int = 0,
     ): RouteFix =
-        fakeRouteFix(RoutePoint(meters / METERS_PER_DEGREE, 0.05), elapsedMs = 0L, accuracyMeters = accuracyMeters)
+        fakeRouteFix(
+            RoutePoint(meters / METERS_PER_DEGREE, 0.05),
+            elapsedMs = second * 1_000L,
+            accuracyMeters = accuracyMeters,
+        )
 
     // A fix on the line [meters] past the equator route's halfway point.
     private fun pastTheHalfwayTurn(meters: Double): RouteFix =
