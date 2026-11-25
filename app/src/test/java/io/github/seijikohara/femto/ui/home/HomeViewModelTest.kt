@@ -1654,13 +1654,13 @@ class HomeViewModelTest {
     @Test
     fun `a restored route shows no card until the first fix, and the card with it`() =
         runTest {
-            // A receiver that has not fixed yet.
-            val location = MutableSharedFlow<Location?>()
+            // A receiver that has not fixed yet: the dashboard has no position.
+            val location = MutableStateFlow<Location?>(null)
             val viewModel = routeViewModel(locationFlow = location, available = true, route = TURNING_ROUTE)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             val beforeTheFix = assertNotNull(viewModel.uiState.value.activeRoute, "the route shows before the fix")
 
-            location.emit(beforeTheTurn())
+            location.value = beforeTheTurn()
 
             assertNull(beforeTheFix.turnCard)
             assertEquals(
