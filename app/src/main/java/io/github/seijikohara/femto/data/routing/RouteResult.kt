@@ -9,6 +9,12 @@ internal data class Route(
     val distanceMeters: Int,
     /** The travel time the profile estimates. */
     val durationSeconds: Int,
+    /**
+     * The engine's turn hints along [points], in route order. Null means no turn data: a route file of an earlier
+     * build, or hints that could not be read. An empty list means the engine reported no turn. The two stay apart
+     * so that a later turn card never reads a missing list as a route without turns.
+     */
+    val turns: List<RouteTurn>? = null,
 )
 
 internal sealed interface RouteResult {

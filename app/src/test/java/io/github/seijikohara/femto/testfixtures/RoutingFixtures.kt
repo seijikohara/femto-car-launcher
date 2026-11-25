@@ -14,6 +14,7 @@ import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
+import io.github.seijikohara.femto.data.routing.RouteTurn
 import io.github.seijikohara.femto.data.routing.RoutingProfileFiles
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -249,4 +250,5 @@ internal fun fakeRoute(
         ),
     distanceMeters: Int = 41_200,
     durationSeconds: Int = 2_950,
-): Route = Route(points = points, distanceMeters = distanceMeters, durationSeconds = durationSeconds)
+    turns: List<RouteTurn>? = null,
+): Route = Route(points = points, distanceMeters = distanceMeters, durationSeconds = durationSeconds, turns = turns)
