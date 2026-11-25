@@ -111,9 +111,7 @@ class TurnCardLayoutTest {
                 videoOn = on
                 UiScale.entries.flatMap { scale ->
                     uiScale = scale
-                    each(DashboardGeometries.all) { case ->
-                        if (shownForm() == null) emptyList() else roomFailures(case) + videoFailures(case) + cutLines(case)
-                    }
+                    each(DashboardGeometries.all) { case -> shownFailures(case) }
                 }
             },
         )
@@ -182,9 +180,7 @@ class TurnCardLayoutTest {
 
         assertEquals(
             emptyList(),
-            each(DashboardGeometries.all) { case ->
-                if (shownForm() == null) emptyList() else roomFailures(case) + cutLines(case)
-            },
+            each(DashboardGeometries.all) { case -> shownFailures(case) },
         )
     }
 
@@ -271,9 +267,13 @@ class TurnCardLayoutTest {
             TurnCardForm.FULL -> "full"
             TurnCardForm.COMPACT_THEN -> "compact+then"
             TurnCardForm.COMPACT -> "compact"
-        }.let { form ->
-            if (form == "none") form else "$form ${if (card().top < bounds(DashboardTags.CLOCK).bottom) "top" else "below"}"
-        }
+        }.let { form -> if (form == "none") form else "$form ${slotLabel()}" }
+
+    private fun slotLabel(): String = if (card().top < bounds(DashboardTags.CLOCK).bottom) "top" else "below"
+
+    // Where the card shows: what it must keep clear of, and its text whole.
+    private fun shownFailures(case: String): List<String> =
+        if (shownForm() == null) emptyList() else roomFailures(case) + videoFailures(case) + cutLines(case)
 
     // With the video window on, the card and the window must not meet.
     private fun videoFailures(case: String): List<String> =
@@ -408,7 +408,8 @@ class TurnCardLayoutTest {
                 "flagship-1920x1080" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "premium-2000x1200" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "phone-landscape-915x412" to listOf("full top", "full top", "full below", "none", "none"),
-                "phone-portrait-412x915" to listOf("full below", "full below", "full below", "compact+then below", "none"),
+                "phone-portrait-412x915" to
+                    listOf("full below", "full below", "full below", "compact+then below", "none"),
                 "tablet-800x1280" to listOf("full top", "full top", "full top", "full top", "full below"),
                 "car-portrait-1024x1365" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "car-portrait-tall-1200x1920" to listOf("full top", "full top", "full top", "full top", "full top"),

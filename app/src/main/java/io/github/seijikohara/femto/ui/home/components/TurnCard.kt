@@ -196,7 +196,13 @@ internal fun rememberTurnCardSizes(
         fun widthOf(
             measured: String,
             style: TextStyle,
-        ): Dp = with(density) { measurer.measure(measured, style, maxLines = 1, density = density).size.width.toDp() }
+        ): Dp =
+            with(density) {
+                measurer
+                    .measure(measured, style, maxLines = 1, density = density)
+                    .size.width
+                    .toDp()
+            }
 
         // The widest distance the unit family shows: three digits beside the wider of its two unit labels. A turn
         // farther than 999 km or mi widens it to its own digits.

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -240,7 +241,7 @@ class TurnCardTest {
     // digits: "90 m" and "100 m" at a red light would switch the small arrow on and off.
     @Test
     fun `a slot between the two compact widths keeps its form at 94 m and at 104 m`() {
-        var meters by mutableStateOf(94.0)
+        var meters by mutableDoubleStateOf(94.0)
         setCard({ TurnCardFixtures.turnThen.copy(distanceMeters = meters) }, width = BETWEEN_COMPACT_WIDTHS)
         val near = countOf("90") to countOf("Then")
 

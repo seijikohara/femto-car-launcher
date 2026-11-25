@@ -1088,7 +1088,6 @@ private fun DashboardOverlays(
                 }
             }
 
-
         // A tap on the margin ring around an open maximize panel dismisses it,
         // matching the modal sheets' scrim-tap behavior. The catcher is drawn
         // under the panels (they are later siblings) and OVER the cards, clock,
@@ -1413,6 +1412,7 @@ private fun routeCardSlots(
 ): RouteCardSlots {
     val start = mapControlsClearance(outerPad, gap)
     val topRowRoom = overlayWidth - clockInset - clockWidth - gap - start
+
     fun slot(
         top: Dp,
         room: Dp,
@@ -1447,7 +1447,9 @@ private fun turnCardPlacementOrNull(
     return listOf(topRow to true, belowClock to true, belowClock to false, topRow to false)
         .firstNotNullOfOrNull { (slot, full) ->
             slot?.takeIf { place ->
-                sizes.formOrNull(place.width, place.maxHeight)?.let { form -> (form == TurnCardForm.FULL) == full } == true
+                sizes.formOrNull(place.width, place.maxHeight).let { form ->
+                    form != null && (form == TurnCardForm.FULL) == full
+                }
             }
         }
 }

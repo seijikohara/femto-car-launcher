@@ -67,8 +67,13 @@ internal fun cardNumber(
     DecimalFormat(
         if (decimals > 0) "0." + "0".repeat(decimals) else "0",
         DecimalFormatSymbols
-            .getInstance(Locale.Builder().setLocale(locale).setUnicodeLocaleKeyword("nu", "latn").build())
-            .apply { zeroDigit = '0' },
+            .getInstance(
+                Locale
+                    .Builder()
+                    .setLocale(locale)
+                    .setUnicodeLocaleKeyword("nu", "latn")
+                    .build(),
+            ).apply { zeroDigit = '0' },
     ).apply { roundingMode = RoundingMode.HALF_UP }
         .format(value)
 
