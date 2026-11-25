@@ -8,15 +8,26 @@ The speed overlay sits on the map in large, high-contrast numerals sized for a g
 
 ## Speed overlay
 
-- **Current speed**, in the unit you choose (kilometers or miles per hour), independent of the system locale.
+- **Current speed**, in kilometers or miles per hour. The unit follows the device's region by default; **Settings → Units → Speed & distance** sets it explicitly.
 - **Trip distance**, **average speed** and **altitude** for the current trip.
-- **Address** of the current position, reverse-geocoded on the device by default. A self-hosted geocoding host can replace the on-device geocoder if you run one.
-- A tap on the **reset** button starts a new trip. The readout then shows a "Since" timestamp, which marks the period the numbers cover. A trip also ends automatically after a configurable parked pause, so the readout starts fresh on the next drive without a tap.
+- **Address** of the current position, from the device's own geocoder by default. A self-hosted geocoding host can replace that geocoder if you run one. [Privacy and data](/features/privacy/) says where the position goes in each case.
+- A tap on the **reset** button starts a new trip. The readout then shows a "Since" timestamp, which marks the period the numbers cover. A trip also ends automatically after a parked pause, so the readout starts fresh on the next drive without a tap. **Settings → Location → Start a new trip automatically** sets the pause: after 30 minutes, 1 hour, 2 hours (the default), 4 hours or 12 hours parked, or **Never (tap Reset only)**.
 
 ## Trip recording
 
-An on-device track log records the route at one fix per second while the vehicle is moving. The retention period is configurable. Recorded trips export as GPS Exchange Format (GPX) files through the Android file picker, and you choose the destination: a folder, a cloud drive or another app.
+An on-device track log records the route at one fix per second while the vehicle is moving. Recording is on by default; **Settings → Location → Track recording** switches it off. **Keep track history** sets how long the log keeps its points: 30 days, 90 days (the default), 1 year, or **Until I delete it**. **Export track history** saves the recorded history as a GPS Exchange Format (GPX) file through the Android file picker, and you choose the destination: a folder, a cloud drive or another app. **Delete track history** removes every recorded point from the device after asking.
 
 ## Trip flythrough
 
 A tap on the speed panel opens a three-dimensional (3D) wireframe replay of the recorded track: a flythrough with a speed-colored trail and an altitude curtain, rendered natively. Devices without the required graphics support get a two-dimensional replay of the same track, so the replay stays available without the 3D view.
+
+A row of chips lists the recorded trips by start date and time; the trip in progress reads **Current trip**, and the others show their number of points. A tap on a chip replays that trip. Below the chips, the panel shows the trip's distance, duration, top speed and altitude range. The replay starts by itself, and the controls under it play or pause it, replay it from the start, or scrub through it. Before the first trip is recorded, the panel shows **No trips recorded yet**.
+
+## Location settings
+
+**Settings → Location** also tunes how the launcher asks the device for its position:
+
+- **Accuracy** chooses **High accuracy** (the default), **Balanced** or **Low power**. The lower settings suit hardware that cannot keep up with high-accuracy requests.
+- **Update interval** sets how often the launcher asks for a new position. A shorter interval moves the map more smoothly; a longer one reduces the load on slow head units. Many GPS receivers deliver at most one position per second regardless.
+- **Minimum distance** skips a position closer than this to the previous one; 0 delivers every fix.
+- **Background ranging**, off by default, keeps measuring the trip distance and average speed while you use another app, such as a navigation app. It runs the GPS continuously and shows an ongoing **Trip tracking** notification with the current speed, distance and average speed, so it uses more power. When you switch it on while the app has location access, Android asks for permission to show notifications if the app does not have it yet.

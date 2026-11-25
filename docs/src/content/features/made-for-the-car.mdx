@@ -4,11 +4,13 @@ summary: Automotive defaults for legibility and touch accuracy across screen sha
 order: 5
 ---
 
-Automotive defaults keep the dashboard legible and operable while driving. At the default display size, body text stays at or above 16 scale-independent pixels (sp), and touch targets stay at or above 64 density-independent pixels (dp). The **Settings → Screen → Driver side** setting (Left or Right) anchors the cards, the clock and the map controls on the driver's side of the screen, within reach. The settings on this page change these defaults; they are user choices, not lockouts.
+Automotive defaults keep the dashboard legible and operable while driving. At the default display size, body text stays at or above 16 scale-independent pixels (sp), and touch targets stay at or above 64 density-independent pixels (dp). A few controls are deliberate exceptions at 48 dp: the map's compass and its zoom and locate buttons, the trip reset button, and the route clear button in nightly builds. The remove badges in the edit mode of the dock and of the pinned-apps row are smaller still. The **Settings → Screen → Driver side** setting (Left or Right) anchors the cards, the clock and the map controls on the driver's side of the screen, within reach. The settings on this page change these defaults; they are user choices, not lockouts.
 
 ## Layout
 
-The dashboard supports landscape and portrait orientations, at aspect ratios from wide head units to car-mounted phones in portrait. The dashboard reflows across a matrix of screen sizes rather than targeting one resolution. Display size offers five steps from Small to Large. The default, Medium, keeps the 16 sp and 64 dp minimums above. Small and Compact scale the whole interface below Medium to fit more on screen, as Android's own display-size control does.
+The dashboard supports landscape and portrait orientations, at aspect ratios from wide head units to car-mounted phones in portrait. The dashboard reflows across a matrix of screen sizes rather than targeting one resolution. Display size offers five steps from Small to Large. The default, Medium, keeps the 16 sp and 64 dp minimums above, apart from those exceptions. Small and Compact scale the whole interface below Medium to fit more on screen, as Android's own display-size control does.
+
+**Settings → Screen → Orientation** follows the device by default (**Auto**); **Landscape** or **Portrait** fixes the orientation for a unit that reports the wrong one. **Fullscreen**, on by default, hides Android's status and navigation bars. **Keep screen on**, also on by default, keeps the screen awake while the launcher is in front.
 
 ## Three device classes
 
@@ -18,7 +20,7 @@ The dashboard supports landscape and portrait orientations, at aspect ratios fro
 
 ## Appearance
 
-Material You dynamic color by default, fixed accent presets as an alternative, a light/dark/automatic theme, and a configurable glass look (blur, borders and drop shadows) for the floating cards.
+Material You dynamic color by default, fixed accent presets as an alternative, a light/dark/automatic theme, and a configurable glass look for the floating cards. **Settings → Appearance → Glass** sets the blur, the glass opacity, a border, and a drop shadow with adjustable intensity and size.
 
 ## Typography
 
@@ -35,6 +37,24 @@ The system font by default, any Google Fonts family per slot (a Latin face plus 
 The dashboard layout does not change with vehicle motion, and the launcher has no driving lockout. Responsibility for distraction stays with the driver. A few features gate themselves on motion instead:
 
 - The optional video window's picture stays hidden until the Global Positioning System (GPS) reads the vehicle as stopped.
-- Destination typing, saving and deleting pause while GPS reads the vehicle as moving.
+- Destination typing, saving, renaming and deleting pause while GPS reads the vehicle as moving.
 - Long music titles scroll only while the vehicle is parked.
 - While the vehicle is known to be moving, an update does not start installing, and the dashboard does not show the update prompt. An install confirmation already on screen when motion starts stays answerable.
+
+## Settings
+
+The dock's **Settings** button opens Settings. Its categories, in order:
+
+- **Appearance**: theme, accent color, map colors, the glass look and fonts. This page and [Live map](/features/live-map/) describe them.
+- **Screen**: display size, orientation, driver side, full screen, the dock, the assistant and motion. See this page and [Apps and voice](/features/apps-and-voice/).
+- **Units**: speed and distance, temperature and the clock. See this page and [Glanceable panels](/features/panels/).
+- **Map**: the map provider, its rendering options and the camera. See [Live map](/features/live-map/).
+- **Navigation**: what the route preview does. Only nightly builds with the OpenStreetMap provider list this category; see [Live map](/features/live-map/).
+- **Location**: the position requests, background ranging, trips and the track history. See [Driving data and trips](/features/driving-data/).
+- **Panels**: which cards show and what they hold. See [Glanceable panels](/features/panels/).
+- **Updates**: the installed version and in-app updates. See [Install](/install/).
+- **System**: links to Android's settings, diagnostics, licenses, the privacy policy and the terms, and a full reset. See [Privacy and data](/features/privacy/).
+
+Every category except System has a reset icon in its header, **Reset this section**, which restores that category's settings to their defaults after asking.
+
+Under **Settings → System**, **Notification access** opens Android's notification access settings, where the music card gets its access, and **System settings** opens Android's Settings app. **Reset to defaults** restores every setting in the categories above to its default after asking. The reset also clears a Google Maps key, a Map ID, a custom style URL and a tile host. It keeps the dock layout and the **Status icons** switch, the app panel's pins, hidden apps, layout and icon size, the picked video file, saved places, the track history, and downloaded routing data and map regions.
