@@ -33,11 +33,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
-import com.composables.icons.lucide.Flag
-import com.composables.icons.lucide.Lucide
 import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.ui.home.TurnManeuver
-import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
 import io.github.seijikohara.femto.ui.theme.turnExitNumber
@@ -48,11 +45,11 @@ import kotlin.math.sin
 
 /**
  * The turn card's arrow for [maneuver] (issue #389 phase 4), drawn on a Canvas in the square the caller sizes it to,
- * in [color]; faint parts take the same colour at a lower alpha. The destination is the flag icon at the same size.
+ * in [color]; faint parts take the same colour at a lower alpha. The destination is a flag in the same stroke.
  *
  * The arrow shows a physical direction, so it never mirrors in a right-to-left layout: a Canvas draws in absolute
- * coordinates whatever the layout direction, and the glyph is composed under a left-to-right direction besides, so
- * neither the flag icon nor the ring's number can pick a mirrored form up from a parent. The parent still places the
+ * coordinates whatever the layout direction, and the glyph is composed under a left-to-right direction besides, so the
+ * ring's number cannot pick a mirrored form up from a parent. The parent still places the
  * square where its own direction says.
  */
 @Composable
@@ -61,10 +58,7 @@ internal fun TurnArrow(
     modifier: Modifier = Modifier,
     color: Color = LocalContentColor.current,
 ) = CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-    when (val shape = turnGlyph(maneuver).shapeOrNull()) {
-        null -> FemtoIcon(imageVector = Lucide.Flag, contentDescription = null, modifier = modifier, tint = color)
-        else -> GlyphCanvas(shape = shape, color = color, modifier = modifier)
-    }
+    GlyphCanvas(shape = turnGlyph(maneuver).shape(), color = color, modifier = modifier)
 }
 
 /** The kind of glyph a manoeuvre gets, before any geometry: what the shape tests check. */
@@ -95,7 +89,7 @@ internal sealed interface TurnGlyph {
         val exitNumber: Int,
     ) : TurnGlyph
 
-    /** The destination: the flag icon. */
+    /** The destination: a pole with a pennant flying to the right. */
     data object Flag : TurnGlyph
 }
 
@@ -140,7 +134,7 @@ internal data class GlyphStroke(
     val faint: Boolean = false,
 )
 
-/** A filled arrowhead: its [tip], then the two corners of its base. */
+/** A filled triangle, an arrowhead or the flag's pennant: its [tip], then the two corners of its base. */
 internal data class GlyphHead(
     val points: List<Offset>,
 ) {
@@ -199,6 +193,11 @@ private const val RING_GAP_DEGREES = 60f
 private const val RING_HEAD_DEGREES = 34f
 private const val RING_HEAD_HALF_WIDTH = 0.12f
 
+// The flag: its pennant's height down the pole and how far it flies out, as a share of the square. The pole spans the
+// height every stemmed glyph spans, so the flag stands as tall as the arrows beside it.
+private const val PENNANT_HEIGHT = 0.40f
+private const val PENNANT_WIDTH = 0.46f
+
 // The steps each curve is drawn in: at 64 dp a step is under 2 dp of ring, which the round joins smooth over.
 private const val CURVE_STEPS = 24
 
@@ -210,15 +209,15 @@ private const val TWO_DIGIT_LABEL_SIZE = 0.30f
 /** The alpha of a faint part, against the glyph's own colour. */
 private const val FAINT_ALPHA = 0.35f
 
-/** Return the glyph's geometry, or null for the destination, which draws the flag icon instead. */
-internal fun TurnGlyph.shapeOrNull(): GlyphShape? =
+/** Return the glyph's geometry. */
+internal fun TurnGlyph.shape(): GlyphShape =
     when (this) {
         is TurnGlyph.Bend -> bendShape(degrees)
         is TurnGlyph.Fork -> forkShape(side = if (leftward) -1f else 1f)
         is TurnGlyph.Exit -> exitShape(side = if (leftward) -1f else 1f)
         is TurnGlyph.UTurn -> uTurnShape(side = if (leftward) -1f else 1f)
         is TurnGlyph.Ring -> ringShape(clockwise, exitNumber)
-        TurnGlyph.Flag -> null
+        TurnGlyph.Flag -> flagShape()
     }
 
 /**
@@ -328,6 +327,27 @@ private fun ringShape(
         label = exitNumber.takeIf { it > 0 }?.toString(),
     ).translated(Offset(0.5f, 0.5f))
 }
+
+// A pole from the bottom margin to the top one, and a pennant at its top: a filled triangle like an arrowhead, its
+// tip flying to the right. Centred in the square by its ink, as the stemmed glyphs are.
+private fun flagShape(): GlyphShape =
+    (1f - 2f * GLYPH_MARGIN - GLYPH_STROKE).let { poleLength ->
+        Offset(0f, -poleLength).let { top ->
+            GlyphShape(
+                strokes = listOf(GlyphStroke(listOf(Offset.Zero, top))),
+                heads =
+                    listOf(
+                        GlyphHead(
+                            listOf(
+                                top + Offset(PENNANT_WIDTH, PENNANT_HEIGHT / 2f),
+                                top,
+                                top + Offset(0f, PENNANT_HEIGHT),
+                            ),
+                        ),
+                    ),
+            ).let { shape -> shape.translated(Offset(0.5f, 0.5f) - shape.inkBounds().center) }
+        }
+    }
 
 // An arrowhead from the ring's point at [baseDegrees] to its tip on the ring at [tipDegrees]: along the chord, so the
 // tip stays on the ring rather than standing off it.

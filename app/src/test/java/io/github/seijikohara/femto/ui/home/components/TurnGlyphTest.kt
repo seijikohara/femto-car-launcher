@@ -9,7 +9,6 @@ import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -152,7 +151,7 @@ class TurnGlyphTest {
 
     @Test
     fun `every glyph keeps inside its square with the margin`() {
-        EXPECTED_GLYPHS.values.distinct().filterNot { it == TurnGlyph.Flag }.forEach { glyph ->
+        EXPECTED_GLYPHS.values.distinct().forEach { glyph ->
             val ink = glyph.shape().inkBounds()
             assertTrue(
                 ink.left >= GLYPH_MARGIN - EPSILON &&
@@ -164,9 +163,30 @@ class TurnGlyphTest {
         }
     }
 
+    // Drawn in the arrows' own stroke, a pole as tall as their stems with a solid pennant at its top flying right.
     @Test
-    fun `the destination draws the flag icon rather than a shape`() {
-        assertNull(turnGlyph(TurnManeuver.Arrive).shapeOrNull())
+    fun `the destination is a pole with a pennant at its top`() {
+        val shape = turnGlyph(TurnManeuver.Arrive).shape()
+        val pole = shape.strokes.single().points
+        val pennant = shape.heads.single()
+        assertEquals(
+            listOf(true, true, true, true),
+            listOf(
+                abs(pole.first().x - pole.last().x) < EPSILON,
+                pennant.points.drop(1).all { abs(it.x - pole.first().x) < EPSILON },
+                pennant.tip.x > pole.first().x,
+                pennant.points.minOf { it.y } - pole.minOf { it.y } < EPSILON,
+            ),
+        )
+    }
+
+    @Test
+    fun `the flag stands as tall as a stemmed arrow`() {
+        assertEquals(
+            turnGlyph(TurnManeuver.Turn(TurnKind.STRAIGHT)).shape().inkBounds().height,
+            turnGlyph(TurnManeuver.Arrive).shape().inkBounds().height,
+            EPSILON,
+        )
     }
 
     private fun shapeOf(kind: TurnKind): GlyphShape = turnGlyph(TurnManeuver.Turn(kind)).shape()
@@ -177,8 +197,6 @@ class TurnGlyphTest {
     ): GlyphShape = turnGlyph(TurnManeuver.Turn(kind, exitNumber = exitNumber)).shape()
 
     private fun uTurn(leftward: Boolean) = TurnManeuver.Turn(TurnKind.U_TURN, leftward = leftward)
-
-    private fun TurnGlyph.shape(): GlyphShape = checkNotNull(shapeOrNull()) { "$this has no shape" }
 
     // The stem is the first stroke, drawn up from the bottom of the square.
     private fun stemX(shape: GlyphShape): Float =
