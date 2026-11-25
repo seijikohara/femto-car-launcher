@@ -13,6 +13,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,11 +62,12 @@ internal fun TurnArrow(
     color: Color = LocalContentColor.current,
     showExitNumber: Boolean = true,
 ) = CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-    GlyphCanvas(
-        shape = turnGlyph(maneuver).shape().let { shape -> if (showExitNumber) shape else shape.copy(label = null) },
-        color = color,
-        modifier = modifier,
-    )
+    // Kept while the manoeuvre is the same, so the Canvas is skipped as the distance beside it counts down.
+    val shape =
+        remember(maneuver, showExitNumber) {
+            turnGlyph(maneuver).shape().let { shape -> if (showExitNumber) shape else shape.copy(label = null) }
+        }
+    GlyphCanvas(shape = shape, color = color, modifier = modifier)
 }
 
 /** The kind of glyph a manoeuvre gets, before any geometry: what the shape tests check. */
