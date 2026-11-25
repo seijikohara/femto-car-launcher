@@ -1,0 +1,73 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "creator": "BRouter-null",
+        "name": "brouter_car-vario_0",
+        "track-length": "336",
+        "filtered ascend": "1",
+        "plain-ascend": "-4",
+        "total-time": "88",
+        "total-energy": "57516",
+        "cost": "1568",
+        "voicehints": [
+          [1,5,0,63.0,84],
+          [4,3,0,105.0,-55],
+          [16,13,3,138.0,-236]
+        ],
+        "messages": [
+          ["Longitude", "Latitude", "Elevation", "Distance", "CostPerKm", "ElevCost", "TurnCost", "NodeCost", "InitialCost", "WayTags", "NodeTags", "Time", "Energy"],
+          ["-9421980", "38697968", "19", "30", "5649", "0", "0", "0", "0", "highway=residential surface=paving_stones oneway=yes", "", "9", "32546"],
+          ["-9421415", "38698315", "17", "63", "2609", "0", "0", "0", "0", "highway=residential surface=sett oneway=yes", "", "22", "24186"],
+          ["-9421466", "38698574", "16", "30", "3346", "0", "0", "0", "0", "highway=residential surface=asphalt oneway=no", "highway=crossing crossing=uncontrolled kerb=lowered", "29", "24650"],
+          ["-9421359", "38698696", "15", "17", "4718", "0", "0", "0", "0", "highway=residential surface=asphalt oneway=no", "highway=crossing crossing=uncontrolled kerb=lowered", "33", "17040"],
+          ["-9421059", "38698848", "13", "31", "4176", "0", "0", "0", "0", "highway=residential surface=asphalt oneway=yes", "highway=crossing crossing=uncontrolled kerb=lowered", "40", "-2665"],
+          ["-9420886", "38698904", "12", "17", "4843", "0", "0", "0", "0", "highway=residential surface=asphalt oneway=yes", "highway=crossing crossing=uncontrolled", "44", "-10285"],
+          ["-9420835", "38698914", "12", "5", "4074", "0", "0", "0", "0", "highway=residential surface=asphalt oneway=yes", "highway=give_way direction=forward", "45", "-8500"],
+          ["-9420784", "38698925", "12", "5", "3735", "0", "0", "0", "0", "highway=residential surface=asphalt oneway=yes", "", "46", "-6733"],
+          ["-9420727", "38699007", "12", "24", "8018", "0", "0", "0", "0", "highway=tertiary surface=asphalt junction=roundabout", "", "69", "6842"],
+          ["-9420710", "38699052", "12", "5", "6546", "0", "0", "0", "0", "reversedirection=yes highway=tertiary surface=asphalt maxspeed=50 oneway=no", "highway=give_way direction=forward", "71", "12276"],
+          ["-9420700", "38699087", "12", "4", "5098", "0", "0", "0", "0", "reversedirection=yes highway=tertiary surface=asphalt maxspeed=50 oneway=no", "highway=crossing crossing=zebra", "72", "13753"],
+          ["-9420526", "38700014", "13", "105", "1959", "0", "0", "0", "0", "reversedirection=yes highway=tertiary surface=asphalt maxspeed=50 oneway=no", "", "87", "57516"]
+        ],
+        "times": [0,9.78,17.194,21.203,22.753,27.084,28.659,29.558,30.238,31.273,33.352,34.682,40.355,41.9,44.039,45.18,46.221,60.779,62.667,64.115,65.608,67.379,69.228,71.126,72.283,84.816,85.617,87.87,87.972]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-9.421790, 38.697746, 17.75],
+          [-9.421980, 38.697968, 19.25],
+          [-9.421736, 38.698126, 17.25],
+          [-9.421505, 38.698248, 17.0],
+          [-9.421415, 38.698315, 17.0],
+          [-9.421447, 38.698465, 16.5],
+          [-9.421477, 38.698529, 16.5],
+          [-9.421466, 38.698574, 16.25],
+          [-9.421457, 38.698611, 16.0],
+          [-9.421427, 38.698654, 15.75],
+          [-9.421359, 38.698696, 15.25],
+          [-9.421302, 38.698720, 14.75],
+          [-9.421059, 38.698848, 13.0],
+          [-9.420977, 38.698891, 12.5],
+          [-9.420886, 38.698904, 12.0],
+          [-9.420835, 38.698914, 12.0],
+          [-9.420784, 38.698925, 12.0],
+          [-9.420747, 38.698903, 12.0],
+          [-9.420700, 38.698904, 12.0],
+          [-9.420666, 38.698929, 12.0],
+          [-9.420659, 38.698964, 12.25],
+          [-9.420683, 38.698996, 12.25],
+          [-9.420727, 38.699007, 12.25],
+          [-9.420710, 38.699052, 12.5],
+          [-9.420700, 38.699087, 12.5],
+          [-9.420594, 38.699766, 12.75],
+          [-9.420585, 38.699827, 12.75],
+          [-9.420528, 38.700009, 13.0],
+          [-9.420526, 38.700014, 13.25]
+        ]
+      }
+    }
+  ]
+}

@@ -1,11 +1,21 @@
 package io.github.seijikohara.femto.data.routing
 
+import btools.router.FormatJson
 import btools.router.OsmTrack
 import btools.router.RoutingContext
 import btools.router.RoutingEngine
 import btools.router.RoutingParamCollector
 import io.github.seijikohara.femto.data.common.ATOMIC_WRITE_TEMP_SUFFIX
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import java.io.File
+
+private const val TURN_INSTRUCTION_MODE = 2
 
 /** The [RouteEngine] that runs BRouter (the `:brouter` module); no other file touches BRouter's types. */
 internal object BRouterEngine : RouteEngine {
@@ -22,6 +32,31 @@ private class BRouterSearch(
     private val referenceOut = request.referenceOut
     private val alternativeIndex = request.alternativeIndex
 
+    private val routingContext =
+        RoutingContext().apply {
+            // lookups.dat must sit beside the profile: BRouter reads it from the profile's directory.
+            localFunction = request.profile.path
+            memoryclass = request.memoryClassMb
+            // The profile is parsed with these in place of its own values. They also enter the profile's
+            // checksum, so a reference written under other parameters is refused and the search runs in full.
+            if (request.parameters.isNotEmpty()) keyValues = HashMap(request.parameters)
+            // Set on the field and not through keyValues, which would enter the profile's checksum and make every
+            // reference refuse the reroutes that rely on it. Mode 2 is one of the two that name a motorway exit
+            // (commands 17 and 18) where the others fold it into keep left and keep right, and its rows are always
+            // five numbers.
+            turnInstructionMode = TURN_INSTRUCTION_MODE
+            // BRouter's fast partial recalculation: a search to the reference's destination stops where it
+            // rejoins the reference. BRouter checks the destination and the profile's checksum itself.
+            rawTrackPath = request.referenceIn?.path
+            // BRouter's own "heading" parameter sets the two together; the direction alone only counts on the
+            // fast path.
+            request.startHeadingDegrees?.let { heading ->
+                startDirection = heading
+                forceUseStartDirection = true
+            }
+            setAlternativeIdx(request.alternativeIndex)
+        }
+
     // The constructor parses the profile, which BRouter's static ProfileCache keeps for the next search.
     private val engine =
         RoutingEngine(
@@ -32,24 +67,7 @@ private class BRouterSearch(
                 doubleArrayOf(request.origin.longitude, request.destination.longitude),
                 doubleArrayOf(request.origin.latitude, request.destination.latitude),
             ),
-            RoutingContext().apply {
-                // lookups.dat must sit beside the profile: BRouter reads it from the profile's directory.
-                localFunction = request.profile.path
-                memoryclass = request.memoryClassMb
-                // The profile is parsed with these in place of its own values. They also enter the profile's
-                // checksum, so a reference written under other parameters is refused and the search runs in full.
-                if (request.parameters.isNotEmpty()) keyValues = HashMap(request.parameters)
-                // BRouter's fast partial recalculation: a search to the reference's destination stops where it
-                // rejoins the reference. BRouter checks the destination and the profile's checksum itself.
-                rawTrackPath = request.referenceIn?.path
-                // BRouter's own "heading" parameter sets the two together; the direction alone only counts on the
-                // fast path.
-                request.startHeadingDegrees?.let { heading ->
-                    startDirection = heading
-                    forceUseStartDirection = true
-                }
-                setAlternativeIdx(request.alternativeIndex)
-            },
+            routingContext,
             RoutingEngine.BROUTER_ENGINEMODE_ROUTING,
         ).apply { quite = true }
 
@@ -63,6 +81,8 @@ private class BRouterSearch(
                     positions = track.nodes.map { EnginePosition(it.iLon, it.iLat) },
                     distanceMeters = track.distance,
                     durationSeconds = track.totalSeconds,
+                    // The hints are an extra: a formatter that throws leaves the route without them.
+                    turns = runCatching { brouterTurnsOrNull(FormatJson(routingContext).format(track)) }.getOrNull(),
                 )
             }
             ?: EngineOutcome.Error("no track found")
@@ -93,3 +113,49 @@ private class BRouterSearch(
             isDirty = false
         }
 }
+
+/**
+ * The `voicehints` rows of BRouter's JSON for a track; empty when the text has none, null when it cannot be read.
+ *
+ * BRouter leaves the key out of a track without a hint, so a missing key is no turn and not damaged text. Command
+ * numbers are not checked here: [toRouteResult] knows which ones this build has a [TurnKind] for.
+ */
+internal fun brouterTurnsOrNull(json: String): List<EngineTurn>? =
+    runCatching {
+        val properties =
+            Json
+                .parseToJsonElement(json)
+                .jsonObject
+                .getValue("features")
+                .jsonArray
+                .first()
+                .jsonObject
+                .getValue("properties")
+                .jsonObject
+        // Not an elvis: unreadable rows are null, which must not read as no turn.
+        when (val hints = properties["voicehints"]) {
+            null -> emptyList()
+            else -> turnRowsOrNull(hints.jsonArray)
+        }
+    }.getOrNull()
+
+// All or nothing: a list with a silent gap would make a later turn card skip a turn. The distance, the fourth field,
+// is not kept.
+private fun turnRowsOrNull(rows: JsonArray): List<EngineTurn>? =
+    rows
+        .map { (it as? JsonArray)?.toEngineTurnOrNull() }
+        .takeIf { null !in it }
+        ?.requireNoNulls()
+
+// Modes other than 2 append a string to the five numbers, which is tolerated.
+private fun JsonArray.toEngineTurnOrNull(): EngineTurn? =
+    takeIf { size >= 5 }
+        ?.let { row -> listOf(0, 1, 2, 4).map { row[it].wholeNumberOrNull() } }
+        ?.takeIf { null !in it }
+        ?.requireNoNulls()
+        ?.let { (positionIndex, command, exitNumber, angleDegrees) ->
+            EngineTurn(positionIndex, command, exitNumber, angleDegrees)
+        }
+
+// A string such as "5" would pass intOrNull, but BRouter writes these fields as bare numbers.
+private fun JsonElement.wholeNumberOrNull(): Int? = (this as? JsonPrimitive)?.takeUnless { it.isString }?.intOrNull
