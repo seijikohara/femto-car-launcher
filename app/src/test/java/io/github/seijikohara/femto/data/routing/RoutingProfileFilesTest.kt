@@ -48,6 +48,20 @@ class RoutingProfileFilesTest {
         model.getDeclaredConstructor()
     }
 
+    // The engine replaces the turn instruction mode the app sets with the profile's own value, unless that value is 1
+    // ("automatic"). A profile update that assigned anything else would switch the turn hints off or change their
+    // form, and no unit test runs a real search that would show it.
+    @Test
+    fun `the shipped profile leaves the turn instruction mode to the app`() {
+        val assigned =
+            TURN_INSTRUCTION_MODE_ASSIGNMENT
+                .find(shippedAsset(CAR_PROFILE).readText())
+                ?.groupValues
+                ?.get(1)
+
+        assertEquals("1", assigned)
+    }
+
     private fun profileFiles() = RoutingProfileFiles(dir()) { path -> shippedAssetFile(path).inputStream() }
 
     private fun dir(): File = File(tempFolder.root, "profiles")
@@ -56,5 +70,6 @@ class RoutingProfileFilesTest {
 
     private companion object {
         val MODEL_DECLARATION = Regex("""(?m)^---model:(\S+)""")
+        val TURN_INSTRUCTION_MODE_ASSIGNMENT = Regex("""(?m)^assign\s+turnInstructionMode\s*=\s*(\S+)""")
     }
 }

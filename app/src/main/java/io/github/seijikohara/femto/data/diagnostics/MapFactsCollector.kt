@@ -18,6 +18,7 @@ import io.github.seijikohara.femto.data.map.offline.RegionDownloadPhase
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkOutcome
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkResults
 import io.github.seijikohara.femto.data.map.offline.TileBenchmarkRow
+import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.CandidateFinder
 import io.github.seijikohara.femto.data.routing.CandidateSearch
 import io.github.seijikohara.femto.data.routing.CandidateSearchEnding
@@ -137,6 +138,10 @@ internal data class RoutingFacts(
     val candidateSearch: CandidateSearch? = null,
     /** What the start of this process did with the route the last one kept; null before it decided anything. */
     val restore: RouteRestoreDecision? = null,
+    /** Whether a route is on the map now. */
+    val routeActive: Boolean = false,
+    /** How many turn hints that route has; null when it has no turn data, which is not the same as none. */
+    val activeTurnCount: Int? = null,
 )
 
 // Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
@@ -170,6 +175,20 @@ private fun routingFacts(
                 DiagnosticFact(
                     "Last route",
                     FactValue.Text(facts.lastRun?.let { "${it.outcome.label()}, ${it.computingMs} ms" } ?: NO_RUN_YET),
+                ),
+            )
+            // A count and never a position: the report must not say where the route goes. "No turn data" is a route
+            // from an earlier build's file or hints the app could not read, which "0 turn hints" is not.
+            add(
+                DiagnosticFact(
+                    "Active route",
+                    FactValue.Text(
+                        when {
+                            !facts.routeActive -> "no route"
+                            facts.activeTurnCount == null -> "no turn data"
+                            else -> "${facts.activeTurnCount} turn hints"
+                        },
+                    ),
                 ),
             )
             // A failed route reads differently with a road ruled out: avoiding tolls leaves some places unreachable.
@@ -530,6 +549,7 @@ internal class MapFactsCollector(
     // A build without routing creates neither the tile store nor the planner.
     private suspend fun routingFacts(): RoutingFacts {
         val enabled = context.resources.getBoolean(R.bool.routing_enabled)
+        val activeRoute = if (enabled) ActiveRouteStore.shared.active.value else null
         return RoutingFacts(
             buildEnabled = enabled,
             tiles = if (enabled) RoutingTileStore.get(context).installedTiles() else null,
@@ -539,6 +559,8 @@ internal class MapFactsCollector(
             conditions = if (enabled) RoutePreferences(context).conditions.first() else null,
             candidateSearch = if (enabled) CandidateFinder.get(context).lastSearch.value else null,
             restore = if (enabled) RoutePersistence.get(context).decision.value else null,
+            routeActive = activeRoute != null,
+            activeTurnCount = activeRoute?.route?.turns?.size,
         )
     }
 }

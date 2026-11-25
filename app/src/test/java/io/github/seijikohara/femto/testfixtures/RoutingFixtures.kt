@@ -6,6 +6,7 @@ import io.github.seijikohara.femto.data.common.download.RevalidationResult
 import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.EngineOutcome
 import io.github.seijikohara.femto.data.routing.EnginePosition
+import io.github.seijikohara.femto.data.routing.EngineTurn
 import io.github.seijikohara.femto.data.routing.KeptRoute
 import io.github.seijikohara.femto.data.routing.ROUTE_TIME_LIMIT_MS
 import io.github.seijikohara.femto.data.routing.ROUTING_TILE_HOST_PREFIX
@@ -14,6 +15,7 @@ import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePlanner
 import io.github.seijikohara.femto.data.routing.RoutePoint
+import io.github.seijikohara.femto.data.routing.RouteTurn
 import io.github.seijikohara.femto.data.routing.RoutingProfileFiles
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
 import kotlinx.coroutines.CoroutineDispatcher
@@ -151,7 +153,7 @@ internal fun writeNoDataRecord(
  * What the engine answers for [fakeRoute]: its positions as BRouter stores them, micro-degrees offset by +180°
  * (longitude) and +90° (latitude).
  */
-internal fun fakeEngineTrack(): EngineOutcome.Track =
+internal fun fakeEngineTrack(turns: List<EngineTurn>? = null): EngineOutcome.Track =
     EngineOutcome.Track(
         positions =
             listOf(
@@ -161,7 +163,16 @@ internal fun fakeEngineTrack(): EngineOutcome.Track =
             ),
         distanceMeters = 41_200,
         durationSeconds = 2_950,
+        turns = turns,
     )
+
+private object RoutingResources
+
+/** The text of the engine output [fileName] under `app/src/test/resources/routing/`, byte for byte. */
+internal fun brouterJson(fileName: String): String =
+    requireNotNull(RoutingResources::class.java.getResourceAsStream("/routing/$fileName")) {
+        "Missing test resource routing/$fileName"
+    }.use { it.readBytes().decodeToString() }
 
 /**
  * A route of two equal legs east along the equator, where a degree of longitude is as long as one of latitude: a fix
@@ -249,4 +260,5 @@ internal fun fakeRoute(
         ),
     distanceMeters: Int = 41_200,
     durationSeconds: Int = 2_950,
-): Route = Route(points = points, distanceMeters = distanceMeters, durationSeconds = durationSeconds)
+    turns: List<RouteTurn>? = null,
+): Route = Route(points = points, distanceMeters = distanceMeters, durationSeconds = durationSeconds, turns = turns)

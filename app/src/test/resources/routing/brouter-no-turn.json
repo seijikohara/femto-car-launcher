@@ -1,0 +1,31 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "creator": "BRouter-null",
+        "name": "brouter_car-vario_0",
+        "track-length": "78",
+        "filtered ascend": "0",
+        "plain-ascend": "-1",
+        "total-time": "20",
+        "total-energy": "18532",
+        "cost": "360",
+        "messages": [
+          ["Longitude", "Latitude", "Elevation", "Distance", "CostPerKm", "ElevCost", "TurnCost", "NodeCost", "InitialCost", "WayTags", "NodeTags", "Time", "Energy"],
+          ["132713637", "33792792", "3", "78", "2566", "0", "0", "0", "0", "highway=tertiary", "", "20", "18532"]
+        ],
+        "times": [0,17.74,20.203]
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [132.713671, 33.793493, 4.5],
+          [132.713649, 33.792953, 4.0],
+          [132.713637, 33.792792, 3.0]
+        ]
+      }
+    }
+  ]
+}
