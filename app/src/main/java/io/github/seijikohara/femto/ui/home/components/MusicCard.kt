@@ -67,13 +67,14 @@ internal const val MUSIC_CARD_TAG = "music-card"
  *     short for all of them ([MusicMetaAndProgress]).
  *  3. Transport row — 64 dp prev / next + 72 dp primary play / pause
  *
- * Empty variants render in the same outer dimensions, reserved by measuring
+ * The idle variants render in the same outer dimensions, reserved by measuring
  * an unplaced sample of the Playing layout (see `PlayingHeightReserve` in
  * `MusicCardStates.kt`): `NeedsPermission` is
  * the connect CTA; `NoActiveSession` is a "nothing is playing" Play
  * affordance (tap resumes the last session via a media key, falling back to
- * launching the user's music app — see [MusicEmptyState]); `LastPlayed` is the
- * track that played last with a play button that resumes it in its app
+ * launching the user's music app — see [MusicEmptyState]). `LastPlayed` is the
+ * track that played last, laid out by the Playing card's own layout
+ * ([MusicCardLayout]) with a play button that resumes it in its app
  * ([onResume] with the app's package — see [MusicLastPlayedState]).
  */
 @Composable
@@ -120,6 +121,7 @@ internal fun MusicCard(
                 onResume = onResume,
                 onLaunchSource = onLaunchSource,
                 showAlbum = showAlbum,
+                showArt = showArt,
                 motionTier = motionTier,
                 stationary = stationary,
             )
@@ -152,117 +154,146 @@ private fun PlayingState(
     showArt: Boolean,
     motionTier: MotionTier,
     stationary: Boolean,
-) {
-    // The whole card (except the transport controls, which consume their own taps)
-    // opens the source app. The transport buttons are clickable children, so they
-    // intercept their presses before this parent clickable fires.
-    val openLabel = stringResource(R.string.music_open_source, sourceLabel(nowPlaying.packageName))
-    BoxWithConstraints(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = openLabel) { onLaunchSource(nowPlaying.packageName) }
-                // The shared card inset, so the album art and metadata breathe from
-                // the card edge and match the calendar / weather cards beside it.
-                .padding(FemtoDimens.CardPaddingCompact),
-    ) {
-        // The art's WIDTH budget: whatever the row can spare after reserving
-        // FemtoDimens.MusicMetaMinWidth for the text column (so a narrow card
-        // can't starve it), capped at FemtoDimens.MusicArtSize. The art's actual
-        // size is height-first — a square matching the meta column beside it
-        // (see the row below) — with this budget as the narrow-card ceiling.
-        val artMaxWidth =
-            if (showArt) {
-                minOf(
-                    maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap,
-                    FemtoDimens.MusicArtSize,
-                ).coerceAtLeast(0.dp)
-            } else {
-                0.dp
-            }
-        Column(
-            // Fill the width but wrap the height: the card is a content-height child
-            // of the floating column, so it reports its natural height and the
-            // calendar / weather row above it claims the freed space — the card no
-            // longer stretches to an outer allocation and centres the pair within a
-            // dead band. No vertical arrangement bias is needed once there is no
-            // leftover height to distribute.
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
-        ) {
-            // Album art + track info share the top region; the transport row spans the
-            // full card width below. On a narrow info-pane card a square album beside the
-            // three >= 64 dp controls leaves no room for them, so the controls drop to a
-            // full-width strip where they always fit.
-            Row(
-                // Pinned to the row's min intrinsic height, which the art sits out
-                // (see ZeroIntrinsicHeight): the meta column's natural height alone
-                // sets the row, and the art grows a square to match it — capped by
-                // artMaxWidth, so a narrow card still protects the text column. The
-                // pin keeps the content height well-defined, so the card wraps its
-                // content (below) rather than being stretched to an outer allocation
-                // and opening empty top / bottom bands on a tall display.
-                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(RowContentGap),
-                // When the width budget caps the art below the meta column's height,
-                // the smaller square sits balanced beside the text instead of hugging
-                // the row's top edge. A full-height art makes this a no-op.
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                // Hidden entirely when showArt is off, so the meta column takes
-                // the full width.
-                if (showArt) {
-                    ZeroIntrinsicHeight {
-                        AlbumArt(
-                            nowPlaying = nowPlaying,
-                            onTap = onExpand,
-                            // Height-first square: match the meta column's height,
-                            // falling back to the width budget when the card is too
-                            // narrow for a square that tall.
-                            modifier =
-                                Modifier
-                                    .testTag(MUSIC_ART_TAG)
-                                    .sizeIn(maxWidth = artMaxWidth, maxHeight = FemtoDimens.MusicArtSize)
-                                    .aspectRatio(1f, matchHeightConstraintsFirst = true),
-                            motionTier = motionTier,
-                        )
-                    }
-                }
-                MusicMetaAndProgress(
-                    source = sourceLabel(nowPlaying.packageName),
-                    sourceIcon = nowPlaying.sourceIcon,
-                    title = nowPlaying.title,
-                    artist = nowPlaying.artist,
-                    album = nowPlaying.album,
-                    positionMs = nowPlaying.positionMs,
-                    durationMs = nowPlaying.durationMs,
-                    positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
-                    isPlaying = nowPlaying.isPlaying,
-                    playbackSpeed = nowPlaying.playbackSpeed,
-                    showAlbum = showAlbum,
-                    onExpand = onExpand,
+) = MusicCardLayout(
+    openLabel = stringResource(R.string.music_open_source, sourceLabel(nowPlaying.packageName)),
+    onOpen = { onLaunchSource(nowPlaying.packageName) },
+    art =
+        if (showArt) {
+            { artModifier ->
+                AlbumArt(
+                    nowPlaying = nowPlaying,
+                    onTap = onExpand,
+                    modifier = artModifier,
                     motionTier = motionTier,
-                    stationary = stationary,
-                    // No height cap: the card wraps its content, so the meta block
-                    // keeps every line (the album included) and reports its natural
-                    // height for the row to wrap to.
-                    modifier = Modifier.weight(1f).testTag(MUSIC_META_TAG),
                 )
             }
-            // The spectrum paints behind the transport strip only: matchParentSize
-            // keeps the Box sized by the controls, and the buttons (drawn on top)
-            // keep their own tap handling — the canvas never consumes input.
-            Box(modifier = Modifier.fillMaxWidth()) {
-                spectrum?.let {
-                    SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
-                }
-                TransportRow(
-                    isPlaying = nowPlaying.isPlaying,
-                    onCommand = onCommand,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+        } else {
+            null
+        },
+    meta = { metaModifier ->
+        MusicMetaAndProgress(
+            source = sourceLabel(nowPlaying.packageName),
+            sourceIcon = nowPlaying.sourceIcon,
+            title = nowPlaying.title,
+            artist = nowPlaying.artist,
+            album = nowPlaying.album,
+            positionMs = nowPlaying.positionMs,
+            durationMs = nowPlaying.durationMs,
+            positionUpdateTimeMs = nowPlaying.positionUpdateTimeMs,
+            isPlaying = nowPlaying.isPlaying,
+            playbackSpeed = nowPlaying.playbackSpeed,
+            showAlbum = showAlbum,
+            onExpand = onExpand,
+            motionTier = motionTier,
+            stationary = stationary,
+            modifier = metaModifier,
+        )
+    },
+) {
+    // The spectrum paints behind the transport strip only: matchParentSize
+    // keeps the Box sized by the controls, and the buttons (drawn on top)
+    // keep their own tap handling — the canvas never consumes input.
+    Box(modifier = Modifier.fillMaxWidth()) {
+        spectrum?.let {
+            SpectrumBackground(spectrum = it, modifier = Modifier.matchParentSize())
         }
+        TransportRow(
+            isPlaying = nowPlaying.isPlaying,
+            onCommand = onCommand,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+/**
+ * Lay out the music card's content: the art slot and the meta column side by side, the controls below, all inside the
+ * shared card inset. The Playing card and the last played card both use this layout, so the art, the meta block and
+ * the play button sit in the same place on both. [art] is null when the art is hidden, and the meta column then takes
+ * the full width. [meta] and [art] receive the modifier that sizes and tags them. The whole card except the controls
+ * opens the app ([onOpen], announced as [openLabel]): the controls are clickable children, so they consume their own
+ * presses before this parent clickable fires.
+ */
+@Composable
+internal fun MusicCardLayout(
+    openLabel: String,
+    onOpen: () -> Unit,
+    art: (@Composable (Modifier) -> Unit)?,
+    meta: @Composable (Modifier) -> Unit,
+    modifier: Modifier = Modifier,
+    controls: @Composable () -> Unit,
+) = BoxWithConstraints(
+    modifier =
+        modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = openLabel, onClick = onOpen)
+            // The shared card inset, so the album art and metadata breathe from
+            // the card edge and match the calendar / weather cards beside it.
+            .padding(FemtoDimens.CardPaddingCompact),
+) {
+    // The art's WIDTH budget: whatever the row can spare after reserving
+    // FemtoDimens.MusicMetaMinWidth for the text column (so a narrow card
+    // can't starve it), capped at FemtoDimens.MusicArtSize. The art's actual
+    // size is height-first — a square matching the meta column beside it
+    // (see the row below) — with this budget as the narrow-card ceiling.
+    val artMaxWidth =
+        if (art != null) {
+            minOf(
+                maxWidth - FemtoDimens.MusicMetaMinWidth - RowContentGap,
+                FemtoDimens.MusicArtSize,
+            ).coerceAtLeast(0.dp)
+        } else {
+            0.dp
+        }
+    Column(
+        // Fill the width but wrap the height: the card is a content-height child
+        // of the floating column, so it reports its natural height and the
+        // calendar / weather row above it claims the freed space — the card no
+        // longer stretches to an outer allocation and centres the pair within a
+        // dead band. No vertical arrangement bias is needed once there is no
+        // leftover height to distribute.
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(FemtoDimens.CardSectionGapCompact),
+    ) {
+        // Album art + track info share the top region; the transport row spans the
+        // full card width below. On a narrow info-pane card a square album beside the
+        // three >= 64 dp controls leaves no room for them, so the controls drop to a
+        // full-width strip where they always fit.
+        Row(
+            // Pinned to the row's min intrinsic height, which the art sits out
+            // (see ZeroIntrinsicHeight): the meta column's natural height alone
+            // sets the row, and the art grows a square to match it — capped by
+            // artMaxWidth, so a narrow card still protects the text column. The
+            // pin keeps the content height well-defined, so the card wraps its
+            // content (below) rather than being stretched to an outer allocation
+            // and opening empty top / bottom bands on a tall display.
+            modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(RowContentGap),
+            // When the width budget caps the art below the meta column's height,
+            // the smaller square sits balanced beside the text instead of hugging
+            // the row's top edge. A full-height art makes this a no-op.
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Absent entirely when the art is hidden, so the meta column takes
+            // the full width.
+            art?.let { slot ->
+                ZeroIntrinsicHeight {
+                    // Height-first square: match the meta column's height,
+                    // falling back to the width budget when the card is too
+                    // narrow for a square that tall.
+                    slot(
+                        Modifier
+                            .testTag(MUSIC_ART_TAG)
+                            .sizeIn(maxWidth = artMaxWidth, maxHeight = FemtoDimens.MusicArtSize)
+                            .aspectRatio(1f, matchHeightConstraintsFirst = true),
+                    )
+                }
+            }
+            // No height cap: the card wraps its content, so the meta block
+            // keeps every line (the album included) and reports its natural
+            // height for the row to wrap to.
+            meta(Modifier.weight(1f).testTag(MUSIC_META_TAG))
+        }
+        controls()
     }
 }
 

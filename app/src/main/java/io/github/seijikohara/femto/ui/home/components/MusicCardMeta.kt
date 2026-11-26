@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -29,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -117,31 +119,37 @@ internal fun AlbumArt(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
-                                    ),
-                                ),
-                            ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    FemtoIcon(
-                        imageVector = Lucide.Music,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(48.dp),
-                    )
-                }
+                AlbumArtPlaceholder(modifier = Modifier.fillMaxSize())
             }
         }
     }
 }
+
+/**
+ * Draw the tile that stands in for album art: the accent gradient with a music note. The Playing card shows it for a
+ * track without art, and the last played card shows it in the art slot, since no artwork is kept for that track.
+ */
+@Composable
+internal fun AlbumArtPlaceholder(modifier: Modifier = Modifier) =
+    Box(
+        modifier =
+            modifier.background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.tertiary,
+                    ),
+                ),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        FemtoIcon(
+            imageVector = Lucide.Music,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(48.dp),
+        )
+    }
 
 // Slot indices into MusicMetaAndProgress's Layout children — see the fit
 // algorithm below.
@@ -153,7 +161,12 @@ private const val PROGRESS_SLOT = 4
 
 // Gap between the source eyebrow / title / artist / album lines — a little air
 // between the lines so the metadata block reads cleanly rather than cramped.
-internal val MetaLineGap: Dp = 4.dp
+private val MetaLineGap: Dp = 4.dp
+
+// A slot measured at its real size but drawn blank and left out of the
+// semantics tree, so the space reads as empty to the eye and to accessibility
+// alike (no em dash, no 0:00).
+private val BlankSlot = Modifier.clearAndSetSemantics {}.drawWithContent {}
 
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
@@ -176,7 +189,7 @@ internal val MetaLineGap: Dp = 4.dp
  *
  * The block always reports the *natural* height of whatever it kept — even
  * when the incoming constraints are bounded — rather than stretching to fill
- * a taller allocation. The caller ([PlayingState]) pins its row to the row's
+ * a taller allocation. The caller ([MusicCardLayout]) pins its row to the row's
  * min intrinsic height — which this natural height alone defines, the album
  * art sitting out the vote — and sizes the art to match, while the card wraps
  * its content; a block that stretched to a taller bound would both reopen the
@@ -206,7 +219,13 @@ internal fun MusicMetaAndProgress(
     // Scroll long title / artist / album lines to their full length while the
     // vehicle is stationary; static ellipsis while moving. See [MetaLine].
     stationary: Boolean = false,
+    // Keep the album line's and the progress row's space but leave both blank:
+    // the last played card has neither, and holding their space puts its
+    // eyebrow, title and artist where the Playing card has them, with the same
+    // line dropping on a short card.
+    blankAlbumAndProgress: Boolean = false,
 ) {
+    val detailModifier = if (blankAlbumAndProgress) BlankSlot else Modifier
     // Title, artist and album styles derive from the M3 type roles once and are
     // remembered so a track-change recomposition doesn't reallocate them.
     val typography = MaterialTheme.typography
@@ -248,6 +267,7 @@ internal fun MusicMetaAndProgress(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     tier = motionTier,
                     marquee = stationary,
+                    modifier = detailModifier,
                 )
             } else {
                 Spacer(modifier = Modifier.size(0.dp))
@@ -258,6 +278,7 @@ internal fun MusicMetaAndProgress(
                 positionUpdateTimeMs = positionUpdateTimeMs,
                 isPlaying = isPlaying,
                 playbackSpeed = playbackSpeed,
+                modifier = detailModifier,
             )
         },
     ) { measurables, constraints ->
@@ -310,7 +331,7 @@ internal fun MusicMetaAndProgress(
 // to the whole meta block — so it stays distinct from the card-wide
 // "open the source app" tap the title / artist / album lines fall through to.
 @Composable
-internal fun EyebrowLine(
+private fun EyebrowLine(
     source: String,
     sourceIcon: ImageBitmap?,
     onExpand: (() -> Unit)?,
@@ -365,7 +386,7 @@ internal fun EyebrowLine(
 // real track switch) rather than popping, matching the album art beside it
 // and the full-screen panel's metadata.
 @Composable
-internal fun MetaLine(
+private fun MetaLine(
     text: String,
     style: TextStyle,
     color: Color,
