@@ -240,7 +240,12 @@ class MusicCardLastPlayedLayoutTest {
         return rule
             .onAllNodes(hasAnyAncestor(hasTestTag(MUSIC_CARD_TAG)))
             .fetchSemanticsNodes()
-            .flatMap { node -> node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } }
+            .flatMap { node ->
+                node.config
+                    .getOrNull(SemanticsProperties.Text)
+                    .orEmpty()
+                    .map { it.text }
+            }
     }
 
     // The bounds of the single node inside the music card matching [matcher]; null when there is none.
