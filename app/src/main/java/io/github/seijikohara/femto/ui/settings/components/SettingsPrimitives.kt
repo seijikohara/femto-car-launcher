@@ -762,20 +762,18 @@ internal fun ActionRow(
     TrailingIcon(icon)
 }
 
-// A destructive row: resetting a group of settings to their defaults. Tapping
-// opens a confirm dialog — the only destructive action in Settings — so a
-// stray tap on the head unit never wipes the user's configuration. The three
-// text parameters default to the global "reset every setting" copy (this
-// row's original, single-purpose shape); a caller resetting a narrower group
-// (e.g. the dock) supplies its own row title and confirm-dialog copy.
+// A destructive row: resetting or deleting one group of data (the dock, the
+// track history). Tapping opens a confirm dialog with the caller's copy, so a
+// stray tap on the head unit never wipes the user's configuration. The global
+// "Reset to defaults" row is ResetSettingsRow, which asks what to reset.
 @Composable
 internal fun ResetRow(
     onConfirm: () -> Unit,
     shapes: ListItemShapes,
+    title: String,
+    confirmTitle: String,
+    confirmMessage: String,
     modifier: Modifier = Modifier,
-    title: String = stringResource(R.string.settings_reset_to_defaults),
-    confirmTitle: String = stringResource(R.string.settings_reset_confirm_title),
-    confirmMessage: String = stringResource(R.string.settings_reset_confirm_message),
     // Reset-shaped by default; a delete-shaped caller (track history) passes
     // the trash glyph so the row reads as removal, not restoration.
     icon: ImageVector = Lucide.RotateCcw,
@@ -802,9 +800,9 @@ internal fun ResetRow(
     }
 }
 
-// Shared confirm dialog for both the global reset (ResetRow) and the
-// per-category reset (SettingsCategoryDetail's SectionResetButton) — title and
-// message vary by caller, the Reset / Cancel actions do not.
+// Shared confirm dialog for ResetRow and the per-category reset
+// (SettingsCategoryDetail's SectionResetButton) — title and message vary by
+// caller, the Reset / Cancel actions do not.
 @Composable
 private fun ResetConfirmDialog(
     title: String,
