@@ -27,6 +27,7 @@ import io.github.seijikohara.femto.ui.home.ActiveRouteState
 import io.github.seijikohara.femto.ui.home.CandidateSummary
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.RouteChoiceState
+import io.github.seijikohara.femto.ui.home.TurnCardState
 import io.github.seijikohara.femto.ui.home.components.MapConfig
 import java.time.Clock
 import java.time.Instant
@@ -58,7 +59,7 @@ internal object DashboardFixtures {
                 ),
         )
 
-    /** [routeState] with the route row set to the time remaining (Settings → Navigation): "18 min left". */
+    /** [routeState] with the route row set to the time remaining (Settings → Navigation): "18 min". */
     val routeRemainingState: HomeUiState =
         routeState.copy(activeRoute = routeState.activeRoute?.copy(rowTime = RouteRowTime.REMAINING))
 
@@ -93,8 +94,30 @@ internal object DashboardFixtures {
             ),
         )
 
+    /**
+     * [routeState] with the turn card (issue #389 phase 4): a left turn 300 m ahead. The route states above carry no
+     * card, so their goldens hold the dashboard as it was before the card.
+     */
+    val routeTurnState: HomeUiState = routeState.withTurnCard(TurnCardFixtures.turn)
+
+    /** [routeTurnState] with a right turn following closely: the card's small arrow under "Then". */
+    val routeTurnThenState: HomeUiState = routeState.withTurnCard(TurnCardFixtures.turnThen)
+
+    /** [routeState] near its end, 1.2 km and 2 minutes left with no turn left: the card shows the destination. */
+    val routeArriveState: HomeUiState =
+        routeState.copy(
+            activeRoute =
+                routeState.activeRoute?.copy(
+                    progress = RouteProgress(remainingMeters = 1_240.0, remainingSeconds = 120.0),
+                    turnCard = TurnCardFixtures.arrive,
+                ),
+        )
+
     private fun HomeUiState.withChoice(choice: RouteChoiceState): HomeUiState =
         copy(activeRoute = activeRoute?.copy(choice = choice))
+
+    private fun HomeUiState.withTurnCard(turnCard: TurnCardState): HomeUiState =
+        copy(activeRoute = activeRoute?.copy(turnCard = turnCard))
 
     // Decoded once per JVM. The captures are smaller than the widest geometry
     // (2000x1200), so Crop upscales there — acceptable because the backdrop is

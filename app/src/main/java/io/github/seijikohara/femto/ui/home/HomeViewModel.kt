@@ -51,12 +51,13 @@ import io.github.seijikohara.femto.data.routing.ActiveRoute
 import io.github.seijikohara.femto.data.routing.ActiveRouteStore
 import io.github.seijikohara.femto.data.routing.FollowEvent
 import io.github.seijikohara.femto.data.routing.NavigationPreferences
+import io.github.seijikohara.femto.data.routing.NavigationSettings
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePersistence
 import io.github.seijikohara.femto.data.routing.RoutePoint
-import io.github.seijikohara.femto.data.routing.RouteRowTime
+import io.github.seijikohara.femto.data.routing.UpcomingTurn
 import io.github.seijikohara.femto.data.routing.followFlow
 import io.github.seijikohara.femto.data.routing.routingAvailableFlow
 import io.github.seijikohara.femto.data.system.SystemStatus
@@ -168,12 +169,11 @@ internal class HomeViewModel(
     // Where a place another app sent waits for the dashboard. Defaults to an
     // inbox of its own, so previews and tests receive nothing.
     private val receivedPlaces: ReceivedPlaceInbox = ReceivedPlaceInbox(),
-    // Which time the speed readout's route row shows (Settings → Navigation).
-    // Defaults to the arrival time, the row as it was before the setting.
-    routeRowTimeFlow: Flow<RouteRowTime> = flowOf(RouteRowTime.ARRIVAL),
-    // Whether the map draws the vehicle on the route line while it drives
-    // along it (Settings → Navigation). Defaults to on, the setting's default.
-    vehicleOnLineEnabled: Flow<Boolean> = flowOf(true),
+    // The Navigation settings the dashboard reads (Settings → Navigation):
+    // which time the speed readout's route row shows, whether the map draws
+    // the vehicle on the route line while it drives along it, and what the
+    // turn card shows. Defaults to the settings' defaults.
+    navigationSettingsFlow: Flow<NavigationSettings> = flowOf(NavigationSettings.Default),
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -279,7 +279,9 @@ internal class HomeViewModel(
     // progress back to the start of the line and the off-route watch back to
     // unarmed. The status and the choice card join in beside it: selecting a
     // candidate changes the route, which restarts the follow on the new line.
-    private val activeRoute: Flow<ActiveRouteState?> =
+    // The turns ahead and the off-route verdict ride along for the turn card,
+    // which the settings shape below.
+    private val activeRoute: Flow<FollowedRoute?> =
         combine(activeRouteFlow, routingAvailable) { active, available -> active?.takeIf { available } }
             .distinctUntilChangedBy { it?.session to it?.route }
             .flatMapLatest { active ->
@@ -296,13 +298,19 @@ internal class HomeViewModel(
                             },
                         activeRouteFlow.map { it.sessionView(shown.session) }.distinctUntilChanged(),
                     ) { follow, view ->
-                        ActiveRouteState(
-                            line = shown.route.points,
-                            progress = follow.progress,
-                            reroute = view.reroute,
-                            choice = view.choice,
-                            alternativeLines = view.alternativeLines,
-                            vehicleOnLine = follow.onLine,
+                        FollowedRoute(
+                            state =
+                                ActiveRouteState(
+                                    line = shown.route.points,
+                                    progress = follow.progress,
+                                    reroute = view.reroute,
+                                    choice = view.choice,
+                                    alternativeLines = view.alternativeLines,
+                                    vehicleOnLine = follow.onLine,
+                                ),
+                            upcomingTurns = follow.upcomingTurns,
+                            offRoute = follow.offRoute,
+                            fixPlaced = follow.fixPlaced,
                         )
                     }
                 } ?: flowOf(null)
@@ -346,22 +354,18 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "routing available", false)
 
-    // Seeded with the arrival time for the same reason; the row takes the
-    // stored choice as soon as it is read.
-    private val routeRowTime: Flow<RouteRowTime> =
-        routeRowTimeFlow
-            .onStart { emit(RouteRowTime.ARRIVAL) }
+    // Seeded with null, "not read yet", for the same reason; the dashboard
+    // takes the stored settings as soon as they are read (withSettings).
+    // Applied to the route below, after the follow and outside its restart
+    // keys: switching a setting never restarts the follow, which would put
+    // the progress back to the start of the line. A store that fails reads as
+    // the defaults.
+    private val navigationSettings: Flow<NavigationSettings?> =
+        navigationSettingsFlow
+            .map<NavigationSettings, NavigationSettings?> { it }
+            .onStart { emit(null) }
             .distinctUntilChanged()
-            .catchAsDefault(TAG, "route row time", RouteRowTime.ARRIVAL)
-
-    // Seeded with the setting's default for the same reason. Applied here,
-    // after the follow, like the row's time: switching it never restarts the
-    // follow, which would put the progress back to the start of the line.
-    private val drawVehicleOnLine: Flow<Boolean> =
-        vehicleOnLineEnabled
-            .onStart { emit(true) }
-            .distinctUntilChanged()
-            .catchAsDefault(TAG, "vehicle on line", true)
+            .catchAsDefault(TAG, "navigation settings", NavigationSettings.Default)
 
     val uiState: StateFlow<HomeUiState> =
         combine(
@@ -373,11 +377,8 @@ internal class HomeViewModel(
                 activeRoute,
                 routingOffered,
                 routeChoiceAutoClose,
-                routeRowTime,
-                drawVehicleOnLine,
-            ) { route, offered, _, time, onLine ->
-                route?.copy(rowTime = time, vehicleOnLine = route.vehicleOnLine?.takeIf { onLine }) to offered
-            },
+                navigationSettings,
+            ) { route, offered, _, settings -> route?.withSettings(settings) to offered },
         ) { core, calendar, systemStatus, tripState, (route, offered) ->
             HomeUiState(
                 location = core.location,
@@ -727,6 +728,44 @@ private data class SessionView(
     val alternativeLines: List<List<RoutePoint>> = emptyList(),
 )
 
+// The route as the follow and the session view give it, before the settings
+// shape it: the dashboard's state, and the turns ahead and the off-route
+// verdict the turn card is worked out from.
+private data class FollowedRoute(
+    val state: ActiveRouteState,
+    val upcomingTurns: List<UpcomingTurn>?,
+    val offRoute: Boolean,
+    val fixPlaced: Boolean,
+)
+
+// The route row's time, the vehicle on the line only with its setting on, and
+// the turn card as its three settings shape it, which hides while the choice
+// card is open. Until the [stored] settings are read the row and the line take
+// the defaults, and the card stays hidden, so a driver who switched it off
+// never sees it flash.
+private fun FollowedRoute.withSettings(stored: NavigationSettings?): ActiveRouteState =
+    (stored ?: NavigationSettings.Default).let { settings ->
+        state.copy(
+            rowTime = settings.routeRowTime,
+            vehicleOnLine = state.vehicleOnLine?.takeIf { settings.vehicleOnRouteLine },
+            turnCard =
+                turnCardStateOrNull(
+                    upcomingTurns = upcomingTurns,
+                    remainingMeters = state.progress.remainingMeters,
+                    fixPlaced = fixPlaced,
+                    offRoute = offRoute,
+                    reroute = state.reroute,
+                    choosing = state.choice != null,
+                    settings =
+                        TurnCardSettings(
+                            show = stored != null && settings.turnCard,
+                            showNextAfter = settings.turnCardNextAfter,
+                            showStraight = settings.turnCardStraight,
+                        ),
+                ),
+        )
+    }
+
 private fun ActiveRoute?.sessionView(session: Long): SessionView =
     this
         ?.takeIf { it.session == session }
@@ -919,8 +958,7 @@ internal class HomeViewModelFactory(
             closeRouteChoice = { session -> ActiveRouteStore.shared.closeChoice(session) },
             onGpsFix = routeKeeper::onGpsFix,
             receivedPlaces = ReceivedPlaceInbox.shared,
-            routeRowTimeFlow = navigationSettings.map { it.routeRowTime },
-            vehicleOnLineEnabled = navigationSettings.map { it.vehicleOnRouteLine },
+            navigationSettingsFlow = navigationSettings,
         ) as T
     }
 }

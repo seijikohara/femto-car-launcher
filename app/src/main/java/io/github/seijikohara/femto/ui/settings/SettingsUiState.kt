@@ -214,8 +214,8 @@ internal data class VideoSettingsUi(
 }
 
 /**
- * The Navigation category's rows (issue #389): what the route preview does besides the line on the map, and how the map
- * draws the vehicle along it.
+ * The Navigation category's rows (issue #389): what the route preview does besides the line on the map, what the turn
+ * card over the map shows, and how the map draws the vehicle along it.
  */
 internal data class NavigationSettingsUi(
     val rerouteAutomatically: Boolean,
@@ -223,6 +223,9 @@ internal data class NavigationSettingsUi(
     val restoreRouteAfterRestart: Boolean,
     val routeRowTime: RouteRowTime,
     val vehicleOnRouteLine: Boolean,
+    val turnCard: Boolean,
+    val turnCardNextAfter: Boolean,
+    val turnCardStraight: Boolean,
 ) {
     companion object {
         val Initial =
@@ -232,6 +235,9 @@ internal data class NavigationSettingsUi(
                 restoreRouteAfterRestart = NavigationSettings.Default.restoreRouteAfterRestart,
                 routeRowTime = NavigationSettings.Default.routeRowTime,
                 vehicleOnRouteLine = NavigationSettings.Default.vehicleOnRouteLine,
+                turnCard = NavigationSettings.Default.turnCard,
+                turnCardNextAfter = NavigationSettings.Default.turnCardNextAfter,
+                turnCardStraight = NavigationSettings.Default.turnCardStraight,
             )
     }
 }
@@ -549,6 +555,21 @@ internal sealed interface SettingsAction {
 
     /** Draw the vehicle on the route line while it drives along it, or always at the GPS position. */
     data class SetVehicleOnRouteLine(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Show the next turn in a card over the map while a route is on, or not. */
+    data class SetTurnCard(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Show the turn after next on the turn card when it follows closely, or not. */
+    data class SetTurnCardNextAfter(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Have the turn card also announce "continue straight", or not. */
+    data class SetTurnCardStraight(
         val value: Boolean,
     ) : SettingsAction
 

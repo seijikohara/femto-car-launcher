@@ -60,9 +60,6 @@
     <string name="speed_metric_avg">AVG.</string>
     <!-- The active route's row under the address (issue #389 phase 3); %1$s = the arrival clock time. -->
     <string name="speed_route_arrival">ETA %1$s</string>
-    <!-- In place of the arrival time when Settings → Navigation picks the time remaining; %1$s = the travel time left,
-         in the locale's units ("1 hr, 5 min"). -->
-    <string name="speed_route_remaining">%1$s left</string>
     <string name="speed_route_clear">Clear route</string>
     <!-- In place of the arrival time while the launcher reroutes after the vehicle left the route, and after a reroute
          that needed routing data the device does not hold or found no route; the old line stays in both cases. -->
@@ -78,6 +75,34 @@
     <string name="route_choice_none">No other route found</string>
     <!-- Closes the card and keeps the route chosen. -->
     <string name="route_choice_close">Done</string>
+    <!-- The turn card over the map (issue #389 phase 4): what to do at the next turn, under its distance. -->
+    <string name="turn_card_straight">Continue straight</string>
+    <string name="turn_card_left">Turn left</string>
+    <string name="turn_card_right">Turn right</string>
+    <string name="turn_card_slight_left">Turn slightly left</string>
+    <string name="turn_card_slight_right">Turn slightly right</string>
+    <string name="turn_card_sharp_left">Turn sharply left</string>
+    <string name="turn_card_sharp_right">Turn sharply right</string>
+    <string name="turn_card_keep_left">Keep left</string>
+    <string name="turn_card_keep_right">Keep right</string>
+    <string name="turn_card_u_turn">Make a U-turn</string>
+    <!-- %1$s = the roundabout's exit to take, counted from the entry, as a plain number in ASCII digits: no ordinal,
+         whose words would follow the device's language rather than this sentence's, and no native digits, which the
+         device's language would give a %d. -->
+    <string name="turn_card_roundabout_exit">Take exit %1$s</string>
+    <!-- A roundabout whose exit the routing data does not give. -->
+    <string name="turn_card_roundabout_enter">Enter the roundabout</string>
+    <!-- A motorway exit to either side: the arrow beside the text shows which. -->
+    <string name="turn_card_exit">Take the exit</string>
+    <!-- No turn is left before the destination. -->
+    <string name="turn_card_arrive">Destination</string>
+    <!-- Caption over the small arrow of the turn that follows closely after the announced one. -->
+    <string name="turn_card_then">Then</string>
+    <!-- What a screen reader says for the whole card: %1$s = the line of text ("Turn left"), %2$s = the distance's
+         value ("300") and %3$s its unit ("m"), as the card shows them. -->
+    <string name="turn_card_description">%1$s in %2$s %3$s.</string>
+    <!-- The same, when the card shows the turn after next: %4$s = that turn's line of text ("Turn right"). -->
+    <string name="turn_card_description_then">%1$s in %2$s %3$s. Then: %4$s.</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>
@@ -518,6 +543,13 @@
     <string name="settings_navigation_row_time_arrival">Arrival time</string>
     <string name="settings_navigation_row_time_remaining">Time remaining</string>
     <string name="settings_navigation_guidance">Guidance</string>
+    <string name="settings_navigation_turn_card">Turn card</string>
+    <string name="settings_navigation_turn_card_desc">Show the next turn over the map while a route is on.</string>
+    <string name="settings_navigation_turn_card_next_after">Show the turn after next</string>
+    <string name="settings_navigation_turn_card_next_after_desc">A small second arrow when two turns follow closely.</string>
+    <!-- The quoted words are the turn card's own line of text for going straight on (turn_card_straight). -->
+    <string name="settings_navigation_turn_card_straight">Show \"Continue straight\"</string>
+    <string name="settings_navigation_turn_card_straight_desc">Also show where the route goes straight on across a bigger road.</string>
     <string name="settings_navigation_vehicle_on_line">Keep the vehicle on the route</string>
     <string name="settings_navigation_vehicle_on_line_desc">Draw the vehicle on the route line while it drives along it. Off draws it at the GPS position.</string>
     <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->

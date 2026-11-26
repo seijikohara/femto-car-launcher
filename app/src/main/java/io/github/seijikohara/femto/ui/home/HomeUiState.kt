@@ -64,6 +64,7 @@ internal data class HomeUiState(
  * [vehicleOnLine] is the point of the line the map draws the vehicle at while it drives along the route (the point the
  * route follow matched the fix to, stamped with that fix), or null where the map draws it at the fix: a fix too far
  * from the line, or the setting off (Settings → Navigation). Only the map reads it; everything else keeps the fix.
+ * [turnCard] is what the turn card over the map shows (issue #389 phase 4), or null for no card ([turnCardStateOrNull]).
  */
 internal data class ActiveRouteState(
     val line: List<RoutePoint>,
@@ -73,6 +74,7 @@ internal data class ActiveRouteState(
     val alternativeLines: List<List<RoutePoint>> = emptyList(),
     val rowTime: RouteRowTime = RouteRowTime.ARRIVAL,
     val vehicleOnLine: OnLinePoint? = null,
+    val turnCard: TurnCardState? = null,
 )
 
 /**

@@ -8,6 +8,8 @@ import kotlin.math.roundToInt
 
 private const val METERS_PER_MILE = 1609.344
 
+private const val METERS_PER_FOOT = 0.3048
+
 private const val SECONDS_PER_HOUR = 3.6
 
 private const val MM_PER_INCH = 25.4
@@ -117,6 +119,20 @@ internal fun SpeedUnit.distanceLabel(): String =
     when (this) {
         SpeedUnit.KILOMETERS_PER_HOUR -> "km"
         SpeedUnit.MILES_PER_HOUR -> "mi"
+    }
+
+/** Convert a metre distance to the short-distance unit paired with this speed unit (metres or feet). */
+internal fun SpeedUnit.shortDistanceFromMeters(meters: Double): Double =
+    when (this) {
+        SpeedUnit.KILOMETERS_PER_HOUR -> meters
+        SpeedUnit.MILES_PER_HOUR -> meters / METERS_PER_FOOT
+    }
+
+/** Short-distance unit label paired with this speed unit, for distances below one [distanceLabel] unit. */
+internal fun SpeedUnit.shortDistanceLabel(): String =
+    when (this) {
+        SpeedUnit.KILOMETERS_PER_HOUR -> "m"
+        SpeedUnit.MILES_PER_HOUR -> "ft"
     }
 
 internal fun SpeedUnit.label(): String =
