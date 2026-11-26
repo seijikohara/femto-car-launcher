@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.map.offline.OfflineStorageLimit
+import io.github.seijikohara.femto.testfixtures.mutateAllAwayFromDefault
+import io.github.seijikohara.femto.testfixtures.resetAllKeys
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -21,16 +23,16 @@ class DisplayPreferencesTest {
     // The displayDataStore delegate is a process-wide singleton bound to the
     // first Application's filesDir, while Robolectric hands each test method a
     // fresh Application. Every test below therefore resets the store itself
-    // (resetToDefaults(), directly or via mutateAllAwayFromDefault()) rather than
+    // (resetAllKeys(), directly or via mutateAllAwayFromDefault()) rather than
     // relying on test order, so the persisted file and the singleton never
     // disagree across tests. DrawerPreferencesTest hits the same constraint but
     // copes differently, keeping every round-trip step in a single test method.
     @Test
-    fun `an empty store reads the defaults and resetToDefaults restores them`() =
+    fun `an empty store reads the defaults and removing every key restores them`() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext())
             // Clear any state left by a test that ran earlier in the same process.
-            store.resetToDefaults()
+            store.resetAllKeys()
 
             // Reset parity: every per-field read fallback is kept identical to
             // DisplaySettings.Default, so a fresh key-less store reads exactly
@@ -65,10 +67,10 @@ class DisplayPreferencesTest {
                 assertEquals(DriverSide.LEFT, persisted.driverSide)
             }
 
-            // resetToDefaults() clears every key, so the read falls back to Default
+            // resetAllKeys() removes every key, so the read falls back to Default
             // for all fields at once — including driverSide, whose fallback (RIGHT)
             // already matches DisplaySettings.Default.
-            store.resetToDefaults()
+            store.resetAllKeys()
             assertEquals(DisplaySettings.Default, store.settings.first())
             assertEquals(DriverSide.RIGHT, store.settings.first().driverSide)
         }
@@ -78,7 +80,7 @@ class DisplayPreferencesTest {
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
             // Clear any state left by a test that ran earlier in the same process.
-            store.resetToDefaults()
+            store.resetAllKeys()
 
             // With no backend key written the read path falls back to OSM; a
             // pre-rename store resolves to OSM purely because map_backend is absent.
@@ -97,7 +99,7 @@ class DisplayPreferencesTest {
         runTest {
             val context = ApplicationProvider.getApplicationContext<Context>()
             val store = DisplayPreferences(context)
-            store.resetToDefaults()
+            store.resetAllKeys()
 
             context.displayDataStore.edit { it[DisplayPreferences.MAP_BACKEND_KEY] = "MAPBOX" }
             assertEquals(MapBackend.OSM, store.settings.first().mapBackend)
@@ -108,7 +110,7 @@ class DisplayPreferencesTest {
         runTest {
             val context = ApplicationProvider.getApplicationContext<Context>()
             val store = DisplayPreferences(context)
-            store.resetToDefaults()
+            store.resetAllKeys()
             assertEquals(OfflineStorageLimit.NONE, store.settings.first().offlineStorageLimit)
 
             store.setOfflineStorageLimit(OfflineStorageLimit.GB_5)
@@ -122,7 +124,7 @@ class DisplayPreferencesTest {
     fun googleMapsSettingsRoundTrip() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
-            store.resetToDefaults()
+            store.resetAllKeys()
             store.setGoogleMapsApiKey("AIzaTESTKEY")
             store.setGoogleMapsMapId("test-map-id-01")
             store.setGoogleMapsRendering(GoogleMapsRendering.VECTOR)
@@ -139,7 +141,7 @@ class DisplayPreferencesTest {
     fun `font adjustment settings read their defaults and round-trip`() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
-            store.resetToDefaults()
+            store.resetAllKeys()
 
             // Defaults: with no font keys written the read path falls back to the
             // theme baseline (16sp base, no weight shift, no tracking).
@@ -165,7 +167,7 @@ class DisplayPreferencesTest {
     fun `glass chrome settings read their defaults and round-trip`() =
         runTest {
             val store = DisplayPreferences(ApplicationProvider.getApplicationContext<Context>())
-            store.resetToDefaults()
+            store.resetAllKeys()
 
             // Defaults: with no glass-chrome keys written the read path falls back to
             // border off / shadow on at the shared intensity / size constants.
@@ -337,60 +339,27 @@ class DisplayPreferencesTest {
             assertEquals(DisplayPreferences.ALL_KEYS, persistedKeys)
         }
 
-    // Sets every persisted field to a value other than DisplaySettings.Default,
-    // shared by every resetKeys(section) precision test above so each test
-    // states only which fields its section owns, not how to mutate them all.
-    private suspend fun DisplayPreferences.mutateAllAwayFromDefault(): DisplaySettings {
-        resetToDefaults()
-        setThemeMode(ThemeMode.DARK)
-        setAccentColor(AccentColor.TEAL)
-        setUiScale(UiScale.LARGE)
-        setSpeedUnit(SpeedUnitSetting.MILES)
-        setTemperatureUnit(TemperatureUnitSetting.FAHRENHEIT)
-        setClock(ClockSetting.TWENTY_FOUR_HOUR)
-        setShowClockSeconds(true)
-        setFullscreen(FullscreenSetting.OFF)
-        setDockPosition(DockPosition.LEFT)
-        setDockWidth(DockWidth.EXTENDED)
-        setDriverSide(DriverSide.LEFT)
-        setMotionTier(MotionTier.OFF)
-        setOrientation(OrientationSetting.PORTRAIT)
-        setKeepScreenOn(false)
-        setAssistantLaunch(AssistantLaunchSetting.IN_APP)
-        setMapStyle(MapStyleSetting.DARK)
-        setMapSchemeLight(MapColorScheme.BRIGHT)
-        setMapSchemeDark(MapColorScheme.FIORD)
-        setMapCustomStyleUrl("https://example.test/style.json")
-        setMapTilt(40)
-        setMapZoom(MAX_MAP_ZOOM)
-        setMapNorthUp(true)
-        setMapMarkerPos(10)
-        setMap3dBuildings(false)
-        setMapTerrain(true)
-        setGlassBlurRadius(5)
-        setGlassTintScale(90)
-        setGlassShowBorder(true)
-        setGlassShadowEnabled(false)
-        setGlassShadowIntensity(70)
-        setGlassShadowSizeDp(16)
-        setFontBaseSizeSp(20)
-        setFontWeightStep(2)
-        setFontLetterSpacingCentiEm(8)
-        setShowCalendar(false)
-        setShowWeather(false)
-        setShowMusic(false)
-        setCalendarDateOnly(true)
-        setMusicSpectrum(true)
-        setMusicShowAlbum(false)
-        setMusicShowArt(false)
-        setMapBackend(MapBackend.GOOGLEMAPS)
-        setGoogleMapsApiKey("mutated-key")
-        setGoogleMapsMapId("mutated-id")
-        setGoogleMapsRendering(GoogleMapsRendering.VECTOR)
-        setGoogleMapsMapType(GoogleMapType.HYBRID)
-        setGoogleMapsTraffic(true)
-        setMapTileHost("https://tiles.example.test")
-        setOfflineStorageLimit(OfflineStorageLimit.GB_10)
-        return settings.first()
-    }
+    // The settings checklist with every row ticked removes every section's keys
+    // plus the entered values; on the real store that must leave nothing behind,
+    // exactly as the full clear the old "Reset to defaults" made.
+    @Test
+    fun `resetKeys of every section and the entered values empties the store`() =
+        runTest {
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            val store = DisplayPreferences(context)
+            store.mutateAllAwayFromDefault()
+
+            store.resetKeys(
+                SettingsSectionId.entries.flatMap { it.displayKeys }.toSet() + SettingsSectionId.ENTERED_VALUE_KEYS,
+            )
+
+            assertEquals(
+                emptySet(),
+                context.displayDataStore.data
+                    .first()
+                    .asMap()
+                    .keys,
+            )
+            assertEquals(DisplaySettings.Default, store.settings.first())
+        }
 }

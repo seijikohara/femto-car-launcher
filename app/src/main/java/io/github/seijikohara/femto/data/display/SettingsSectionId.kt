@@ -4,14 +4,13 @@ import androidx.datastore.preferences.core.Preferences
 
 /**
  * One entry per collapsible Settings-screen section, paired with the exact
- * [DisplayPreferences] keys it owns. This is the single mapping "reset this
- * section" reads from: `SettingsViewModel.onAction(ResetSection)` drives
- * [DisplaySettingsStore.resetKeys] with a section's [displayKeys], plus any
- * owned other-store reset the section needs (the font store for
- * [APPEARANCE], the location store for [LOCATION], the calendar store's
- * hidden-ID set for [PANELS], the update store's auto-check setting for
- * [UPDATES], the navigation store for [NAVIGATION] — see `SettingsViewModel`
- * for the wiring).
+ * [DisplayPreferences] keys it owns. This is the single mapping a section reset
+ * reads from: `SettingsViewModel` drives [DisplaySettingsStore.resetKeys] with
+ * a section's [displayKeys] minus [ENTERED_VALUE_KEYS], plus any owned
+ * other-store reset the section needs (the font store for [APPEARANCE], the
+ * location store for [LOCATION], the calendar store's hidden-ID set for
+ * [PANELS], the update store's auto-check setting for [UPDATES], the
+ * navigation store for [NAVIGATION] — see `SettingsViewModel` for the wiring).
  *
  * `SettingsSectionIdTest` asserts the union of every entry's [displayKeys]
  * equals [DisplayPreferences.ALL_KEYS], so a new persisted key that is not
@@ -108,4 +107,35 @@ internal enum class SettingsSectionId(
     // update store (UpdatePreferences), which also keeps the updater's
     // bookkeeping; SettingsViewModel resets only the setting there.
     UPDATES(emptySet()),
+    ;
+
+    internal companion object {
+        /**
+         * The keys that hold text the person typed in: the Google Maps key and Map
+         * ID, the custom style URL and the tile host. Each still belongs to the
+         * section whose rows show it, but no section reset deletes it: a value the
+         * person typed in cannot be chosen again from a list, so only a reset that
+         * asks for these values by name deletes them.
+         *
+         * The reset dialog names each of them in `settings_reset_entered_values_desc`;
+         * change that string together with this set. `SettingsSectionIdTest` pins
+         * the set, so a fifth key fails there until it is named in the string too.
+         */
+        val ENTERED_VALUE_KEYS: Set<Preferences.Key<*>> =
+            setOf(
+                DisplayPreferences.GOOGLE_MAPS_API_KEY_KEY,
+                DisplayPreferences.GOOGLE_MAPS_MAP_ID_KEY,
+                DisplayPreferences.MAP_CUSTOM_STYLE_URL_KEY,
+                DisplayPreferences.MAP_TILE_HOST_KEY,
+            )
+
+        /**
+         * What deleting the entered values deletes: [ENTERED_VALUE_KEYS] plus the
+         * map provider. Without its key the Google Maps provider can only show its
+         * missing-key notice, so the provider goes back to its default with them;
+         * nothing else of [MAP] changes.
+         */
+        val ENTERED_VALUE_RESET_KEYS: Set<Preferences.Key<*>> =
+            ENTERED_VALUE_KEYS + DisplayPreferences.MAP_BACKEND_KEY
+    }
 }

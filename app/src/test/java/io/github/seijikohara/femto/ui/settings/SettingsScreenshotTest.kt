@@ -1,12 +1,10 @@
 package io.github.seijikohara.femto.ui.settings
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.ui.Modifier
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
+import io.github.seijikohara.femto.testfixtures.SettingsForCapture
 import io.github.seijikohara.femto.testfixtures.routingOfferedSettingsState
-import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -116,23 +114,7 @@ class SettingsScreenshotTest {
         uiState: SettingsUiState = SettingsUiState.Initial,
     ) {
         captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
-            FemtoTheme(darkTheme = darkTheme) {
-                SettingsScreen(
-                    uiState = uiState,
-                    onAction = {},
-                    onBack = {},
-                    onOpenNotificationAccess = {},
-                    onOpenSystemSettings = {},
-                    onOpenFontPicker = {},
-                    onOpenOfflineRegions = {},
-                    onOpenRoutingData = {},
-                    onOpenDiagnostics = {},
-                    onOpenLicenses = {},
-                    onOpenDocument = {},
-                    modifier = Modifier.fillMaxSize(),
-                    initialCategory = initialCategory,
-                )
-            }
+            SettingsForCapture(initialCategory = initialCategory, darkTheme = darkTheme, uiState = uiState)
         }
     }
 }

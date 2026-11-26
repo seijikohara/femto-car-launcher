@@ -1,24 +1,13 @@
 package io.github.seijikohara.femto.ui.settings
 
 import android.net.Uri
-import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.location.TrackRetentionSetting
-import io.github.seijikohara.femto.data.location.VehicleMotion
-import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
-import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeNavigationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
-import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
-import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
+import io.github.seijikohara.femto.testfixtures.fakeSettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -53,23 +42,7 @@ class SettingsViewModelTrackLogTest {
     }
 
     private fun viewModel() =
-        SettingsViewModel(
-            FakeDisplaySettingsStore(),
-            FakeFontSelectionStore(),
-            locationStore,
-            FakeCalendarPreferencesStore(),
-            FakeDockSettingsStore(),
-            trackLog = trackLog,
-            availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
-            updater = FakeUpdaterPort(),
-            updatePreferences = FakeUpdateSettingsStore(),
-            motion = flowOf(VehicleMotion.PARKED),
-            videoPreferences = FakeVideoSettingsStore(),
-            videoGrants = FakeVideoSourceGrants(),
-            navigationPreferences = FakeNavigationSettingsStore(),
-            offlineRegionsAvailable = false,
-            ioDispatcher = dispatcher,
-        )
+        fakeSettingsViewModel(locationPreferences = locationStore, trackLog = trackLog, ioDispatcher = dispatcher)
 
     @Test
     fun `persists the track recording toggle and retention`() =

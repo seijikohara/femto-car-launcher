@@ -627,11 +627,20 @@ internal sealed interface SettingsAction {
     data object AcknowledgeUpdatedTo : SettingsAction
 
     /**
-     * Restore every display + font + location + calendar + update + video + navigation setting to its default value.
+     * Restore each of [sections] exactly as its own [ResetSection] does, all in one go, and delete the keys and
+     * addresses the person entered only when [deleteEnteredValues] is set; that also puts the map provider back to its
+     * default ([SettingsSectionId.ENTERED_VALUE_RESET_KEYS]). Every section plus the entered values restores every
+     * setting the section stores hold.
      */
-    data object ResetToDefaults : SettingsAction
+    data class ResetSettings(
+        val sections: Set<SettingsSectionId>,
+        val deleteEnteredValues: Boolean,
+    ) : SettingsAction
 
-    /** Restore only [sectionId]'s own settings (and any store it owns) to their default value. */
+    /**
+     * Restore only [sectionId]'s own settings (and any store it owns) to their default value. The keys and addresses
+     * the person entered stay ([SettingsSectionId.ENTERED_VALUE_KEYS]).
+     */
     data class ResetSection(
         val sectionId: SettingsSectionId,
     ) : SettingsAction

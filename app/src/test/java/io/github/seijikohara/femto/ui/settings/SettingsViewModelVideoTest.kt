@@ -1,24 +1,13 @@
 package io.github.seijikohara.femto.ui.settings
 
-import io.github.seijikohara.femto.data.calendar.CalendarCatalogState
 import io.github.seijikohara.femto.data.display.SettingsSectionId
-import io.github.seijikohara.femto.data.location.VehicleMotion
 import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.adoptSource
-import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
-import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
-import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeNavigationSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
-import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
 import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
+import io.github.seijikohara.femto.testfixtures.fakeSettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -165,15 +154,34 @@ class SettingsViewModelVideoTest {
         }
 
     @Test
-    fun `ResetToDefaults restores the video switches`() =
+    fun `a reset with Panels ticked restores the video switches and keeps the file`() =
         runTest(dispatcher) {
             videoStore.setWindowEnabled(true)
             videoStore.setHidePictureWhileDriving(false)
+            videoStore.setSourceUri(FILE)
 
-            viewModel().onAction(SettingsAction.ResetToDefaults)
+            viewModel().onAction(
+                SettingsAction.ResetSettings(setOf(SettingsSectionId.PANELS), deleteEnteredValues = false),
+            )
             advanceUntilIdle()
 
-            assertEquals(VideoSettings.Default, videoStore.current)
+            assertEquals(VideoSettings.Default.copy(sourceUri = FILE), videoStore.current)
+        }
+
+    @Test
+    fun `a reset with Panels unticked leaves the video switches alone`() =
+        runTest(dispatcher) {
+            videoStore.setWindowEnabled(true)
+
+            viewModel().onAction(
+                SettingsAction.ResetSettings(
+                    SettingsSectionId.entries.toSet() - SettingsSectionId.PANELS,
+                    deleteEnteredValues = true,
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(true, videoStore.current.windowEnabled)
         }
 
     private fun TestScope.subscribe(vm: SettingsViewModel) {
@@ -182,23 +190,7 @@ class SettingsViewModelVideoTest {
     }
 
     private fun viewModel(grants: FakeVideoSourceGrants = this.grants) =
-        SettingsViewModel(
-            FakeDisplaySettingsStore(),
-            FakeFontSelectionStore(),
-            FakeLocationSettingsStore(),
-            FakeCalendarPreferencesStore(),
-            FakeDockSettingsStore(),
-            trackLog = FakeTrackLogPort(),
-            availableCalendars = flowOf(CalendarCatalogState(hasAccess = true, calendars = emptyList())),
-            updater = FakeUpdaterPort(),
-            updatePreferences = FakeUpdateSettingsStore(),
-            motion = flowOf(VehicleMotion.PARKED),
-            videoPreferences = videoStore,
-            videoGrants = grants,
-            navigationPreferences = FakeNavigationSettingsStore(),
-            offlineRegionsAvailable = false,
-            ioDispatcher = dispatcher,
-        )
+        fakeSettingsViewModel(videoPreferences = videoStore, videoGrants = grants, ioDispatcher = dispatcher)
 
     private companion object {
         const val FILE = "content://com.example.documents/document/video%3A1"

@@ -167,8 +167,6 @@ internal class FakeDisplaySettingsStore(
         state.update { current -> keys.fold(current) { acc, key -> acc.resetField(key, default) } }
     }
 
-    override suspend fun resetToDefaults() = state.update { DisplaySettings.Default }
-
     private fun DisplaySettings.resetField(
         key: Preferences.Key<*>,
         default: DisplaySettings,
@@ -344,6 +342,10 @@ internal class FakeDisplaySettingsStore(
 
             DisplayPreferences.GOOGLE_MAPS_MAP_ID_KEY -> {
                 copy(googleMapsMapId = default.googleMapsMapId)
+            }
+
+            DisplayPreferences.GOOGLE_MAPS_RENDERING_KEY -> {
+                copy(googleMapsRendering = default.googleMapsRendering)
             }
 
             DisplayPreferences.GOOGLE_MAPS_MAP_TYPE_KEY -> {
