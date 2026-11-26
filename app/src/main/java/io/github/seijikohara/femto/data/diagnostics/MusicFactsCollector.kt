@@ -3,6 +3,8 @@ package io.github.seijikohara.femto.data.diagnostics
 import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.session.PlaybackState
+import android.os.SystemClock
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
 import io.github.seijikohara.femto.data.music.MusicCardState
@@ -10,9 +12,12 @@ import io.github.seijikohara.femto.data.music.NotStartedReason
 import io.github.seijikohara.femto.data.music.ResumeAttempts
 import io.github.seijikohara.femto.data.music.ResumeOutcome
 import io.github.seijikohara.femto.data.music.ResumeStep
+import io.github.seijikohara.femto.data.music.SessionSnapshot
+import io.github.seijikohara.femto.data.music.SessionTrace
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * The spectrum-probe verdict as facts. Pure so the health mapping is pinned
@@ -102,6 +107,71 @@ private val NotStartedReason.label: String
             NotStartedReason.INTERRUPTED -> "interrupted"
         }
 
+private const val NO_SNAPSHOT_YET = "none recorded since the launcher started"
+
+private const val MILLIS_PER_SECOND = 1_000.0
+
+/**
+ * The latest session-trace snapshot as the `Sessions` fact: every active session in the watch's order, its playback
+ * state, its track number, and which one the card shows. Names no track, only in-process track numbers. Pure so the
+ * wording is pinned by JVM tests.
+ */
+internal fun sessionsFact(latest: SessionSnapshot?): DiagnosticFact =
+    DiagnosticFact("Sessions", FactValue.Text(latest?.let(::snapshotText) ?: NO_SNAPSHOT_YET))
+
+/**
+ * The recorded session-trace snapshots as `Session history` facts, oldest first, each labelled with its age at
+ * [nowElapsedRealtimeMs]. One fact per snapshot, the form the crash history uses for its list, keeps each snapshot on
+ * one report bullet and one screen row. Pure so the wording is pinned by JVM tests.
+ */
+internal fun sessionHistoryFacts(
+    snapshots: List<SessionSnapshot>,
+    nowElapsedRealtimeMs: Long,
+): List<DiagnosticFact> =
+    snapshots
+        .map { snapshot ->
+            DiagnosticFact(
+                "Session history ${ageLabel(nowElapsedRealtimeMs - snapshot.elapsedRealtimeMs)}",
+                FactValue.Text(snapshotText(snapshot)),
+            )
+        }.ifEmpty { listOf(DiagnosticFact("Session history", FactValue.Text(NO_SNAPSHOT_YET))) }
+
+/** Return the platform name of a [PlaybackState] code, `no state` for none, and `state <n>` for an unknown code. */
+internal fun playbackStateName(state: Int?): String =
+    when (state) {
+        null -> "no state"
+        PlaybackState.STATE_NONE -> "NONE"
+        PlaybackState.STATE_STOPPED -> "STOPPED"
+        PlaybackState.STATE_PAUSED -> "PAUSED"
+        PlaybackState.STATE_PLAYING -> "PLAYING"
+        PlaybackState.STATE_FAST_FORWARDING -> "FAST_FORWARDING"
+        PlaybackState.STATE_REWINDING -> "REWINDING"
+        PlaybackState.STATE_BUFFERING -> "BUFFERING"
+        PlaybackState.STATE_ERROR -> "ERROR"
+        PlaybackState.STATE_CONNECTING -> "CONNECTING"
+        PlaybackState.STATE_SKIPPING_TO_PREVIOUS -> "SKIPPING_TO_PREVIOUS"
+        PlaybackState.STATE_SKIPPING_TO_NEXT -> "SKIPPING_TO_NEXT"
+        PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> "SKIPPING_TO_QUEUE_ITEM"
+        else -> "state $state"
+    }
+
+// One snapshot on one line, e.g. "#1 com.example.music PLAYING, track 7, on
+// the card; #2 com.example.radio PAUSED, track 2".
+private fun snapshotText(snapshot: SessionSnapshot): String =
+    snapshot.sessions
+        .joinToString("; ") { session ->
+            listOfNotNull(
+                "#${session.session} ${session.packageName} ${playbackStateName(session.state)}",
+                session.track?.let { "track $it" } ?: "no track",
+                "on the card".takeIf { session.session == snapshot.cardSession },
+            ).joinToString(", ")
+        }.ifEmpty { "none" }
+
+// Locale.ROOT keeps the decimal point a point on every device locale, as the
+// report's stable wording requires.
+private fun ageLabel(ageMs: Long): String =
+    String.format(Locale.ROOT, "-%.1f s", ageMs.coerceAtLeast(0L) / MILLIS_PER_SECOND)
+
 /**
  * Prepend the live `Session` fact onto the collected MUSIC payload. Pure:
  * the session state streams from the ViewModel's music flow rather than the
@@ -150,7 +220,8 @@ private fun sessionFact(musicState: MusicCardState?): DiagnosticFact =
 
 /**
  * Collects the MUSIC diagnostics section's one-shot half: the spectrum-probe
- * verdict, the last resume attempt, and the audio-output state. The live
+ * verdict, the last resume attempt, the session trace, and the audio-output
+ * state. The live
  * `Session` fact is injected by
  * the ViewModel via [musicSectionWithSession].
  */
@@ -165,14 +236,20 @@ internal class MusicFactsCollector(
         val diagnosis = spectrumRepository.diagnose()
         return withContext(Dispatchers.IO) {
             val audioManager = context.getSystemService<AudioManager>()!!
+            // One read, so the Sessions fact and the history's last entry agree.
+            val snapshots = SessionTrace.processWide.snapshots()
             SectionPayload.Facts(
                 spectrumFacts(diagnosis) +
                     listOf(
                         resumeFact(ResumeAttempts.latestOrNull()),
+                        sessionsFact(snapshots.lastOrNull()),
                         outputsFact(audioManager),
                         volumeFact(audioManager),
                         propertiesFact(audioManager),
-                    ),
+                    ) +
+                    // Last: up to SESSION_TRACE_SNAPSHOTS rows, which would push
+                    // the audio facts far down the section.
+                    sessionHistoryFacts(snapshots, SystemClock.elapsedRealtime()),
             )
         }
     }

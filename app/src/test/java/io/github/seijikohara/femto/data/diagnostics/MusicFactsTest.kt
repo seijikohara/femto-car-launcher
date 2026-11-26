@@ -1,15 +1,24 @@
 package io.github.seijikohara.femto.data.diagnostics
 
+import android.media.session.PlaybackState
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.NotStartedReason
 import io.github.seijikohara.femto.data.music.ResumeOutcome
 import io.github.seijikohara.femto.data.music.ResumeStep
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
+import io.github.seijikohara.femto.testfixtures.FAKE_RADIO_PACKAGE
+import io.github.seijikohara.femto.testfixtures.FAKE_TRACE_TITLE
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
+import io.github.seijikohara.femto.testfixtures.fakeObservedSession
+import io.github.seijikohara.femto.testfixtures.fakeSessionSnapshot
+import io.github.seijikohara.femto.testfixtures.fakeSessionTrace
+import io.github.seijikohara.femto.testfixtures.fakeTrackIdentity
+import io.github.seijikohara.femto.testfixtures.fakeTracedSession
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class MusicFactsTest {
     @Test
@@ -200,4 +209,159 @@ class MusicFactsTest {
             musicSectionWithSession(SectionPayload.Unavailable, MusicCardState.NoActiveSession),
         )
     }
+
+    @Test
+    fun `sessionsFact lists every session in order and marks the one on the card`() {
+        assertEquals(
+            DiagnosticFact(
+                "Sessions",
+                FactValue.Text(
+                    "#1 com.example.music PLAYING, track 7, on the card; #2 com.example.radio PAUSED, track 2",
+                ),
+            ),
+            sessionsFact(twoSessions()),
+        )
+    }
+
+    @Test
+    fun `sessionsFact says no track for a session that publishes no metadata`() {
+        assertEquals(
+            DiagnosticFact("Sessions", FactValue.Text("#1 com.example.music BUFFERING, no track, on the card")),
+            sessionsFact(
+                fakeSessionSnapshot(
+                    sessions = listOf(fakeTracedSession(state = PlaybackState.STATE_BUFFERING, track = null)),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `sessionsFact says no state for a session that reports none`() {
+        assertEquals(
+            DiagnosticFact("Sessions", FactValue.Text("#1 com.example.music no state, track 7")),
+            sessionsFact(fakeSessionSnapshot(sessions = listOf(fakeTracedSession(state = null)), cardSession = null)),
+        )
+    }
+
+    @Test
+    fun `sessionsFact reports a snapshot without an active session as none`() {
+        assertEquals(
+            DiagnosticFact("Sessions", FactValue.Text("none")),
+            sessionsFact(fakeSessionSnapshot(sessions = emptyList(), cardSession = null)),
+        )
+    }
+
+    @Test
+    fun `sessionsFact reports no snapshot yet`() {
+        assertEquals(
+            DiagnosticFact("Sessions", FactValue.Text("none recorded since the launcher started")),
+            sessionsFact(null),
+        )
+    }
+
+    @Test
+    fun `playbackStateName names every platform state in words`() {
+        assertEquals(
+            listOf(
+                "NONE",
+                "STOPPED",
+                "PAUSED",
+                "PLAYING",
+                "FAST_FORWARDING",
+                "REWINDING",
+                "BUFFERING",
+                "ERROR",
+                "CONNECTING",
+                "SKIPPING_TO_PREVIOUS",
+                "SKIPPING_TO_NEXT",
+                "SKIPPING_TO_QUEUE_ITEM",
+            ),
+            listOf(
+                PlaybackState.STATE_NONE,
+                PlaybackState.STATE_STOPPED,
+                PlaybackState.STATE_PAUSED,
+                PlaybackState.STATE_PLAYING,
+                PlaybackState.STATE_FAST_FORWARDING,
+                PlaybackState.STATE_REWINDING,
+                PlaybackState.STATE_BUFFERING,
+                PlaybackState.STATE_ERROR,
+                PlaybackState.STATE_CONNECTING,
+                PlaybackState.STATE_SKIPPING_TO_PREVIOUS,
+                PlaybackState.STATE_SKIPPING_TO_NEXT,
+                PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM,
+            ).map(::playbackStateName),
+        )
+    }
+
+    @Test
+    fun `playbackStateName gives an unknown code by number`() {
+        assertEquals("state 99", playbackStateName(99))
+    }
+
+    @Test
+    fun `sessionHistoryFacts lists the snapshots oldest first with their age`() {
+        assertEquals(
+            listOf(
+                DiagnosticFact(
+                    "Session history -42.3 s",
+                    FactValue.Text("#1 com.example.music PLAYING, track 7, on the card"),
+                ),
+                DiagnosticFact(
+                    "Session history -5.0 s",
+                    FactValue.Text(
+                        "#1 com.example.music PLAYING, track 7, on the card; #2 com.example.radio PAUSED, track 2",
+                    ),
+                ),
+            ),
+            sessionHistoryFacts(
+                snapshots =
+                    listOf(
+                        fakeSessionSnapshot(elapsedRealtimeMs = 7_700L),
+                        twoSessions(elapsedRealtimeMs = 45_000L),
+                    ),
+                nowElapsedRealtimeMs = 50_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `sessionHistoryFacts reports no snapshot yet`() {
+        assertEquals(
+            listOf(DiagnosticFact("Session history", FactValue.Text("none recorded since the launcher started"))),
+            sessionHistoryFacts(snapshots = emptyList(), nowElapsedRealtimeMs = 50_000L),
+        )
+    }
+
+    @Test
+    fun `the session facts never carry the title, artist or album`() {
+        val track = fakeTrackIdentity()
+        val trace = fakeSessionTrace()
+        trace.record(sessions = listOf(fakeObservedSession(track = track)), cardSessionKey = "session-1")
+        val printed =
+            (listOf(sessionsFact(trace.snapshots().last())) + sessionHistoryFacts(trace.snapshots(), 0L))
+                .joinToString("\n") { fact -> "${fact.label}: ${(fact.value as FactValue.Text).value}" }
+
+        assertTrue(
+            listOfNotNull(FAKE_TRACE_TITLE, track.artist, track.album).none { it in printed },
+            "the facts print a track field: $printed",
+        )
+    }
+
+    // The two-session example: the music app plays track 7 on the card while
+    // the radio app sits paused on track 2.
+    private fun twoSessions(elapsedRealtimeMs: Long = 0L) =
+        fakeSessionSnapshot(
+            sessions =
+                listOf(
+                    fakeTracedSession(),
+                    fakeTracedSession(
+                        session = 2,
+                        packageName = FAKE_RADIO_PACKAGE,
+                        state = PlaybackState.STATE_PAUSED,
+                        track = 2,
+                    ),
+                ),
+            cardSession = 1,
+            elapsedRealtimeMs = elapsedRealtimeMs,
+        )
 }
