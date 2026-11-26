@@ -32,8 +32,8 @@ import kotlin.test.assertEquals
  * The taps on the music card. The last played card shares its layout with the Playing card, so a tap anywhere on it
  * opens the app except on the resume button; the art tile and the eyebrow carry no expand tap there, as there is no
  * player to expand. The Playing card's own taps are pinned for contrast: the art and the eyebrow expand the player,
- * the title opens the app. The nodes are read from the unmerged tree where a tag or a text sits inside a merged
- * clickable.
+ * the lines below them open the app. The nodes are read from the unmerged tree where a tag or a text sits inside a
+ * merged clickable.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -97,17 +97,16 @@ class MusicCardLastPlayedClickTest {
         assertEquals(0, expands)
     }
 
-    // The resume button is disabled while resuming. A disabled clickable takes no press, so the tap is expected to
-    // fall through to the card's open tap; the test pins what the code does today, whichever it is.
+    // The resume button is disabled while an attempt runs, and it still takes the tap: a second tap neither starts
+    // another attempt nor opens the app over the one that is running.
     @Test
-    fun `a tap on the disabled resume button while resuming falls through to the card tap and does not resume`() {
+    fun `a tap on the disabled resume button while resuming does nothing`() {
         setCard(fakeLastPlayedState(resuming = true))
         rule.onNodeWithContentDescription(resumeLabel()).assertIsNotEnabled()
 
         rule.onNodeWithContentDescription(resumeLabel()).performClick()
 
-        assertEquals(emptyList(), resumed)
-        assertEquals(listOf(FAKE_MUSIC_PACKAGE), launched)
+        assertEquals(emptyList<String>() to emptyList<String>(), resumed.toList() to launched.toList())
     }
 
     @Test
@@ -130,11 +129,13 @@ class MusicCardLastPlayedClickTest {
         assertEquals(emptyList(), launched)
     }
 
+    // The artist line, not the title: the eyebrow's expand tap reaches the minimum touch target around its short
+    // row, which covers the top half of the title below it.
     @Test
-    fun `a tap on the title of the playing card opens the app and does not expand`() {
+    fun `a tap on the artist of the playing card opens the app and does not expand`() {
         setCard(MusicCardState.Playing(fakeNowPlaying()))
 
-        rule.onNodeWithText(fakeNowPlaying().title, useUnmergedTree = true).performClick()
+        rule.onNodeWithText(checkNotNull(fakeNowPlaying().artist), useUnmergedTree = true).performClick()
 
         assertEquals(listOf(fakeNowPlaying().packageName), launched)
         assertEquals(0, expands)
