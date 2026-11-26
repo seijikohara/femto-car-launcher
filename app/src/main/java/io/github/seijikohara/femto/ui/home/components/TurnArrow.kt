@@ -336,7 +336,7 @@ private fun ringShape(
             arcs.map { (from, to) ->
                 if (clockwise) ringHead(to, to + RING_HEAD_DEGREES) else ringHead(from, from - RING_HEAD_DEGREES)
             },
-        label = exitNumber.takeIf { it > 0 }?.toString(),
+        label = exitNumber.takeIf { it > 0 }?.let { cardNumber(it.toDouble(), decimals = 0) },
     ).translated(Offset(0.5f, 0.5f))
 }
 
