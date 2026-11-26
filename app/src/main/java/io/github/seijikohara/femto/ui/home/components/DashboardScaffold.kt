@@ -60,6 +60,7 @@ import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
+import io.github.seijikohara.femto.ui.home.TurnCardState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -766,9 +767,6 @@ private fun DashboardOverlays(
     // The speed readout's measured height: the route choice card stops above
     // it (routeCardPlacement).
     var speedHeightPx by remember { mutableIntStateOf(0) }
-    // The video window's measured size: the turn card keeps clear of it
-    // (turnCardPlacementOrNull).
-    var videoSize by remember { mutableStateOf(IntSize.Zero) }
 
     BoxWithConstraints(modifier = modifier) {
         // Map controls render only when the map does (a fix exists). The compass pins
@@ -953,50 +951,6 @@ private fun DashboardOverlays(
             )
         }
 
-        // The video window: on the map, on the side opposite the cards, beside
-        // the compass and control column (which own the outer edge), at the
-        // top. The open panel stands in for it, so one surface at a time
-        // draws the picture.
-        val videoPlacement =
-            if (video.windowEnabled && !videoExpanded) {
-                with(LocalDensity.current) {
-                    videoWindowPlacement(
-                        overlayWidth = maxWidth,
-                        mapAreaWidth = if (landscapeCards) maxWidth - floatingCardWidth else maxWidth,
-                        outerPad = outerPad,
-                        gap = cardGap,
-                        clockInset = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
-                        clockWidth = clockSize.width.toDp(),
-                        clockHeight = clockSize.height.toDp(),
-                    )
-                }
-            } else {
-                null
-            }
-        videoPlacement?.let { placement ->
-            VideoWindow(
-                state = video,
-                pictureVisible = videoPictureVisible,
-                onAction = onVideoAction,
-                onExpand = onExpandVideo,
-                surface = videoSurface,
-                hazeState = hazeState,
-                glassConfig = glassConfig,
-                modifier =
-                    Modifier
-                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
-                        .padding(
-                            if (mirror) {
-                                PaddingValues(end = placement.start, top = placement.top)
-                            } else {
-                                PaddingValues(start = placement.start, top = placement.top)
-                            },
-                        ).width(placement.width)
-                        .onSizeChanged { videoSize = it }
-                        .testTag(DashboardTags.VIDEO_WINDOW),
-            )
-        }
-
         // Where a route card goes between [cardMinWidth] and [cardMaxWidth]
         // (routeCardPlacement), from the overlays it keeps clear of.
         val density = LocalDensity.current
@@ -1023,6 +977,80 @@ private fun DashboardOverlays(
             cardMaxWidth: Dp,
         ): RouteCardPlacement = routeCardSlots(cardMaxWidth).placement(cardMinWidth)
 
+        // The video window's place: on the map, on the side opposite the cards,
+        // beside the compass and control column (which own the outer edge), at
+        // the top. The open panel stands in for it, so one surface at a time
+        // draws the picture.
+        val videoPlacement =
+            if (video.windowEnabled && !videoExpanded) {
+                with(density) {
+                    videoWindowPlacement(
+                        overlayWidth = maxWidth,
+                        mapAreaWidth = if (landscapeCards) maxWidth - floatingCardWidth else maxWidth,
+                        outerPad = outerPad,
+                        gap = cardGap,
+                        clockInset = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
+                        clockWidth = clockSize.width.toDp(),
+                        clockHeight = clockSize.height.toDp(),
+                    )
+                }
+            } else {
+                null
+            }
+
+        // The turn card (issue #389 phase 4), in the choice card's corner; the
+        // two never show together (turnCardStateOrNull). It takes the first
+        // slot and form that fit, measured (turnCardPlacementOrNull), clear of
+        // the speed readout and the video window, or shows nothing. Where the
+        // card and the window do not both fit, the card has priority: it takes
+        // its place as if the window were not there, and the window is not
+        // drawn while the card shows; the player keeps playing, only the
+        // window goes. The card's sizes count the widest distance, not the
+        // current digits, so the window does not come and go from fix to fix.
+        // Not before the clock and the speed readout have been measured: in
+        // the first frame after a rotation their sizes are still zero.
+        // TurnCardLayoutTest checks every geometry at every display size.
+        val turnCard =
+            uiState.activeRoute
+                ?.turnCard
+                ?.takeIf { clockSize != IntSize.Zero && speedHeightPx > 0 }
+                ?.let { turn ->
+                    val sizes = rememberTurnCardSizes(turn, speedUnit)
+                    val slots = routeCardSlots(TurnCardMaxWidth)
+                    // The window's top and bottom edges: its width sets its height.
+                    val videoEdges = videoPlacement?.let { it.top to it.top + it.width / VIDEO_ASPECT_RATIO }
+                    turnCardPlacementOrNull(sizes, slots, video = videoEdges, gap = cardGap)
+                        ?.let { placement -> TurnCardShown(turn, placement, hidesVideo = false) }
+                        ?: turnCardPlacementOrNull(sizes, slots, video = null, gap = cardGap)?.let { placement ->
+                            TurnCardShown(turn, placement, hidesVideo = videoEdges != null)
+                        }
+                }
+
+        // A window the turn card has priority over is not composed at all, so
+        // it is out of the semantics tree and takes no taps.
+        videoPlacement?.takeIf { turnCard?.hidesVideo != true }?.let { placement ->
+            VideoWindow(
+                state = video,
+                pictureVisible = videoPictureVisible,
+                onAction = onVideoAction,
+                onExpand = onExpandVideo,
+                surface = videoSurface,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier =
+                    Modifier
+                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(
+                            if (mirror) {
+                                PaddingValues(end = placement.start, top = placement.top)
+                            } else {
+                                PaddingValues(start = placement.start, top = placement.top)
+                            },
+                        ).width(placement.width)
+                        .testTag(DashboardTags.VIDEO_WINDOW),
+            )
+        }
+
         // The route choice card (issue #389 phase 3), in the video window's
         // corner of the map and drawn over it: the card is brief, and the
         // window has nowhere else to go. Below the maximize panels, which
@@ -1046,47 +1074,21 @@ private fun DashboardOverlays(
             )
         }
 
-        // The turn card (issue #389 phase 4), in the choice card's corner; the
-        // two never show together (turnCardStateOrNull). It takes the first
-        // slot and form that fit, measured (turnCardPlacementOrNull), clear of
-        // the speed readout and the video window, or shows nothing. Not before
-        // the clock, the speed readout and the video window have been
-        // measured: in the first frame after a rotation their sizes are still
-        // zero. TurnCardLayoutTest checks every geometry at every display size.
-        uiState.activeRoute
-            ?.turnCard
-            ?.takeIf {
-                clockSize != IntSize.Zero &&
-                    speedHeightPx > 0 &&
-                    (videoPlacement == null || videoSize != IntSize.Zero)
-            }?.let { turn ->
-                val sizes = rememberTurnCardSizes(turn, speedUnit)
-                with(density) {
-                    turnCardPlacementOrNull(
-                        sizes = sizes,
-                        slots = routeCardSlots(TurnCardMaxWidth),
-                        video =
-                            videoPlacement?.let { placement ->
-                                placement.top to placement.top + videoSize.height.toDp()
-                            },
-                        gap = cardGap,
-                    )
-                }?.let { placement ->
-                    TurnCard(
-                        state = turn,
-                        speedUnit = speedUnit,
-                        hazeState = hazeState,
-                        glassConfig = glassConfig,
-                        modifier =
-                            Modifier
-                                .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
-                                .padding(placement.insets(mirror))
-                                .width(placement.width)
-                                .heightIn(max = placement.maxHeight)
-                                .testTag(DashboardTags.TURN_CARD),
-                    )
-                }
-            }
+        turnCard?.let { (turn, placement) ->
+            TurnCard(
+                state = turn,
+                speedUnit = speedUnit,
+                hazeState = hazeState,
+                glassConfig = glassConfig,
+                modifier =
+                    Modifier
+                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                        .padding(placement.insets(mirror))
+                        .width(placement.width)
+                        .heightIn(max = placement.maxHeight)
+                        .testTag(DashboardTags.TURN_CARD),
+            )
+        }
 
         // A tap on the margin ring around an open maximize panel dismisses it,
         // matching the modal sheets' scrim-tap behavior. The catcher is drawn
@@ -1429,6 +1431,14 @@ private fun routeCardSlots(
         topRowRoom = topRowRoom,
     )
 }
+
+// The turn card that shows, where it goes, and whether it takes the video
+// window's place: it did not fit beside the window, so the window is not drawn.
+private data class TurnCardShown(
+    val state: TurnCardState,
+    val placement: RouteCardPlacement,
+    val hidesVideo: Boolean,
+)
 
 /**
  * Return where the turn card goes, or null for no card: the first of the full card in the top row, the full card

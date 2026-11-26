@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.width
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
+import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.testfixtures.DashboardFixtures
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
@@ -60,8 +61,8 @@ import kotlin.test.assertEquals
  * chevron at the default marker position, inside the screen, no narrower than its minimum, and no line cut short.
  * FitText cuts a line short only once even the 16 sp floor would overflow, so a line not cut short is one at 16 sp or
  * more. At every Display size, with the video window off and on, wherever it shows it ends a gap above the speed
- * readout, stays inside the screen and clear of the chevron and the video window; two tables pin the form and the slot
- * each geometry and size gets. Each geometry is laid out at its own size inside one window larger than all of them, as
+ * readout, stays inside the screen and clear of the chevron and the video window, which it hides where the two do not
+ * both fit; two tables pin the form and the slot each geometry and size gets, and whether the window shows. Each geometry is laid out at its own size inside one window larger than all of them, as
  * in RouteChoiceLayoutTest; the Display size scales the dashboard inside it.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -76,6 +77,7 @@ class TurnCardLayoutTest {
     private var uiScale by mutableStateOf(UiScale.MEDIUM)
     private var fontScale by mutableFloatStateOf(1f)
     private var videoOn by mutableStateOf(false)
+    private var uiState by mutableStateOf(LONGEST_TURN_STATE)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
@@ -129,10 +131,32 @@ class TurnCardLayoutTest {
             each(DashboardGeometries.all.filter { it.id == "head-unit-853x512" }) { case ->
                 listOfNotNull(
                     "$case: shows ${placementLabel()}".takeIf {
-                        placementLabel() !in listOf("compact top", "compact+then top")
+                        placementLabel() !in listOf("compact top +window", "compact+then top +window")
                     },
                 ) +
-                    videoFailures(case) + coverFailures(case)
+                    videoFailures(case) + coverFailures(case) +
+                    listOfNotNull("$case: the window is hidden".takeIf { !videoShown() })
+            },
+        )
+    }
+
+    // Where the two do not both fit, the card takes its place as if the window were not there, and the window is not
+    // drawn; it comes back as soon as the card goes, whatever sent the card away.
+    @Test
+    fun `the hidden video window comes back when the card goes`() {
+        videoOn = true
+        setDashboard()
+        geometry = DashboardGeometries.all.single { it.id == "mainstream-1280x720" }
+
+        assertEquals(
+            CARD_GONE.keys.map { it to true },
+            CARD_GONE.map { (reason, gone) ->
+                uiState = LONGEST_TURN_STATE
+                rule.waitForIdle()
+                val hiddenWithTheCard = shownForm() != null && !videoShown()
+                uiState = gone(LONGEST_TURN_STATE)
+                rule.waitForIdle()
+                reason to (hiddenWithTheCard && shownForm() == null && videoShown())
             },
         )
     }
@@ -192,7 +216,7 @@ class TurnCardLayoutTest {
                 CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                     FemtoTheme(uiScale = uiScale) {
                         DashboardScaffold(
-                            uiState = LONGEST_TURN_STATE,
+                            uiState = uiState,
                             is24Hour = true,
                             showClockSeconds = true,
                             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
@@ -260,7 +284,7 @@ class TurnCardLayoutTest {
         }
 
     // "full", "compact" or "compact+then", and "top" for the top row beside the clock or "below" for under it; "none"
-    // where the card shows nothing.
+    // where the card shows nothing. With the video window on, "+window" where the window shows.
     private fun placementLabel(): String =
         when (shownForm()) {
             null -> "none"
@@ -268,6 +292,7 @@ class TurnCardLayoutTest {
             TurnCardForm.COMPACT_THEN -> "compact+then"
             TurnCardForm.COMPACT -> "compact"
         }.let { form -> if (form == "none") form else "$form ${slotLabel()}" }
+            .let { label -> if (videoOn && videoShown()) "$label +window" else label }
 
     private fun slotLabel(): String = if (card().top < bounds(DashboardTags.CLOCK).bottom) "top" else "below"
 
@@ -275,9 +300,10 @@ class TurnCardLayoutTest {
     private fun shownFailures(case: String): List<String> =
         if (shownForm() == null) emptyList() else roomFailures(case) + videoFailures(case) + cutLines(case)
 
-    // With the video window on, the card and the window must not meet.
+    // With the video window on, the card and the window must not meet: the window is either clear of the card or not
+    // drawn at all, and then out of the semantics tree.
     private fun videoFailures(case: String): List<String> =
-        if (!videoOn) {
+        if (!videoOn || !videoShown()) {
             emptyList()
         } else {
             listOfNotNull(
@@ -286,6 +312,12 @@ class TurnCardLayoutTest {
                 },
             )
         }
+
+    private fun videoShown(): Boolean =
+        rule
+            .onAllNodes(hasTestTag(DashboardTags.VIDEO_WINDOW), useUnmergedTree = true)
+            .fetchSemanticsNodes()
+            .isNotEmpty()
 
     // The form the card shows, read off what it draws: its one-sentence node, the full form's line of text, and the
     // turn after next's caption. Null where the card shows nothing.
@@ -415,22 +447,42 @@ class TurnCardLayoutTest {
                 "car-portrait-tall-1200x1920" to listOf("full top", "full top", "full top", "full top", "full top"),
             )
 
-        // Where the video window takes the top row, it also reaches below the clock: the card has no slot. Where it
-        // sits below the clock, the card takes the top row above it.
+        // With the video window on, the card takes the same form and slot as without it: where the two do not both
+        // fit, the window is not drawn while the card shows. Only where both fit, in the top row above a window below
+        // the clock, is the card's place its own; and where no card fits, the window shows as ever.
         val PLACEMENTS_VIDEO_ON: Map<String, List<String>> =
+            PLACEMENTS_VIDEO_OFF.mapValues { (_, row) -> row.map { if (it == "none") "none +window" else it } } +
+                mapOf(
+                    "head-unit-853x512" to
+                        listOf("full top", "full top", "compact+then top +window", "full below", "compact below"),
+                    "phone-portrait-412x915" to
+                        listOf("full below", "compact top +window", "full below", "compact+then below", "none +window"),
+                )
+
+        // Each way the card goes while the route stays on the map or leaves it: the window must come back.
+        val CARD_GONE: Map<String, (HomeUiState) -> HomeUiState> =
             mapOf(
-                "floor-800x480" to listOf("none", "none", "none", "none", "none"),
-                "head-unit-853x512" to listOf("none", "none", "compact+then top", "none", "none"),
-                "budget-1024x600" to listOf("none", "none", "none", "none", "none"),
-                "mainstream-1280x720" to listOf("none", "none", "none", "none", "none"),
-                "ultrawide-1920x720" to listOf("none", "none", "none", "none", "none"),
-                "flagship-1920x1080" to listOf("none", "none", "none", "none", "none"),
-                "premium-2000x1200" to listOf("none", "none", "none", "none", "none"),
-                "phone-landscape-915x412" to listOf("none", "none", "none", "none", "none"),
-                "phone-portrait-412x915" to listOf("none", "compact top", "none", "none", "none"),
-                "tablet-800x1280" to listOf("none", "none", "none", "none", "none"),
-                "car-portrait-1024x1365" to listOf("none", "none", "none", "none", "none"),
-                "car-portrait-tall-1200x1920" to listOf("none", "none", "none", "none", "none"),
+                "the route is cleared" to { state -> state.copy(activeRoute = null) },
+                "the vehicle is off the route" to { state ->
+                    state.copy(activeRoute = state.activeRoute?.copy(turnCard = null))
+                },
+                "a reroute runs" to { state ->
+                    state.copy(
+                        activeRoute = state.activeRoute?.copy(turnCard = null, reroute = RerouteStatus.REROUTING),
+                    )
+                },
+                "the choice card opens" to { state ->
+                    state.copy(
+                        activeRoute =
+                            state.activeRoute?.copy(
+                                turnCard = null,
+                                choice = DashboardFixtures.routeChoiceState.activeRoute?.choice,
+                            ),
+                    )
+                },
+                "the setting is switched off" to { state ->
+                    state.copy(activeRoute = state.activeRoute?.copy(turnCard = null))
+                },
             )
     }
 }
