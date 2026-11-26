@@ -3,16 +3,23 @@ package io.github.seijikohara.femto.data.diagnostics
 import android.content.Context
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
+import android.media.session.PlaybackState
+import android.os.SystemClock
 import androidx.core.content.getSystemService
 import io.github.seijikohara.femto.data.music.AudioSpectrumRepository
+import io.github.seijikohara.femto.data.music.CardEntry
+import io.github.seijikohara.femto.data.music.CardKind
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.NotStartedReason
 import io.github.seijikohara.femto.data.music.ResumeAttempts
 import io.github.seijikohara.femto.data.music.ResumeOutcome
 import io.github.seijikohara.femto.data.music.ResumeStep
+import io.github.seijikohara.femto.data.music.SessionSnapshot
+import io.github.seijikohara.femto.data.music.SessionTrace
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * The spectrum-probe verdict as facts. Pure so the health mapping is pinned
@@ -102,6 +109,105 @@ private val NotStartedReason.label: String
             NotStartedReason.INTERRUPTED -> "interrupted"
         }
 
+// The trace is written by the dashboard's session watch, so an empty record
+// can mean the dashboard has not been in front yet.
+private const val NO_SNAPSHOT_YET =
+    "none recorded since the launcher started (the trace records while the dashboard is in front)"
+
+private const val MILLIS_PER_SECOND = 1_000.0
+
+/**
+ * The latest session-trace snapshot as the `Sessions` fact: every active session in the watch's order, its playback
+ * state, its track number, and which one the watch selected. The card shows the selected session only when it
+ * publishes a track and notification access holds. Names no track, only in-process track numbers. Pure so the wording
+ * is pinned by JVM tests.
+ */
+internal fun sessionsFact(latest: SessionSnapshot?): DiagnosticFact =
+    DiagnosticFact("Sessions", FactValue.Text(latest?.let(::snapshotText) ?: NO_SNAPSHOT_YET))
+
+/**
+ * The recorded session-trace snapshots as `Session history` facts, oldest first, each labelled with its age at
+ * [nowElapsedRealtimeMs]. One fact per snapshot, the form the crash history uses for its list, keeps each snapshot on
+ * one report bullet and one screen row. Pure so the wording is pinned by JVM tests.
+ */
+internal fun sessionHistoryFacts(
+    snapshots: List<SessionSnapshot>,
+    nowElapsedRealtimeMs: Long,
+): List<DiagnosticFact> =
+    snapshots
+        .map { snapshot ->
+            DiagnosticFact(
+                "Session history ${ageLabel(nowElapsedRealtimeMs - snapshot.elapsedRealtimeMs)}",
+                FactValue.Text(snapshotText(snapshot)),
+            )
+        }.ifEmpty { listOf(DiagnosticFact("Session history", FactValue.Text(NO_SNAPSHOT_YET))) }
+
+/**
+ * The recorded card entries as `Card history` facts, oldest first, each labelled with its age at [nowElapsedRealtimeMs]:
+ * what the card finally showed, which the session snapshots cannot say (the card can show the remembered track's resume
+ * offer, nothing, or the permission prompt instead of the selected session). Names no track, only the track numbers the
+ * session history uses. Pure so the wording is pinned by JVM tests.
+ */
+internal fun cardHistoryFacts(
+    entries: List<CardEntry>,
+    nowElapsedRealtimeMs: Long,
+): List<DiagnosticFact> =
+    entries
+        .map { entry ->
+            DiagnosticFact(
+                "Card history ${ageLabel(nowElapsedRealtimeMs - entry.elapsedRealtimeMs)}",
+                FactValue.Text(cardEntryText(entry)),
+            )
+        }.ifEmpty { listOf(DiagnosticFact("Card history", FactValue.Text(NO_SNAPSHOT_YET))) }
+
+// One entry on one line, e.g. "resume offered for com.example.music, track 3".
+private fun cardEntryText(entry: CardEntry): String =
+    listOfNotNull(
+        when (entry.kind) {
+            CardKind.PLAYING -> "playing ${entry.packageName}"
+            CardKind.RESUME_OFFERED -> "resume offered for ${entry.packageName}"
+            CardKind.NOTHING_PLAYING -> "nothing playing"
+            CardKind.NO_ACCESS -> "no notification access"
+        },
+        entry.track?.let { "track $it" },
+    ).joinToString(", ")
+
+/** Return the platform name of a [PlaybackState] code, `no state` for none, and `state <n>` for an unknown code. */
+internal fun playbackStateName(state: Int?): String =
+    when (state) {
+        null -> "no state"
+        PlaybackState.STATE_NONE -> "NONE"
+        PlaybackState.STATE_STOPPED -> "STOPPED"
+        PlaybackState.STATE_PAUSED -> "PAUSED"
+        PlaybackState.STATE_PLAYING -> "PLAYING"
+        PlaybackState.STATE_FAST_FORWARDING -> "FAST_FORWARDING"
+        PlaybackState.STATE_REWINDING -> "REWINDING"
+        PlaybackState.STATE_BUFFERING -> "BUFFERING"
+        PlaybackState.STATE_ERROR -> "ERROR"
+        PlaybackState.STATE_CONNECTING -> "CONNECTING"
+        PlaybackState.STATE_SKIPPING_TO_PREVIOUS -> "SKIPPING_TO_PREVIOUS"
+        PlaybackState.STATE_SKIPPING_TO_NEXT -> "SKIPPING_TO_NEXT"
+        PlaybackState.STATE_SKIPPING_TO_QUEUE_ITEM -> "SKIPPING_TO_QUEUE_ITEM"
+        else -> "state $state"
+    }
+
+// One snapshot on one line, e.g. "#1 com.example.music PLAYING, track 7, on
+// the card; #2 com.example.radio PAUSED, track 2".
+private fun snapshotText(snapshot: SessionSnapshot): String =
+    snapshot.sessions
+        .joinToString("; ") { session ->
+            listOfNotNull(
+                "#${session.session} ${session.packageName} ${playbackStateName(session.state)}",
+                session.track?.let { "track $it" } ?: "no track",
+                "on the card".takeIf { session.session == snapshot.cardSession },
+            ).joinToString(", ")
+        }.ifEmpty { "none" }
+
+// Locale.ROOT keeps the decimal point a point on every device locale, as the
+// report's stable wording requires.
+private fun ageLabel(ageMs: Long): String =
+    String.format(Locale.ROOT, "-%.3f s", ageMs.coerceAtLeast(0L) / MILLIS_PER_SECOND)
+
 /**
  * Prepend the live `Session` fact onto the collected MUSIC payload. Pure:
  * the session state streams from the ViewModel's music flow rather than the
@@ -149,14 +255,14 @@ private fun sessionFact(musicState: MusicCardState?): DiagnosticFact =
     )
 
 /**
- * Collects the MUSIC diagnostics section's one-shot half: the spectrum-probe
- * verdict, the last resume attempt, and the audio-output state. The live
- * `Session` fact is injected by
- * the ViewModel via [musicSectionWithSession].
+ * Collects the MUSIC diagnostics section's one-shot half: the spectrum probe, the last resume attempt, the session
+ * trace, and the audio output state. The ViewModel adds the live `Session` fact through [musicSectionWithSession].
+ * [trace] is the one the dashboard's session watch writes; a test passes its own.
  */
 internal class MusicFactsCollector(
     private val context: Context,
     private val spectrumRepository: AudioSpectrumRepository,
+    private val trace: SessionTrace = SessionTrace.processWide,
 ) {
     suspend fun musicFacts(): SectionPayload.Facts {
         // The probe drives its own short-lived Visualizer with an internal
@@ -165,14 +271,22 @@ internal class MusicFactsCollector(
         val diagnosis = spectrumRepository.diagnose()
         return withContext(Dispatchers.IO) {
             val audioManager = context.getSystemService<AudioManager>()!!
+            // One read, so the Sessions fact and the history's last entry agree.
+            val snapshots = trace.snapshots()
+            val now = SystemClock.elapsedRealtime()
             SectionPayload.Facts(
                 spectrumFacts(diagnosis) +
                     listOf(
                         resumeFact(ResumeAttempts.latestOrNull()),
+                        sessionsFact(snapshots.lastOrNull()),
                         outputsFact(audioManager),
                         volumeFact(audioManager),
                         propertiesFact(audioManager),
-                    ),
+                    ) +
+                    // Last: up to SESSION_TRACE_SNAPSHOTS rows each, which
+                    // would push the audio facts far down the section.
+                    sessionHistoryFacts(snapshots, now) +
+                    cardHistoryFacts(trace.cardEntries(), now),
             )
         }
     }

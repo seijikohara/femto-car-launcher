@@ -20,6 +20,7 @@ import io.github.seijikohara.femto.data.diagnostics.musicSectionWithSession
 import io.github.seijikohara.femto.data.map.offline.hasTileBenchmarkSamples
 import io.github.seijikohara.femto.data.map.offline.runAndRecordTileBenchmark
 import io.github.seijikohara.femto.data.map.offline.tileBenchmarkSamples
+import io.github.seijikohara.femto.data.music.DiscardingSessionTrace
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.MusicSessionRepository
 import kotlinx.coroutines.CancellationException
@@ -188,7 +189,12 @@ internal val DiagnosticsViewModelFactory: ViewModelProvider.Factory =
             val application = checkNotNull(this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY])
             DiagnosticsViewModel(
                 collectorsProvider = { diagnosticsCollectors(application) },
-                musicStateFlow = MusicSessionRepository(application).stateFlow(),
+                // This watch feeds only the live Session fact. It must not write
+                // the process-wide trace: the dashboard's watch is the one
+                // writer, and a second one that held the priority order
+                // differently for a moment would alternate snapshots and push
+                // the history this screen shows out of the bounded record.
+                musicStateFlow = MusicSessionRepository(application, trace = DiscardingSessionTrace).stateFlow(),
                 copyToClipboard = { text ->
                     // The platform clipboard expects main-thread writes.
                     withContext(Dispatchers.Main) {

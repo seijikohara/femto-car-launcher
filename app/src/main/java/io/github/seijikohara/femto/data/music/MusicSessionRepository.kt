@@ -31,6 +31,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
+import java.util.concurrent.atomic.AtomicBoolean
 import androidx.media3.session.MediaController as Media3Controller
 
 private const val TAG = "MusicSessionRepo"
@@ -48,10 +50,26 @@ internal class MusicSessionRepository(
     // Remembers the track each session plays, for the card to offer after a
     // restart. The session tests pass one over an in-memory store.
     private val lastPlayed: LastPlayedKeeper = LastPlayedKeeper.of(context),
+    // Records what the session watch saw and what the card showed, for the
+    // MUSIC diagnostics. The session tests pass a fresh one, as the
+    // process-wide trace outlives them.
+    private val trace: SessionTraceSink = SessionTrace.processWide,
 ) {
     private val sessionManager: MediaSessionManager = checkNotNull(context.getSystemService())
     private val audioManager: AudioManager = checkNotNull(context.getSystemService())
     private val componentName = ComponentName(context, MusicSessionListenerService::class.java)
+
+    // Track identities of the sessions, for the trace, so a pass does not read
+    // the metadata of every session. Filled by one read per session, marked
+    // stale by SessionWatch on a metadata change and on a membership change.
+    // Main-thread confined, like the watch that invalidates it and the pass
+    // that fills it.
+    private val trackCache = TrackIdentityCache<MediaSession.Token>()
+
+    // Whether a failed trace write has been logged: the watch passes on every
+    // playback tick, and one line says all a failing trace has to say. Atomic
+    // because the session pass writes on Main and the card on Default.
+    private val traceFailureLogged = AtomicBoolean(false)
 
     // Source-app icons keyed by package. Resolved once per package: the icon is
     // stable for the process lifetime, while the session flow re-emits on every
@@ -164,6 +182,8 @@ internal class MusicSessionRepository(
             // MediaController callbacks arrive); the icon resolves on Default,
             // cached per package so it runs at most once per source.
             .withLastPlayed(lastPlayed)
+            // What the card finally shows, before the icon joins it.
+            .onEach { state -> tracing { trace.recordCard(state.shown()) } }
             .map { it.withSourceIcon() }
             .flowOn(Dispatchers.Default)
 
@@ -340,6 +360,9 @@ internal class MusicSessionRepository(
                     .onFailure { Log.w(TAG, "registerCallback failed for ${controller.packageName}", it) }
             }
             watched = update.watched
+            // The trace's track identities: a session that left has none to
+            // keep, and one that joined has none yet.
+            if (update.added.isNotEmpty() || update.removed.isNotEmpty()) trackCache.invalidate()
             // A membership change is the one cadence worth retrying a failed
             // media3 connect at: releasing here clears the token the retarget
             // guard matches on, so the call below attempts the session again.
@@ -356,6 +379,7 @@ internal class MusicSessionRepository(
         fun stop() {
             watched.values.forEach { controller -> runCatching { controller.unregisterCallback(this) } }
             watched = emptyMap()
+            trackCache.invalidate()
             releaseMedia3()
         }
 
@@ -413,8 +437,13 @@ internal class MusicSessionRepository(
         }
 
         // Metadata and queue changes move neither the set nor the primary
-        // (selection reads playback state alone), so they only re-emit.
-        override fun onMetadataChanged(metadata: MediaMetadata?) = onChanged(controllers())
+        // (selection reads playback state alone), so they only re-emit. The
+        // callback names no session, so a metadata change makes every cached
+        // track identity stale, not one.
+        override fun onMetadataChanged(metadata: MediaMetadata?) {
+            trackCache.invalidate()
+            onChanged(controllers())
+        }
 
         override fun onQueueChanged(queue: MutableList<MediaSession.QueueItem>?) = onChanged(controllers())
 
@@ -429,45 +458,111 @@ internal class MusicSessionRepository(
 
     private fun hasPermission(): Boolean = hasNotificationListenerAccess(context)
 
-    // Only called with notification access: without it the card inspects no
-    // session (see musicCardStateOf).
-    private fun List<MediaController>.toReading(): SessionsReading =
-        SessionsReading(
-            hasPermission = true,
-            nowPlaying = toNowPlaying(),
-            sessionLive = selectPrimaryController(this) != null,
-            playing =
-                firstOrNull { it.playbackState.isPlaying() }
-                    ?.let { lastPlayedTrackOrNull(it.packageName, it.playbackState, it.metadata) },
-        )
+    /** A session and the playback state read from it in one pass, so no later step of the pass reads it again. */
+    private class SessionRead(
+        val controller: MediaController,
+        val state: PlaybackState?,
+    )
 
-    private fun List<MediaController>.toNowPlaying(): NowPlaying? =
-        selectPrimaryController(this)
-            ?.let { controller ->
-                // A granted session can briefly expose no metadata (just connected,
-                // or a metadata-less stream). Degrade to NoActiveSession upstream
-                // rather than render a blank, broken-looking card.
-                controller.metadata?.let { metadata ->
-                    // The media3 controller trails the platform one (async
-                    // connect); only trust it for the package it was built for.
-                    val media3 = media3Controller?.takeIf { media3PackageName == controller.packageName }
-                    nowPlayingOf(
-                        metadata = metadata,
-                        playbackState = controller.playbackState,
-                        packageName = controller.packageName,
-                        fallbackTitle = { sourceLabel(controller.packageName) },
-                        canShuffle = media3?.isCommandAvailable(Player.COMMAND_SET_SHUFFLE_MODE) ?: false,
-                        canRepeat = media3?.isCommandAvailable(Player.COMMAND_SET_REPEAT_MODE) ?: false,
-                        shuffleOn = media3?.shuffleModeEnabled ?: false,
-                        repeatMode = media3?.let { repeatModeOf(it.repeatMode) } ?: RepeatMode.NONE,
-                        queue =
-                            upcomingQueue(
-                                entries = controller.queueEntries(),
-                                activeQueueItemId = controller.playbackState?.activeQueueItemId ?: -1L,
-                            ),
+    /**
+     * Build one pass of the reading, and the trace's record of it, from one read of each session. Only called with
+     * notification access: without it the card inspects no session (see musicCardStateOf).
+     *
+     * A pass runs on Main on every playback tick, and [MediaController.getPlaybackState], [MediaController.getMetadata]
+     * and [MediaController.getQueue] are binder calls (the packageName and the token are held locally). For N sessions,
+     * the first of them the primary and playing, a pass costs:
+     * - before the trace: 9 calls, whatever N (the primary's state six times, its metadata twice, its queue once: the
+     *   card, the live flag and the playing track each selected the primary again, and each read what it needed);
+     * - the trace as first written: 2N + 10 (the same 9, a state and a metadata read of every session, and one more
+     *   selection), 16 for three sessions;
+     * - now: N + 2 (one state read per session, the primary's metadata, the primary's queue), 5 for three sessions.
+     * One more metadata read when the first playing session is not the primary, and one per non-primary session after
+     * each invalidation of [trackCache], which a metadata change or a membership change makes.
+     */
+    private fun List<MediaController>.toReading(): SessionsReading {
+        val reads = map { SessionRead(it, it.playbackState) }
+        val primary = selectPrimarySession(reads) { it.state }
+        val primaryMetadata = primary?.controller?.metadata
+        return SessionsReading(
+            hasPermission = true,
+            nowPlaying = primary?.let { read -> primaryMetadata?.let { read.toNowPlaying(it) } },
+            sessionLive = primary != null,
+            playing =
+                reads
+                    .firstOrNull { it.state.isPlaying() }
+                    ?.let { read ->
+                        val metadata = if (read === primary) primaryMetadata else read.controller.metadata
+                        lastPlayedTrackOrNull(read.controller.packageName, read.state, metadata)
+                    },
+        ).also { recordInTrace(reads, primary, primaryMetadata) }
+    }
+
+    /**
+     * Record this pass in the diagnostics trace, from the sessions and the primary pick the reading is built from, so
+     * the trace shows what the card's logic saw. The primary's track comes from the metadata the pass read; the other
+     * sessions' from [trackCache].
+     *
+     * A failure costs the snapshot, never the reading: the trace is diagnostics, and the card must not depend on it.
+     */
+    private fun recordInTrace(
+        reads: List<SessionRead>,
+        primary: SessionRead?,
+        primaryMetadata: MediaMetadata?,
+    ) = tracing {
+        trace.record(
+            sessions =
+                reads.map { read ->
+                    ObservedSession(
+                        sessionKey = read.controller.sessionToken,
+                        packageName = read.controller.packageName,
+                        state = read.state?.state,
+                        track =
+                            if (read === primary) {
+                                primaryMetadata?.trackIdentity()
+                            } else {
+                                trackCache.identityOf(read.controller.sessionToken) {
+                                    read.controller.metadata?.trackIdentity()
+                                }
+                            },
                     )
-                }
+                },
+            cardSessionKey = primary?.controller?.sessionToken,
+        )
+    }
+
+    // Keep a failing trace from costing the card, and from filling the log: it
+    // is diagnostics, so the first failure is logged and the rest are not.
+    private fun tracing(write: () -> Unit) {
+        runCatching(write).onFailure {
+            if (traceFailureLogged.compareAndSet(false, true)) {
+                Log.w(TAG, "session trace not recorded; further failures are not logged", it)
             }
+        }
+    }
+
+    // A granted session can briefly expose no metadata (just connected, or a
+    // metadata-less stream); the caller degrades that to NoActiveSession
+    // upstream rather than render a blank, broken-looking card.
+    private fun SessionRead.toNowPlaying(metadata: MediaMetadata): NowPlaying {
+        // The media3 controller trails the platform one (async connect); only
+        // trust it for the package it was built for.
+        val media3 = media3Controller?.takeIf { media3PackageName == controller.packageName }
+        return nowPlayingOf(
+            metadata = metadata,
+            playbackState = state,
+            packageName = controller.packageName,
+            fallbackTitle = { sourceLabel(controller.packageName) },
+            canShuffle = media3?.isCommandAvailable(Player.COMMAND_SET_SHUFFLE_MODE) ?: false,
+            canRepeat = media3?.isCommandAvailable(Player.COMMAND_SET_REPEAT_MODE) ?: false,
+            shuffleOn = media3?.shuffleModeEnabled ?: false,
+            repeatMode = media3?.let { repeatModeOf(it.repeatMode) } ?: RepeatMode.NONE,
+            queue =
+                upcomingQueue(
+                    entries = controller.queueEntries(),
+                    activeQueueItemId = state?.activeQueueItemId ?: -1L,
+                ),
+        )
+    }
 
     private fun MediaController.queueEntries(): List<QueueEntry> =
         runCatching { queue.orEmpty() }
@@ -637,6 +732,15 @@ internal fun musicCardStateOf(
     }
 
 /**
+ * Return the title the card shows for this metadata: METADATA_KEY_TITLE if not blank, else METADATA_KEY_DISPLAY_TITLE
+ * if not blank, else null (the card then falls back to the source label). The one home of the rule, shared by the card
+ * and the session trace, so both name the same track.
+ */
+internal fun MediaMetadata.cardTitleOrNull(): String? =
+    getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
+        ?: getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
+
+/**
  * Map one session's extracted fields to the card's [NowPlaying]. Operates on
  * plain values so the fallback branches are unit-testable without a
  * [MediaController]; [fallbackTitle] is a lambda so the source-label lookup
@@ -661,10 +765,7 @@ internal fun nowPlayingOf(
             // METADATA_KEY_TITLE is empty for many podcast / radio / stream
             // sessions; fall back to the display title and finally the source
             // label so the 23sp title line is never blank.
-            title =
-                metadata.getString(MediaMetadata.METADATA_KEY_TITLE)?.takeIf { it.isNotBlank() }
-                    ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)?.takeIf { it.isNotBlank() }
-                    ?: fallbackTitle(),
+            title = metadata.cardTitleOrNull() ?: fallbackTitle(),
             artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST),
             album = metadata.getString(MediaMetadata.METADATA_KEY_ALBUM),
             // Prefer METADATA_KEY_ART — the full-size artwork some apps publish
