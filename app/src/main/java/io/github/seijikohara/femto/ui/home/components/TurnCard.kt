@@ -184,7 +184,31 @@ internal fun rememberTurnCardSizes(
     val (value, unit) = turnDistance(state.distanceMeters, speedUnit)
     val caption = stringResource(R.string.turn_card_then)
     val hasThen = state.then != null
-    return remember(text, value, unit, caption, hasThen, speedUnit, distanceStyle, textStyle, captionStyle, density) {
+    // The widest value below 1,000: the style's widest digit, three times. Not "999": a face without tabular figures
+    // can set another digit wider than 9. Measured once per style.
+    val widestValue =
+        remember(measurer, distanceStyle, density) {
+            ('0'..'9')
+                .maxBy { digit ->
+                    measurer
+                        .measure("$digit", distanceStyle, maxLines = 1, density = density)
+                        .size.width
+                }.toString()
+                .repeat(WIDEST_VALUE_DIGITS)
+        }
+    return remember(
+        text,
+        value,
+        unit,
+        caption,
+        hasThen,
+        speedUnit,
+        widestValue,
+        distanceStyle,
+        textStyle,
+        captionStyle,
+        density,
+    ) {
         fun widthOf(
             measured: String,
             style: TextStyle,
@@ -196,11 +220,11 @@ internal fun rememberTurnCardSizes(
                     .toDp()
             }
 
-        // The widest distance the unit family shows: three digits beside the wider of its two unit labels. A turn
-        // farther than 999 km or mi widens it to its own digits.
+        // The widest distance the unit family shows: the widest three digits beside the wider of its two unit labels.
+        // A turn 1,000 km or mi away or farther widens it to its own digits.
         val distanceWidth =
             maxOf(
-                widthOf(cardNumber(WIDEST_DISTANCE_VALUE, decimals = 0), distanceStyle) +
+                widthOf(widestValue, distanceStyle) +
                     maxOf(
                         widthOf(speedUnit.shortDistanceLabel(), unitStyle),
                         widthOf(speedUnit.distanceLabel(), unitStyle),
@@ -235,9 +259,8 @@ internal fun rememberTurnCardSizes(
     }
 }
 
-// The widest distance value the card shows below 1,000 km or mi: three digits, which the hero numeral's tabular figures
-// set at one width whatever they are.
-private const val WIDEST_DISTANCE_VALUE = 999.0
+// The most digits a distance below 1,000 km or mi shows.
+private const val WIDEST_VALUE_DIGITS = 3
 
 // A style's line box in dp under [density]: lineBoxHeight's conversion, outside composition.
 private fun lineBoxHeight(
