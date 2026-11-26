@@ -108,6 +108,16 @@
         <intent>
             <action android:name="android.media.browse.MediaBrowserService" />
         </intent>
+        <!--
+            Find the device's text-to-speech engines, so Diagnostics can say
+            whether one is installed and has an English voice before spoken
+            turn prompts are built. Without this entry the engines stay
+            invisible on Android 11+, and a device with one reads as having
+            none. Nothing is spoken yet.
+        -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
     </queries>
 
     <application

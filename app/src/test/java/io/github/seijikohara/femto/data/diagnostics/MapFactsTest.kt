@@ -18,6 +18,8 @@ import io.github.seijikohara.femto.data.routing.RouteConditions
 import io.github.seijikohara.femto.data.routing.RouteRestoreDecision
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
+import io.github.seijikohara.femto.data.voice.EnglishVoice
+import io.github.seijikohara.femto.data.voice.SpeechEngine
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -671,6 +673,60 @@ class MapFactsTest {
                 .value,
         )
     }
+
+    // A head unit with no engine is the normal case, so the line is a plain value and never a warning.
+    @Test
+    fun `a device with no speech engine says so in every build`() {
+        val texts =
+            listOf(true, false).map { buildEnabled ->
+                speechFact(RoutingFacts(buildEnabled, null, null, true, speechEngines = emptyList()))?.value
+            }
+
+        assertEquals(List(2) { FactValue.Text("no engine") }, texts)
+    }
+
+    @Test
+    fun `each speech engine is named with what it said about English, the default one marked`() {
+        val engines =
+            listOf(
+                SpeechEngine("com.example.tts", isDefault = true, english = EnglishVoice.AVAILABLE),
+                SpeechEngine("com.example.other", isDefault = false, english = EnglishVoice.NOT_SUPPORTED),
+            )
+
+        assertEquals(
+            FactValue.Text("com.example.tts (default): English available; com.example.other: no English"),
+            speechFact(RoutingFacts(true, emptyList(), null, true, speechEngines = engines))?.value,
+        )
+    }
+
+    // Missing voice data can be downloaded and a silent engine cannot be used, so the line keeps every answer apart.
+    @Test
+    fun `every answer of a speech engine has its own words`() {
+        val words =
+            EnglishVoice.entries.map { english ->
+                val engine = SpeechEngine("com.example.tts", isDefault = false, english = english)
+                speechFact(RoutingFacts(true, emptyList(), null, true, speechEngines = listOf(engine)))?.value
+            }
+
+        assertEquals(
+            listOf(
+                "English available",
+                "English voice data missing",
+                "no English",
+                "did not start",
+                "did not answer",
+            ).map { FactValue.Text("com.example.tts: $it") },
+            words,
+        )
+    }
+
+    @Test
+    fun `speech engines that were not asked add no line`() {
+        assertEquals(null, speechFact(RoutingFacts(true, emptyList(), null, true)))
+    }
+
+    private fun speechFact(routing: RoutingFacts): DiagnosticFact? =
+        facts(routing = routing).singleOrNull { it.label == "Text-to-speech" }
 
     private fun routingFacts(
         routing: RoutingFacts,
