@@ -56,4 +56,5 @@ internal fun fakeSessionSnapshot(
     sessions: List<TracedSession> = listOf(fakeTracedSession()),
     cardSession: Int? = 1,
     elapsedRealtimeMs: Long = 0L,
-): SessionSnapshot = SessionSnapshot(sessions = sessions, cardSession = cardSession, elapsedRealtimeMs = elapsedRealtimeMs)
+): SessionSnapshot =
+    SessionSnapshot(sessions = sessions, cardSession = cardSession, elapsedRealtimeMs = elapsedRealtimeMs)

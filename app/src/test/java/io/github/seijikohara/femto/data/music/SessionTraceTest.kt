@@ -39,7 +39,14 @@ class SessionTraceTest {
             cardSessionKey = "music",
         )
 
-        assertEquals(listOf(1, 2), trace.snapshots().single().sessions.map { it.session })
+        assertEquals(
+            listOf(1, 2),
+            trace
+                .snapshots()
+                .single()
+                .sessions
+                .map { it.session },
+        )
     }
 
     @Test

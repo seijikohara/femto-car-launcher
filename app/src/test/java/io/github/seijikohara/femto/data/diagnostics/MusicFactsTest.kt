@@ -13,8 +13,8 @@ import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeObservedSession
 import io.github.seijikohara.femto.testfixtures.fakeSessionSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeSessionTrace
-import io.github.seijikohara.femto.testfixtures.fakeTrackIdentity
 import io.github.seijikohara.femto.testfixtures.fakeTracedSession
+import io.github.seijikohara.femto.testfixtures.fakeTrackIdentity
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
