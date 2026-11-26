@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.update
 
 /**
  * In-memory [NavigationSettingsStore]: every setter mutates a [MutableStateFlow] synchronously, so a test sees the
- * write with no DataStore IO. Like the real store, [resetToDefaults] restores all five settings.
+ * write with no DataStore IO. Like the real store, [resetToDefaults] restores every setting.
  */
 internal class FakeNavigationSettingsStore(
     initial: NavigationSettings = NavigationSettings.Default,
@@ -32,6 +32,12 @@ internal class FakeNavigationSettingsStore(
     override suspend fun setRouteRowTime(value: RouteRowTime) = state.update { it.copy(routeRowTime = value) }
 
     override suspend fun setVehicleOnRouteLine(value: Boolean) = state.update { it.copy(vehicleOnRouteLine = value) }
+
+    override suspend fun setTurnCard(value: Boolean) = state.update { it.copy(turnCard = value) }
+
+    override suspend fun setTurnCardNextAfter(value: Boolean) = state.update { it.copy(turnCardNextAfter = value) }
+
+    override suspend fun setTurnCardStraight(value: Boolean) = state.update { it.copy(turnCardStraight = value) }
 
     override suspend fun resetToDefaults() {
         state.value = NavigationSettings.Default

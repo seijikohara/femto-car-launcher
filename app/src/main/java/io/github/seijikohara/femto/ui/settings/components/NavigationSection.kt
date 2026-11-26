@@ -11,7 +11,8 @@ import io.github.seijikohara.femto.ui.settings.SettingsUiState
 
 // The Navigation category's rows (issue #389): what the route preview does
 // besides the line on the map, which no switch here turns off, and under
-// Guidance how the map draws the vehicle along the route. Settings lists the
+// Guidance what the turn card shows, its two refinements only while it is on,
+// and how the map draws the vehicle along the route. Settings lists the
 // category only where routing is offered (visibleSettingsCategories). See
 // AppearanceSection's header comment on why there is no title / reset wiring
 // here.
@@ -65,6 +66,33 @@ internal fun NavigationSection(
         }
     }
     SettingsGroup(header = stringResource(R.string.settings_navigation_guidance)) {
+        item { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_navigation_turn_card),
+                checked = uiState.navigation.turnCard,
+                onCheckedChange = { onAction(SettingsAction.SetTurnCard(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_navigation_turn_card_desc),
+            )
+        }
+        animatedItem(visible = uiState.navigation.turnCard) { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_navigation_turn_card_next_after),
+                checked = uiState.navigation.turnCardNextAfter,
+                onCheckedChange = { onAction(SettingsAction.SetTurnCardNextAfter(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_navigation_turn_card_next_after_desc),
+            )
+        }
+        animatedItem(visible = uiState.navigation.turnCard) { shapes ->
+            SwitchRow(
+                title = stringResource(R.string.settings_navigation_turn_card_straight),
+                checked = uiState.navigation.turnCardStraight,
+                onCheckedChange = { onAction(SettingsAction.SetTurnCardStraight(it)) },
+                shapes = shapes,
+                summary = stringResource(R.string.settings_navigation_turn_card_straight_desc),
+            )
+        }
         item { shapes ->
             SwitchRow(
                 title = stringResource(R.string.settings_navigation_vehicle_on_line),

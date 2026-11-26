@@ -20,6 +20,7 @@ import io.github.seijikohara.femto.data.places.PlaceTarget
 import io.github.seijikohara.femto.data.places.ReceivedPlace
 import io.github.seijikohara.femto.data.places.ReceivedPlaceInbox
 import io.github.seijikohara.femto.data.routing.ActiveRoute
+import io.github.seijikohara.femto.data.routing.NavigationSettings
 import io.github.seijikohara.femto.data.routing.OnLinePoint
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Route
@@ -28,6 +29,8 @@ import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePoint
 import io.github.seijikohara.femto.data.routing.RouteProgress
 import io.github.seijikohara.femto.data.routing.RouteRowTime
+import io.github.seijikohara.femto.data.routing.RouteTurn
+import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateManifest
 import io.github.seijikohara.femto.data.update.UpdateSettings
@@ -43,6 +46,7 @@ import io.github.seijikohara.femto.testfixtures.fakeLocation
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeOutAndBackRoute
 import io.github.seijikohara.femto.testfixtures.fakeParallelRoadsRoute
+import io.github.seijikohara.femto.testfixtures.fakeRoute
 import io.github.seijikohara.femto.testfixtures.fakeRouteFix
 import io.github.seijikohara.femto.testfixtures.fakeSystemStatus
 import io.github.seijikohara.femto.testfixtures.fakeTripState
@@ -1491,8 +1495,8 @@ class HomeViewModelTest {
     @Test
     fun `the route row shows the arrival time until the setting picks the time remaining`() =
         runTest {
-            val rowTime = MutableStateFlow(RouteRowTime.ARRIVAL)
-            val viewModel = routeViewModel(available = true, routeRowTimeFlow = rowTime)
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel = routeViewModel(available = true, navigationSettingsFlow = settings)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             assertEquals(
                 RouteRowTime.ARRIVAL,
@@ -1500,7 +1504,7 @@ class HomeViewModelTest {
                     ?.rowTime,
             )
 
-            rowTime.value = RouteRowTime.REMAINING
+            settings.value = settings.value.copy(routeRowTime = RouteRowTime.REMAINING)
 
             assertEquals(
                 RouteRowTime.REMAINING,
@@ -1513,7 +1517,7 @@ class HomeViewModelTest {
     @Test
     fun `a route row time not yet read shows the route with the arrival time`() =
         runTest {
-            val viewModel = routeViewModel(available = true, routeRowTimeFlow = flow { awaitCancellation() })
+            val viewModel = routeViewModel(available = true, navigationSettingsFlow = flow { awaitCancellation() })
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             assertEquals(RouteRowTime.ARRIVAL, assertNotNull(viewModel.uiState.value.activeRoute).rowTime)
@@ -1534,7 +1538,11 @@ class HomeViewModelTest {
     fun `with the setting off the route carries no point, so the map draws the fix`() =
         runTest {
             val viewModel =
-                routeViewModel(location = besideTheRoute(), available = true, vehicleOnLineEnabled = flowOf(false))
+                routeViewModel(
+                    location = besideTheRoute(),
+                    available = true,
+                    navigationSettingsFlow = flowOf(NavigationSettings.Default.copy(vehicleOnRouteLine = false)),
+                )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             val route = assertNotNull(viewModel.uiState.value.activeRoute)
@@ -1549,14 +1557,14 @@ class HomeViewModelTest {
         runTest {
             // Fixes that are not replayed: a follow that started over would see none.
             val location = MutableSharedFlow<Location?>()
-            val enabled = MutableStateFlow(true)
-            val viewModel = routeViewModel(locationFlow = location, available = true, vehicleOnLineEnabled = enabled)
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel = routeViewModel(locationFlow = location, available = true, navigationSettingsFlow = settings)
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             location.emit(besideTheRoute())
 
-            enabled.value = false
+            settings.value = settings.value.copy(vehicleOnRouteLine = false)
             assertNull(assertNotNull(viewModel.uiState.value.activeRoute).vehicleOnLine)
-            enabled.value = true
+            settings.value = settings.value.copy(vehicleOnRouteLine = true)
 
             assertOnTheLineHalfway(assertNotNull(viewModel.uiState.value.activeRoute).vehicleOnLine)
         }
@@ -1604,6 +1612,268 @@ class HomeViewModelTest {
             leaveTheRoute(location, hasSpeed = false, provider = LocationManager.NETWORK_PROVIDER)
 
             assertEquals(emptyList(), left)
+        }
+
+    // --- The turn card (issue #389 phase 4) ------------------------------------
+
+    @Test
+    fun `a route with turn data shows the next turn and its distance on the card`() =
+        runTest {
+            val viewModel =
+                routeViewModel(
+                    location = fakeLocation(latitude = 0.0, longitude = ROUTE_LONGITUDE),
+                    available = true,
+                    route = TURNING_ROUTE,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val card = assertNotNull(assertNotNull(viewModel.uiState.value.activeRoute).turnCard)
+            assertEquals(TurnManeuver.Turn(TurnKind.LEFT), card.maneuver)
+            assertEquals(5_500.0, card.distanceMeters, 1.0)
+        }
+
+    // A route kept by a build before the turn data, or one the engine gave none for: no card, not a destination flag.
+    @Test
+    fun `a route without turn data shows no card at all`() =
+        runTest {
+            val viewModel =
+                routeViewModel(
+                    location = fakeLocation(latitude = 0.0, longitude = ROUTE_LONGITUDE),
+                    available = true,
+                    route = EQUATOR_ROUTE,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            val route = assertNotNull(viewModel.uiState.value.activeRoute)
+            assertEquals(16_500.0, route.progress.remainingMeters, 1.0, "the route follows the fix")
+            assertNull(route.turnCard)
+        }
+
+    // A route restored after a restart counts from the start of its line until the first fix, which can lie far
+    // behind the vehicle: the card waits for the fix.
+    @Test
+    fun `a restored route shows no card until the first fix, and the card with it`() =
+        runTest {
+            // A receiver that has not fixed yet: the dashboard has no position.
+            val location = MutableStateFlow<Location?>(null)
+            val viewModel = routeViewModel(locationFlow = location, available = true, route = TURNING_ROUTE)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val beforeTheFix = assertNotNull(viewModel.uiState.value.activeRoute, "the route shows before the fix")
+
+            location.value = beforeTheTurn()
+
+            assertNull(beforeTheFix.turnCard)
+            assertEquals(
+                5_500.0,
+                assertNotNull(
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard,
+                ).distanceMeters,
+                1.0,
+            )
+        }
+
+    // A driver who switched the card off must not see it flash while the settings store is still being read.
+    @Test
+    fun `the card stays hidden until the stored settings are read`() =
+        runTest {
+            val settings = MutableSharedFlow<NavigationSettings>()
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val notReadYet = assertNotNull(viewModel.uiState.value.activeRoute, "the route shows before the read")
+
+            settings.emit(NavigationSettings.Default)
+
+            assertNull(notReadYet.turnCard)
+            assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+        }
+
+    @Test
+    fun `the card shows only once the choice card closes`() =
+        runTest {
+            val active = MutableStateFlow<ActiveRoute?>(choosingRoute().copy(route = TURNING_ROUTE))
+            val viewModel = routeViewModel(location = beforeTheTurn(), available = true, activeRouteFlow = active)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val whileChoosing = viewModel.uiState.value.activeRoute
+
+            active.value = active.value?.copy(choosing = false, finding = false)
+
+            assertEquals(
+                true to null,
+                (whileChoosing?.choice != null) to whileChoosing?.turnCard,
+                "the choice card shows alone",
+            )
+            assertEquals(
+                TurnManeuver.Turn(TurnKind.LEFT),
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard
+                    ?.maneuver,
+            )
+        }
+
+    // With "Reroute automatically" off nothing reroutes: the status stays NONE, and the follow alone hides the card.
+    @Test
+    fun `the card hides while the vehicle is off the route and comes back once it is on it again`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val viewModel = routeViewModel(locationFlow = location, available = true, route = TURNING_ROUTE)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            leaveTheRoute(location)
+            val offTheRoute = viewModel.uiState.value.activeRoute
+
+            (7..9).forEach { second -> location.value = movingFix(latitude = 0.0, second = second) }
+
+            assertEquals(
+                RerouteStatus.NONE to null,
+                offTheRoute?.reroute to offTheRoute?.turnCard,
+                "off the route, with no reroute",
+            )
+            assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+        }
+
+    @Test
+    fun `while a reroute's status shows the card hides`() =
+        runTest {
+            val active = MutableStateFlow<ActiveRoute?>(activeRouteOf(TURNING_ROUTE))
+            val viewModel = routeViewModel(location = beforeTheTurn(), available = true, activeRouteFlow = active)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+                "the card shows before the reroute",
+            )
+
+            active.value = active.value?.copy(reroute = RerouteStatus.REROUTING)
+
+            assertNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+        }
+
+    @Test
+    fun `past the last turn the card shows the destination at the distance left, and 0 there`() =
+        runTest {
+            // A quarter of the way along the second leg, past the turn at its start.
+            val location = MutableStateFlow<Location?>(fakeLocation(latitude = 0.0, longitude = 0.15))
+            val viewModel = routeViewModel(locationFlow = location, available = true, route = TURNING_ROUTE)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val pastTheTurn = assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+
+            location.value = fakeLocation(latitude = 0.0, longitude = 0.2)
+
+            val atTheEnd = assertNotNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+            assertEquals(TurnManeuver.Arrive to TurnManeuver.Arrive, pastTheTurn.maneuver to atTheEnd.maneuver)
+            assertEquals(5_500.0, pastTheTurn.distanceMeters, 1.0)
+            assertEquals(0.0, atTheEnd.distanceMeters, 1.0)
+        }
+
+    @Test
+    fun `with the turn card setting off no card shows`() =
+        runTest {
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = flowOf(NavigationSettings.Default.copy(turnCard = false)),
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(
+                true to null,
+                (viewModel.uiState.value.activeRoute != null) to
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard,
+            )
+        }
+
+    // "Continue straight" counts only with its switch on, and the turn after next shows only with its own.
+    @Test
+    fun `the turn card's two refinements reach the card`() =
+        runTest {
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = STRAIGHT_THEN_LEFT_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val shown =
+                listOf(
+                    NavigationSettings.Default,
+                    NavigationSettings.Default.copy(turnCardStraight = true),
+                    NavigationSettings.Default.copy(turnCardStraight = true, turnCardNextAfter = false),
+                ).map { value ->
+                    settings.value = value
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard
+                        ?.let { it.maneuver to it.then }
+                }
+
+            assertEquals(
+                listOf(
+                    TurnManeuver.Turn(TurnKind.LEFT) to null,
+                    TurnManeuver.Turn(TurnKind.STRAIGHT) to TurnManeuver.Turn(TurnKind.LEFT),
+                    TurnManeuver.Turn(TurnKind.STRAIGHT) to null,
+                ),
+                shown,
+            )
+        }
+
+    // A follow that started over would see no fix until the next one arrives and count the turn from the start of the
+    // line again, 11 km away.
+    @Test
+    fun `switching the turn card off and on again keeps the follow going`() =
+        runTest {
+            // Fixes that are not replayed: a follow that started over would see none.
+            val location = MutableSharedFlow<Location?>()
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            location.emit(fakeLocation(latitude = 0.0, longitude = ROUTE_LONGITUDE))
+
+            settings.value = settings.value.copy(turnCard = false)
+            assertNull(
+                viewModel.uiState.value.activeRoute
+                    ?.turnCard,
+            )
+            settings.value = settings.value.copy(turnCard = true)
+
+            assertEquals(
+                5_500.0,
+                assertNotNull(
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard,
+                ).distanceMeters,
+                1.0,
+            )
         }
 
     // --- The route kept across a restart ---------------------------------------
@@ -1859,6 +2129,9 @@ class HomeViewModelTest {
             provider = provider,
         )
 
+    // On the equator route a quarter of the way along it, 5.5 km before its halfway turn.
+    private fun beforeTheTurn(): Location = fakeLocation(latitude = 0.0, longitude = ROUTE_LONGITUDE)
+
     // About 5.6 m north of the equator route, halfway along it.
     private fun besideTheRoute(): Location = fakeLocation(latitude = 0.00005, longitude = 0.1)
 
@@ -1889,8 +2162,7 @@ class HomeViewModelTest {
         closeRouteChoice: (Long) -> Unit = {},
         onGpsFix: (Long) -> Unit = {},
         nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
-        routeRowTimeFlow: Flow<RouteRowTime> = flowOf(RouteRowTime.ARRIVAL),
-        vehicleOnLineEnabled: Flow<Boolean> = flowOf(true),
+        navigationSettingsFlow: Flow<NavigationSettings> = flowOf(NavigationSettings.Default),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -1910,8 +2182,7 @@ class HomeViewModelTest {
             routeDispatcher = UnconfinedTestDispatcher(testScheduler),
             onGpsFix = onGpsFix,
             nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
-            routeRowTimeFlow = routeRowTimeFlow,
-            vehicleOnLineEnabled = vehicleOnLineEnabled,
+            navigationSettingsFlow = navigationSettingsFlow,
         )
 
     private fun stubViewModel(
@@ -1945,6 +2216,33 @@ class HomeViewModelTest {
 
         // The second route on the choice card.
         val PARALLEL_ROUTE = fakeParallelRoadsRoute()
+
+        // EQUATOR_ROUTE with turn data: a left turn at its halfway point.
+        val TURNING_ROUTE =
+            fakeRoute(
+                points = EQUATOR_ROUTE.points,
+                distanceMeters = EQUATOR_ROUTE.distanceMeters,
+                durationSeconds = EQUATOR_ROUTE.durationSeconds,
+                turns = listOf(RouteTurn(pointIndex = 1, kind = TurnKind.LEFT, exitNumber = 0, angleDegrees = -90)),
+            )
+
+        // Along the equator, straight on across a road at its halfway point and left about 55 m after it.
+        val STRAIGHT_THEN_LEFT_ROUTE =
+            fakeRoute(
+                points = listOf(
+                    RoutePoint(0.0, 0.0),
+                    RoutePoint(0.0, 0.1),
+                    RoutePoint(0.0, 0.1005),
+                    RoutePoint(0.0, 0.2),
+                ),
+                distanceMeters = EQUATOR_ROUTE.distanceMeters,
+                durationSeconds = EQUATOR_ROUTE.durationSeconds,
+                turns =
+                    listOf(
+                        RouteTurn(pointIndex = 1, kind = TurnKind.STRAIGHT, exitNumber = 0, angleDegrees = 0),
+                        RouteTurn(pointIndex = 2, kind = TurnKind.LEFT, exitNumber = 0, angleDegrees = -90),
+                    ),
+            )
 
         // The session the destination panel opened for the route under test, and where the route goes.
         const val SESSION = 7L

@@ -285,6 +285,21 @@ internal fun Typography.glanceMetric(): TextStyle =
     )
 
 /**
+ * Return the style of the exit number set inside the turn card's roundabout glyph, at [size]. The number is part of
+ * the drawn glyph, so the caller passes a size worked out from the glyph's own size rather than a scale step: it grows
+ * and shrinks with the arrow, not with the user's text size. The strong tier with tabular figures and no font padding,
+ * on a line as tall as the size, so the caller can centre the digits' ink in the ring.
+ */
+internal fun Typography.turnExitNumber(size: TextUnit): TextStyle =
+    titleLarge.copy(
+        fontSize = size,
+        fontWeight = strongWeight,
+        lineHeight = size,
+        fontFeatureSettings = TabularFigures,
+        platformStyle = NoFontPadding,
+    )
+
+/**
  * Return the shared unit-glyph style for the dashboard's measured values — the
  * worded units (km/h, mph, km, mi, m, m/s) and the hero temperature scale
  * (°C / °F). [Typography.labelSmall] held at SemiBold: 12sp, untracked, no

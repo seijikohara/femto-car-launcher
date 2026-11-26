@@ -371,6 +371,19 @@ class RouteProgressTest {
             )
         }
 
+    // The starting value puts the vehicle at the start of the line, which a restored route can lie far behind.
+    @Test
+    fun `no fix counts as placed until the first one comes`() =
+        runTest {
+            assertEquals(
+                listOf(false, true),
+                route
+                    .followFlow(flowOf(besideTheLine(meters = 0.0, accuracyMeters = null)))
+                    .toList()
+                    .map { it.fixPlaced },
+            )
+        }
+
     @Test
     fun `a fix 10 m beside the line is drawn at the point of the line it was matched to`() =
         runTest {
