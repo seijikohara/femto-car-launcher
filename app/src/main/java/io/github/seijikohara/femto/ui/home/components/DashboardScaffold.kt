@@ -1458,14 +1458,21 @@ internal fun turnCardAndWindow(
     gap: Dp,
 ): TurnCardAndWindow =
     when {
-        sizes == null -> TurnCardAndWindow(card = null, windowShown = true)
-        slots == null -> TurnCardAndWindow(card = null, windowShown = false)
-        else ->
+        sizes == null -> {
+            TurnCardAndWindow(card = null, windowShown = true)
+        }
+
+        slots == null -> {
+            TurnCardAndWindow(card = null, windowShown = false)
+        }
+
+        else -> {
             turnCardPlaceOrNull(sizes, slots, window, gap)?.let { TurnCardAndWindow(it, windowShown = true) }
                 ?: turnCardPlaceOrNull(sizes, slots, window = null, gap = gap)?.let {
                     TurnCardAndWindow(it, windowShown = window == null)
                 }
                 ?: TurnCardAndWindow(card = null, windowShown = true)
+        }
     }
 
 /**
