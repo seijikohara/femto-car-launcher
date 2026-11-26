@@ -1,24 +1,29 @@
 package io.github.seijikohara.femto.data.diagnostics
 
 import android.media.session.PlaybackState
+import io.github.seijikohara.femto.data.music.CardKind
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.music.NotStartedReason
 import io.github.seijikohara.femto.data.music.ResumeOutcome
 import io.github.seijikohara.femto.data.music.ResumeStep
 import io.github.seijikohara.femto.data.music.SpectrumDiagnosis
 import io.github.seijikohara.femto.testfixtures.FAKE_RADIO_PACKAGE
-import io.github.seijikohara.femto.testfixtures.FAKE_TRACE_TITLE
+import io.github.seijikohara.femto.testfixtures.fakeCardEntry
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.testfixtures.fakeObservedSession
 import io.github.seijikohara.femto.testfixtures.fakeSessionSnapshot
 import io.github.seijikohara.femto.testfixtures.fakeSessionTrace
+import io.github.seijikohara.femto.testfixtures.fakeShownCard
 import io.github.seijikohara.femto.testfixtures.fakeTracedSession
 import io.github.seijikohara.femto.testfixtures.fakeTrackIdentity
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+
+private const val NOTHING_RECORDED =
+    "none recorded since the launcher started (the trace records while the dashboard is in front)"
 
 class MusicFactsTest {
     @Test
@@ -254,7 +259,7 @@ class MusicFactsTest {
     @Test
     fun `sessionsFact reports no snapshot yet`() {
         assertEquals(
-            DiagnosticFact("Sessions", FactValue.Text("none recorded since the launcher started")),
+            DiagnosticFact("Sessions", FactValue.Text(NOTHING_RECORDED)),
             sessionsFact(null),
         )
     }
@@ -303,11 +308,11 @@ class MusicFactsTest {
         assertEquals(
             listOf(
                 DiagnosticFact(
-                    "Session history -42.3 s",
+                    "Session history -42.300 s",
                     FactValue.Text("#1 com.example.music PLAYING, track 7, on the card"),
                 ),
                 DiagnosticFact(
-                    "Session history -5.0 s",
+                    "Session history -5.000 s",
                     FactValue.Text(
                         "#1 com.example.music PLAYING, track 7, on the card; #2 com.example.radio PAUSED, track 2",
                     ),
@@ -327,22 +332,78 @@ class MusicFactsTest {
     @Test
     fun `sessionHistoryFacts reports no snapshot yet`() {
         assertEquals(
-            listOf(DiagnosticFact("Session history", FactValue.Text("none recorded since the launcher started"))),
+            listOf(DiagnosticFact("Session history", FactValue.Text(NOTHING_RECORDED))),
             sessionHistoryFacts(snapshots = emptyList(), nowElapsedRealtimeMs = 50_000L),
         )
     }
 
     @Test
-    fun `the session facts never carry the title, artist or album`() {
+    fun `sessionHistoryFacts prints the age down to the millisecond`() {
+        assertEquals(
+            "Session history -0.042 s",
+            sessionHistoryFacts(listOf(fakeSessionSnapshot(elapsedRealtimeMs = 49_958L)), 50_000L).single().label,
+        )
+    }
+
+    @Test
+    fun `cardHistoryFacts lists the entries oldest first with their age`() {
+        assertEquals(
+            listOf(
+                DiagnosticFact("Card history -9.250 s", FactValue.Text("playing com.example.music, track 7")),
+                DiagnosticFact(
+                    "Card history -5.000 s",
+                    FactValue.Text("resume offered for com.example.music, track 3"),
+                ),
+                DiagnosticFact("Card history -4.999 s", FactValue.Text("nothing playing")),
+                DiagnosticFact("Card history -0.001 s", FactValue.Text("no notification access")),
+            ),
+            cardHistoryFacts(
+                entries =
+                    listOf(
+                        fakeCardEntry(CardKind.PLAYING, track = 7, elapsedRealtimeMs = 40_750L),
+                        fakeCardEntry(CardKind.RESUME_OFFERED, track = 3, elapsedRealtimeMs = 45_000L),
+                        fakeCardEntry(
+                            CardKind.NOTHING_PLAYING,
+                            packageName = null,
+                            track = null,
+                            elapsedRealtimeMs = 45_001L,
+                        ),
+                        fakeCardEntry(
+                            CardKind.NO_ACCESS,
+                            packageName = null,
+                            track = null,
+                            elapsedRealtimeMs = 49_999L,
+                        ),
+                    ),
+                nowElapsedRealtimeMs = 50_000L,
+            ),
+        )
+    }
+
+    @Test
+    fun `cardHistoryFacts reports no entry yet`() {
+        assertEquals(
+            listOf(DiagnosticFact("Card history", FactValue.Text(NOTHING_RECORDED))),
+            cardHistoryFacts(entries = emptyList(), nowElapsedRealtimeMs = 50_000L),
+        )
+    }
+
+    @Test
+    fun `the session and card facts never carry the title or the artist`() {
         val track = fakeTrackIdentity()
         val trace = fakeSessionTrace()
         trace.record(sessions = listOf(fakeObservedSession(track = track)), cardSessionKey = "session-1")
+        trace.recordCard(fakeShownCard(track = track))
+        trace.recordCard(fakeShownCard(CardKind.RESUME_OFFERED, track = track))
         val printed =
-            (listOf(sessionsFact(trace.snapshots().last())) + sessionHistoryFacts(trace.snapshots(), 0L))
-                .joinToString("\n") { fact -> "${fact.label}: ${(fact.value as FactValue.Text).value}" }
+            (
+                listOf(sessionsFact(trace.snapshots().last())) +
+                    sessionHistoryFacts(trace.snapshots(), 0L) +
+                    cardHistoryFacts(trace.cardEntries(), 0L)
+            ).joinToString("\n") { fact -> "${fact.label}: ${(fact.value as FactValue.Text).value}" }
 
         assertTrue(
-            listOfNotNull(FAKE_TRACE_TITLE, track.artist, track.album).none { it in printed },
+            listOfNotNull(track.title, track.artist).none { it in printed },
             "the facts print a track field: $printed",
         )
     }

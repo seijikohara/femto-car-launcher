@@ -1,14 +1,17 @@
 package io.github.seijikohara.femto.data.music
 
 import android.media.session.PlaybackState
+import io.github.seijikohara.femto.testfixtures.FAKE_MUSIC_PACKAGE
 import io.github.seijikohara.femto.testfixtures.FAKE_RADIO_PACKAGE
 import io.github.seijikohara.femto.testfixtures.FakeElapsedRealtime
 import io.github.seijikohara.femto.testfixtures.fakeObservedSession
 import io.github.seijikohara.femto.testfixtures.fakeSessionTrace
+import io.github.seijikohara.femto.testfixtures.fakeShownCard
 import io.github.seijikohara.femto.testfixtures.fakeTrackIdentity
 import org.junit.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SessionTraceTest {
     private val clock = FakeElapsedRealtime()
@@ -135,8 +138,101 @@ class SessionTraceTest {
         assertEquals(1, latestTrack(small))
     }
 
-    // Record one playing session; the artist and album stay fixed, so the
-    // title alone tells one track from another.
+    @Test
+    fun `the card record keeps each kind of card with its app and track number`() {
+        trace.recordCard(fakeShownCard(CardKind.PLAYING))
+        trace.recordCard(fakeShownCard(CardKind.RESUME_OFFERED, track = fakeTrackIdentity(title = "Other")))
+        trace.recordCard(fakeShownCard(CardKind.NOTHING_PLAYING, packageName = null, track = null))
+        trace.recordCard(fakeShownCard(CardKind.NO_ACCESS, packageName = null, track = null))
+
+        assertEquals(
+            listOf(
+                Triple(CardKind.PLAYING, FAKE_MUSIC_PACKAGE, 1),
+                Triple(CardKind.RESUME_OFFERED, FAKE_MUSIC_PACKAGE, 2),
+                Triple(CardKind.NOTHING_PLAYING, null, null),
+                Triple(CardKind.NO_ACCESS, null, null),
+            ),
+            trace.cardEntries().map { Triple(it.kind, it.packageName, it.track) },
+        )
+    }
+
+    @Test
+    fun `a card equal to the last one records nothing, whenever it arrives`() {
+        repeat(3) {
+            clock.now += 1_000L
+            trace.recordCard(fakeShownCard())
+        }
+
+        assertEquals(1, trace.cardEntries().size)
+    }
+
+    @Test
+    fun `a card of another kind or track records an entry`() {
+        trace.recordCard(fakeShownCard(CardKind.PLAYING))
+        trace.recordCard(fakeShownCard(CardKind.RESUME_OFFERED))
+        trace.recordCard(fakeShownCard(CardKind.RESUME_OFFERED, track = fakeTrackIdentity(title = "Other")))
+
+        assertEquals(3, trace.cardEntries().size)
+    }
+
+    @Test
+    fun `a card entry carries the time it was recorded at`() {
+        clock.now = 4_321L
+        trace.recordCard(fakeShownCard())
+
+        assertEquals(4_321L, trace.cardEntries().single().elapsedRealtimeMs)
+    }
+
+    @Test
+    fun `the card record keeps only the newest entries`() {
+        (0..SESSION_TRACE_SNAPSHOTS).forEach { index ->
+            clock.now = index.toLong()
+            trace.recordCard(fakeShownCard(track = fakeTrackIdentity(title = "Track $index")))
+        }
+
+        assertEquals((1L..SESSION_TRACE_SNAPSHOTS.toLong()).toList(), trace.cardEntries().map { it.elapsedRealtimeMs })
+    }
+
+    @Test
+    fun `a session's track and the same track offered for resume share a number`() {
+        trace.record(sessions = listOf(fakeObservedSession(track = fakeTrackIdentity("First"))), cardSessionKey = null)
+        trace.record(sessions = listOf(fakeObservedSession(track = fakeTrackIdentity("Second"))), cardSessionKey = null)
+        trace.recordCard(fakeShownCard(CardKind.RESUME_OFFERED, track = fakeTrackIdentity("Second")))
+
+        assertEquals(latestTrack(trace), trace.cardEntries().single().track)
+    }
+
+    @Test
+    fun `the same title from another app is another track on the card too`() {
+        trace.recordCard(fakeShownCard(packageName = FAKE_MUSIC_PACKAGE))
+        trace.recordCard(fakeShownCard(packageName = FAKE_RADIO_PACKAGE))
+
+        assertEquals(listOf(1, 2), trace.cardEntries().map { it.track })
+    }
+
+    @Test
+    fun `the card record's numbering table is bounded like the sessions'`() {
+        val small = fakeSessionTrace(clock, lookupLimit = 2)
+        listOf("First", "Second", "Third", "First").forEach { title ->
+            small.recordCard(fakeShownCard(track = fakeTrackIdentity(title = title)))
+        }
+
+        assertEquals(4, small.cardEntries().last().track)
+    }
+
+    @Test
+    fun `the string form of a track identity and of an observed session names neither title nor artist`() {
+        val track = fakeTrackIdentity()
+        val printed = "$track ${fakeObservedSession(track = track)}"
+
+        assertTrue(
+            listOfNotNull(track.title, track.artist).none { it in printed },
+            "the string form prints a track field: $printed",
+        )
+    }
+
+    // Record one playing session; the artist stays fixed, so the title alone
+    // tells one track from another.
     private fun playOne(
         trace: SessionTrace,
         title: String,

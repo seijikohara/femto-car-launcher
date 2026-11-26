@@ -3,7 +3,10 @@ package io.github.seijikohara.femto.data.music
 import android.media.MediaMetadata
 import android.os.SystemClock
 
-/** How many snapshots a [SessionTrace] keeps; an older one is dropped as a new one arrives. */
+/**
+ * How many entries each record of a [SessionTrace] keeps, the session snapshots and, separately, the card entries; an
+ * older one is dropped as a new one arrives.
+ */
 internal const val SESSION_TRACE_SNAPSHOTS = 40
 
 /**
@@ -13,27 +16,34 @@ internal const val SESSION_TRACE_SNAPSHOTS = 40
 internal const val SESSION_TRACE_LOOKUP_LIMIT = 256
 
 /**
- * The fields that tell one track a session publishes from another. Held in memory only, to number the track: a
- * [SessionSnapshot] carries the number, never these fields, so they never reach a log or the diagnostics report.
+ * The fields that tell one track of an app from another: the title and the artist, which a session's metadata, the card
+ * and the remembered track all carry (the remembered track has no album). Held in memory only, to number the track:
+ * the trace's records carry the number, never these fields, so they never reach a log or the diagnostics report.
+ * [toString] prints neither field, so a log line or an exception message that mentions an identity cannot leak them
+ * either.
  */
 internal data class TrackIdentity(
     val title: String?,
     val artist: String?,
-    val album: String?,
-)
+) {
+    override fun toString(): String = "TrackIdentity(title and artist withheld)"
+}
 
 /**
- * Return the identity of the track this metadata describes. The title falls back to the display title, as the card's
- * does, because many streams publish only that one.
+ * Return the identity of the track titled [title] by [artist]; a blank artist reads as none, as the remembered track's
+ * does.
+ */
+internal fun trackIdentityOf(
+    title: String?,
+    artist: String?,
+): TrackIdentity = TrackIdentity(title = title, artist = artist?.takeIf { it.isNotBlank() })
+
+/**
+ * Return the identity of the track this metadata describes. The title follows the card's own rule ([cardTitleOrNull]),
+ * so a session and the card agree on which track it is.
  */
 internal fun MediaMetadata.trackIdentity(): TrackIdentity =
-    TrackIdentity(
-        title =
-            getString(MediaMetadata.METADATA_KEY_TITLE)
-                ?: getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE),
-        artist = getString(MediaMetadata.METADATA_KEY_ARTIST),
-        album = getString(MediaMetadata.METADATA_KEY_ALBUM),
-    )
+    trackIdentityOf(title = cardTitleOrNull(), artist = getString(MediaMetadata.METADATA_KEY_ARTIST))
 
 /**
  * One active session as the session watch read it, before [SessionTrace] numbers it. [sessionKey] tells sessions apart
@@ -60,8 +70,10 @@ internal data class TracedSession(
 )
 
 /**
- * The active sessions in the order the session watch held them, which of them the card shows ([cardSession], the
- * number of the session the watch selected as primary, or null for none), and when the watch read them.
+ * The active sessions in the order the session watch held them, which of them the watch selected ([cardSession], the
+ * number of the session the watch selected as primary, or null for none), and when the watch read them. The selected
+ * session is not always what the card shows: the card shows it only when it publishes a track and notification access
+ * holds. What the card finally shows is the [CardEntry] record.
  */
 internal data class SessionSnapshot(
     val sessions: List<TracedSession>,
@@ -72,31 +84,127 @@ internal data class SessionSnapshot(
     fun sameReadingAs(other: SessionSnapshot): Boolean = sessions == other.sessions && cardSession == other.cardSession
 }
 
+/** What the music card can show, as [ShownCard] and [CardEntry] record it. */
+internal enum class CardKind {
+    /** A live session's track, playing or paused. */
+    PLAYING,
+
+    /** The remembered track's resume offer, shown while no session is live. */
+    RESUME_OFFERED,
+
+    /** The empty card. */
+    NOTHING_PLAYING,
+
+    /** The prompt to grant notification access. */
+    NO_ACCESS,
+}
+
 /**
- * An in-memory record of what the music card's session watch saw, for the MUSIC diagnostics section: the last
- * [SESSION_TRACE_SNAPSHOTS] changes, oldest first. A reading equal to the last snapshot is dropped, so a playback
- * position tick, which changes neither a state nor a track, writes nothing.
+ * What the card shows, before [SessionTrace] numbers the track: its [kind], the app's [packageName] where there is
+ * one, and the [track] where there is one.
+ */
+internal data class ShownCard(
+    val kind: CardKind,
+    val packageName: String? = null,
+    val track: TrackIdentity? = null,
+)
+
+/**
+ * Return what this card state shows. The title of a live track is the card's own, which falls back to the app's name
+ * when the session names no track, so a session without a title and the card showing it differ in their track number.
+ */
+internal fun MusicCardState.shown(): ShownCard =
+    when (this) {
+        is MusicCardState.Playing -> {
+            ShownCard(CardKind.PLAYING, nowPlaying.packageName, trackIdentityOf(nowPlaying.title, nowPlaying.artist))
+        }
+
+        is MusicCardState.LastPlayed -> {
+            ShownCard(CardKind.RESUME_OFFERED, track.packageName, trackIdentityOf(track.title, track.artist))
+        }
+
+        MusicCardState.NoActiveSession -> {
+            ShownCard(CardKind.NOTHING_PLAYING)
+        }
+
+        MusicCardState.NeedsPermission -> {
+            ShownCard(CardKind.NO_ACCESS)
+        }
+    }
+
+/**
+ * One change of what the card shows, as [SessionTrace] recorded it at [elapsedRealtimeMs]: the [kind], the app's
+ * [packageName] where there is one, and the number of the [track] where there is one. The track number is the one the
+ * session snapshots use for the same app's same track.
+ */
+internal data class CardEntry(
+    val kind: CardKind,
+    val packageName: String?,
+    val track: Int?,
+    val elapsedRealtimeMs: Long,
+) {
+    /** Return whether [other] shows the same, whenever it was recorded. */
+    fun sameShowingAs(other: CardEntry): Boolean =
+        kind == other.kind && packageName == other.packageName && track == other.track
+}
+
+/**
+ * The write side of a [SessionTrace], the part the music session watch depends on. [SessionTrace] keeps what it is
+ * given; [DiscardingSessionTrace] keeps nothing.
+ */
+internal interface SessionTraceSink {
+    /**
+     * Record [sessions] in the watch's order, with the one whose [ObservedSession.sessionKey] is [cardSessionKey]
+     * selected (null for none).
+     */
+    fun record(
+        sessions: List<ObservedSession>,
+        cardSessionKey: Any?,
+    )
+
+    /** Record what the card shows now, the card state after the remembered track joined it. */
+    fun recordCard(shown: ShownCard)
+}
+
+/**
+ * A [SessionTraceSink] that keeps nothing, for a watch that must not write the process-wide trace: the diagnostics
+ * screen builds a second repository for its live `Session` fact, and two watches writing one trace could hold the
+ * priority order differently for a moment and alternate snapshots, pushing the history the screen is there to show out
+ * of the bounded record.
+ */
+internal object DiscardingSessionTrace : SessionTraceSink {
+    override fun record(
+        sessions: List<ObservedSession>,
+        cardSessionKey: Any?,
+    ) = Unit
+
+    override fun recordCard(shown: ShownCard) = Unit
+}
+
+/**
+ * An in-memory record of what the music card's session watch saw and what the card finally showed, for the MUSIC
+ * diagnostics section. Two records, each the last [SESSION_TRACE_SNAPSHOTS] changes, oldest first: the session
+ * snapshots ([snapshots]) and the card entries ([cardEntries]). A reading equal to the last entry of its record is
+ * dropped, so a playback position tick, which changes neither a state nor a track, writes nothing.
  *
  * Tracks and sessions appear as numbers in the order this process first saw them (see [SESSION_TRACE_LOOKUP_LIMIT]),
- * which shows a reader that the card went back to an earlier track without naming any track.
+ * which shows a reader that the card went back to an earlier track without naming any track. Both records share the
+ * track numbering, so a session's track and the same track offered for resume carry the same number.
  *
- * The session watch writes on the main thread and the diagnostics collector reads on another, so every access holds
- * the trace's monitor.
+ * The session watch writes on the main thread and the card flow on another, and the diagnostics collector reads on yet
+ * another, so every access holds the trace's monitor.
  */
 internal class SessionTrace(
     private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime,
     lookupLimit: Int = SESSION_TRACE_LOOKUP_LIMIT,
-) {
+) : SessionTraceSink {
     private val sessionNumbers = Ordinals<Any>(lookupLimit)
     private val trackNumbers = Ordinals<Pair<String, TrackIdentity>>(lookupLimit)
-    private val recorded = ArrayDeque<SessionSnapshot>()
+    private val recordedSessions = ArrayDeque<SessionSnapshot>()
+    private val recordedCards = ArrayDeque<CardEntry>()
 
-    /**
-     * Record [sessions] in the watch's order, with the one whose [ObservedSession.sessionKey] is [cardSessionKey] on
-     * the card (null for none), unless the last snapshot already reads the same.
-     */
     @Synchronized
-    fun record(
+    override fun record(
         sessions: List<ObservedSession>,
         cardSessionKey: Any?,
     ) {
@@ -107,14 +215,32 @@ internal class SessionTrace(
                 cardSession = traced.getOrNull(sessions.indexOfFirst { it.sessionKey == cardSessionKey })?.session,
                 elapsedRealtimeMs = elapsedRealtimeMs(),
             )
-        if (recorded.lastOrNull()?.sameReadingAs(snapshot) == true) return
-        recorded.addLast(snapshot)
-        if (recorded.size > SESSION_TRACE_SNAPSHOTS) recorded.removeFirst()
+        if (recordedSessions.lastOrNull()?.sameReadingAs(snapshot) == true) return
+        recordedSessions.addLast(snapshot)
+        if (recordedSessions.size > SESSION_TRACE_SNAPSHOTS) recordedSessions.removeFirst()
     }
 
-    /** Return the recorded snapshots, oldest first. */
     @Synchronized
-    fun snapshots(): List<SessionSnapshot> = recorded.toList()
+    override fun recordCard(shown: ShownCard) {
+        val entry =
+            CardEntry(
+                kind = shown.kind,
+                packageName = shown.packageName,
+                track = shown.track?.let { trackNumbers.numberOf(shown.packageName.orEmpty() to it) },
+                elapsedRealtimeMs = elapsedRealtimeMs(),
+            )
+        if (recordedCards.lastOrNull()?.sameShowingAs(entry) == true) return
+        recordedCards.addLast(entry)
+        if (recordedCards.size > SESSION_TRACE_SNAPSHOTS) recordedCards.removeFirst()
+    }
+
+    /** Return the recorded session snapshots, oldest first. */
+    @Synchronized
+    fun snapshots(): List<SessionSnapshot> = recordedSessions.toList()
+
+    /** Return the recorded card entries, oldest first. */
+    @Synchronized
+    fun cardEntries(): List<CardEntry> = recordedCards.toList()
 
     // A track is the same track only within one app: two apps publishing the
     // same title are two sources the reader must be able to tell apart.

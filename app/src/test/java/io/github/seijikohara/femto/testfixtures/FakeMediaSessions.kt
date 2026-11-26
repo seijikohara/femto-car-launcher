@@ -55,6 +55,15 @@ internal fun MediaSessionManager.addFakeSession(
 internal fun MediaController.pushPlaybackState(state: Int) =
     shadowOf(this).executeOnPlaybackStateChanged(fakePlaybackState(state))
 
+/**
+ * Publish [metadata] from the session's own app, the way a track change arrives: the controller reads it from now on
+ * and the session's own callback fires; the session set does not change.
+ */
+internal fun MediaController.pushMetadata(metadata: MediaMetadata) {
+    shadowOf(this).setMetadata(metadata)
+    shadowOf(this).executeOnMetadataChanged(metadata)
+}
+
 /** Push PLAYING from the session's own app (see [pushPlaybackState]). */
 internal fun MediaController.startPlaying() = pushPlaybackState(PlaybackState.STATE_PLAYING)
 
