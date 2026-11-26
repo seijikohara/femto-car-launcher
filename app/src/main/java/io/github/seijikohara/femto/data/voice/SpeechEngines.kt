@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -16,9 +16,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
-// A cold engine starts its process before it answers, which takes a second or two on a slow box. Past this, the engine
-// counts as silent: the diagnostics section that asks must not wait on a broken engine.
-private const val ENGINE_ANSWER_TIMEOUT_MS = 5_000L
+// A cold engine starts its process and sets itself up before it answers: 3.4 s on the emulator, and a head unit is
+// slower. Past this, the engine counts as silent: the diagnostics section that asks must not wait on a broken engine
+// for good, and a working engine must not read as a silent one.
+private const val ENGINE_ANSWER_TIMEOUT_MS = 10_000L
 
 /** What one text-to-speech engine said when asked for an English voice. */
 internal enum class EnglishVoice {
@@ -28,7 +29,7 @@ internal enum class EnglishVoice {
     MISSING_DATA,
     NOT_SUPPORTED,
 
-    /** The engine reported an error instead of starting. */
+    /** The engine reported an error, or failed, instead of starting. */
     DID_NOT_START,
 
     /** The engine never reported back within the wait. */
@@ -59,6 +60,9 @@ internal interface SpeechEnginePort {
 /**
  * Ask every installed engine for an English voice, all at once, so one silent engine costs a single wait. A device
  * with no engine returns an empty list without starting anything.
+ *
+ * Each engine is started for the question, a cold one with its whole process, so this belongs behind a request of the
+ * user's (the diagnostics screen) and never on a start-up path.
  */
 internal suspend fun speechEngines(
     port: SpeechEnginePort,
@@ -74,11 +78,51 @@ internal suspend fun speechEngines(
                         packageName = packageName,
                         isDefault = packageName == default,
                         english =
-                            withTimeoutOrNull(answerTimeoutMs) { port.english(packageName) }
+                            withTimeoutOrNull(answerTimeoutMs) { port.englishOrDidNotStart(packageName) }
                                 ?: EnglishVoice.NO_ANSWER,
                     )
                 }
             }.awaitAll()
+    }
+
+// An engine that throws is that engine's answer. Left to travel, the failure would cancel the questions to the other
+// engines and take down the whole diagnostics section that asked.
+private suspend fun SpeechEnginePort.englishOrDidNotStart(packageName: String): EnglishVoice =
+    try {
+        english(packageName)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        EnglishVoice.DID_NOT_START
+    }
+
+/** One installed text-to-speech service, reduced to what the platform ranks engines by. */
+internal data class SpeechService(
+    val packageName: String,
+    /** Part of the system image. */
+    val isSystem: Boolean,
+    val priority: Int,
+)
+
+/**
+ * The engine the platform speaks through when an app names none, by the platform's own rule
+ * (`TtsEngines.getDefaultEngine`): the engine [picked] in the system settings while it is installed, otherwise the
+ * highest-priority engine of the system image, and none when the image has no engine. `TextToSpeech.getDefaultEngine`
+ * gives the same answer but needs an instance, which starts an engine only to be asked this.
+ */
+internal fun defaultEngineOrNull(
+    services: List<SpeechService>,
+    picked: String?,
+): String? =
+    picked?.takeIf { name -> services.any { it.packageName == name } }
+        ?: services.filter { it.isSystem }.maxByOrNull { it.priority }?.packageName
+
+/** Read a `TextToSpeech.isLanguageAvailable` result: every code from "available" up names a closer match. */
+internal fun englishVoiceOf(languageAvailability: Int): EnglishVoice =
+    when {
+        languageAvailability >= TextToSpeech.LANG_AVAILABLE -> EnglishVoice.AVAILABLE
+        languageAvailability == TextToSpeech.LANG_MISSING_DATA -> EnglishVoice.MISSING_DATA
+        else -> EnglishVoice.NOT_SUPPORTED
     }
 
 /**
@@ -88,21 +132,13 @@ internal suspend fun speechEngines(
 internal class PlatformSpeechEnginePort(
     private val context: Context,
 ) : SpeechEnginePort {
-    override fun installed(): List<String> = services().map { it.serviceInfo.packageName }.distinct()
+    override fun installed(): List<String> = services().map { it.packageName }.distinct()
 
-    // The platform's own choice (TtsEngines.getDefaultEngine): the engine the user picked in the system settings
-    // while it is installed, otherwise the highest-priority engine of the system image. TextToSpeech.getDefaultEngine
-    // gives the same answer but needs an instance, which starts an engine only to be asked this.
-    override fun defaultOrNull(): String? {
-        val services = services()
-        val picked = Settings.Secure.getString(context.contentResolver, Settings.Secure.TTS_DEFAULT_SYNTH)
-        return picked?.takeIf { name -> services.any { it.serviceInfo.packageName == name } }
-            ?: services
-                .filter { it.serviceInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0 }
-                .maxByOrNull { it.priority }
-                ?.serviceInfo
-                ?.packageName
-    }
+    override fun defaultOrNull(): String? =
+        defaultEngineOrNull(
+            services = services(),
+            picked = Settings.Secure.getString(context.contentResolver, Settings.Secure.TTS_DEFAULT_SYNTH),
+        )
 
     override suspend fun english(packageName: String): EnglishVoice {
         val started = CompletableDeferred<Int>()
@@ -113,25 +149,27 @@ internal class PlatformSpeechEnginePort(
         return try {
             when {
                 started.await() != TextToSpeech.SUCCESS -> EnglishVoice.DID_NOT_START
-                else -> withContext(Dispatchers.IO) { engine.isLanguageAvailable(Locale.ENGLISH) }.toEnglishVoice()
+                else -> englishVoiceOf(withContext(Dispatchers.IO) { engine.isLanguageAvailable(Locale.ENGLISH) })
             }
         } finally {
-            // Also on the way out of a wait that ran out: an engine left bound stays in memory.
-            engine.shutdown()
+            // A shutdown has no effect on an engine that is still connecting, which would then stay bound once it
+            // has connected. So the shutdown follows the engine's answer: at once for one that has answered, and
+            // whenever the answer comes for one the wait ran out on.
+            started.invokeOnCompletion { engine.shutdown() }
         }
     }
 
     // The same query the platform lists engines with, so this list is the one TextToSpeech would connect to.
-    private fun services(): List<ResolveInfo> =
-        context.packageManager.queryIntentServices(
-            Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
-            PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()),
-        )
-
-    private fun Int.toEnglishVoice(): EnglishVoice =
-        when {
-            this >= TextToSpeech.LANG_AVAILABLE -> EnglishVoice.AVAILABLE
-            this == TextToSpeech.LANG_MISSING_DATA -> EnglishVoice.MISSING_DATA
-            else -> EnglishVoice.NOT_SUPPORTED
-        }
+    private fun services(): List<SpeechService> =
+        context.packageManager
+            .queryIntentServices(
+                Intent(TextToSpeech.Engine.INTENT_ACTION_TTS_SERVICE),
+                PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_DEFAULT_ONLY.toLong()),
+            ).map { resolved ->
+                SpeechService(
+                    packageName = resolved.serviceInfo.packageName,
+                    isSystem = resolved.serviceInfo.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM != 0,
+                    priority = resolved.priority,
+                )
+            }
 }

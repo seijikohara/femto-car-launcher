@@ -150,7 +150,8 @@ internal data class RoutingFacts(
     val speechEngines: List<SpeechEngine>? = null,
 )
 
-// Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
+// Of the route, counts, sizes and times only: a tile name says where the owner drives, and a routing engine's message
+// can too. The text-to-speech line names the speech engines installed on the device, which say nothing of a drive.
 private fun routingFacts(
     facts: RoutingFacts,
     backend: MapBackend,
