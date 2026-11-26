@@ -3,6 +3,7 @@ package io.github.seijikohara.femto.ui.home
 import android.content.Context
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -50,7 +51,7 @@ class MusicCardLastPlayedClickTest {
     fun `a tap on the last played card opens the remembered track's app`() {
         setCard(fakeLastPlayedState())
 
-        rule.onNodeWithText(fakeLastPlayedState().track.title, useUnmergedTree = true).performClick()
+        rule.onNodeWithText(fakeLastPlayedState().track.title, useUnmergedTree = true).tap()
 
         assertEquals(listOf(FAKE_MUSIC_PACKAGE), launched)
     }
@@ -59,7 +60,7 @@ class MusicCardLastPlayedClickTest {
     fun `a tap on the resume button resumes the track with its package`() {
         setCard(fakeLastPlayedState())
 
-        rule.onNodeWithContentDescription(resumeLabel()).performClick()
+        rule.onNodeWithContentDescription(resumeLabel()).tap()
 
         assertEquals(listOf(FAKE_MUSIC_PACKAGE), resumed)
     }
@@ -68,7 +69,7 @@ class MusicCardLastPlayedClickTest {
     fun `a tap on the resume button does not also open the app`() {
         setCard(fakeLastPlayedState())
 
-        rule.onNodeWithContentDescription(resumeLabel()).performClick()
+        rule.onNodeWithContentDescription(resumeLabel()).tap()
 
         // Anti-vacuous guard: the tap reached the button, so the empty launch list is the button consuming it.
         assertEquals(1, resumed.size)
@@ -79,7 +80,7 @@ class MusicCardLastPlayedClickTest {
     fun `a tap on the art tile of the last played card opens the app and does not expand`() {
         setCard(fakeLastPlayedState())
 
-        rule.onNodeWithTag(MUSIC_ART_TAG, useUnmergedTree = true).performClick()
+        rule.onNodeWithTag(MUSIC_ART_TAG, useUnmergedTree = true).tap()
 
         // Anti-vacuous guard: the tap reached the card, so no expand is the art having no tap of its own.
         assertEquals(listOf(FAKE_MUSIC_PACKAGE), launched)
@@ -90,7 +91,7 @@ class MusicCardLastPlayedClickTest {
     fun `a tap on the eyebrow of the last played card opens the app and does not expand`() {
         setCard(fakeLastPlayedState())
 
-        rule.onNodeWithText(FAKE_MUSIC_APP_NAME.uppercase(), useUnmergedTree = true).performClick()
+        rule.onNodeWithText(FAKE_MUSIC_APP_NAME.uppercase(), useUnmergedTree = true).tap()
 
         // Anti-vacuous guard: the tap reached the card, so no expand is the eyebrow having no tap of its own.
         assertEquals(listOf(FAKE_MUSIC_PACKAGE), launched)
@@ -104,16 +105,16 @@ class MusicCardLastPlayedClickTest {
         setCard(fakeLastPlayedState(resuming = true))
         rule.onNodeWithContentDescription(resumeLabel()).assertIsNotEnabled()
 
-        rule.onNodeWithContentDescription(resumeLabel()).performClick()
+        rule.onNodeWithContentDescription(resumeLabel()).tap()
 
         assertEquals(emptyList<String>() to emptyList<String>(), resumed.toList() to launched.toList())
     }
 
     @Test
     fun `a tap on the art of the playing card expands the player`() {
-        setCard(MusicCardState.Playing(fakeNowPlaying()))
+        setCard(MusicCardState.Playing(fakeNowPlaying(isPlaying = false)))
 
-        rule.onNodeWithContentDescription(string(R.string.music_expand_player)).performClick()
+        rule.onNodeWithContentDescription(string(R.string.music_expand_player)).tap()
 
         assertEquals(1, expands)
         assertEquals(emptyList(), launched)
@@ -121,9 +122,9 @@ class MusicCardLastPlayedClickTest {
 
     @Test
     fun `a tap on the eyebrow of the playing card expands the player`() {
-        setCard(MusicCardState.Playing(fakeNowPlaying()))
+        setCard(MusicCardState.Playing(fakeNowPlaying(isPlaying = false)))
 
-        rule.onNodeWithContentDescription(string(R.string.music_expand_player_header)).performClick()
+        rule.onNodeWithContentDescription(string(R.string.music_expand_player_header)).tap()
 
         assertEquals(1, expands)
         assertEquals(emptyList(), launched)
@@ -133,12 +134,18 @@ class MusicCardLastPlayedClickTest {
     // row, which covers the top half of the title below it.
     @Test
     fun `a tap on the artist of the playing card opens the app and does not expand`() {
-        setCard(MusicCardState.Playing(fakeNowPlaying()))
+        setCard(MusicCardState.Playing(fakeNowPlaying(isPlaying = false)))
 
-        rule.onNodeWithText(checkNotNull(fakeNowPlaying().artist), useUnmergedTree = true).performClick()
+        rule.onNodeWithText(checkNotNull(fakeNowPlaying().artist), useUnmergedTree = true).tap()
 
         assertEquals(listOf(fakeNowPlaying().packageName), launched)
         assertEquals(0, expands)
+    }
+
+    // Tap and let the composition settle, so the test ends with no frame requested (the tap starts a ripple).
+    private fun SemanticsNodeInteraction.tap() {
+        performClick()
+        rule.waitForIdle()
     }
 
     private fun setCard(state: MusicCardState) {
