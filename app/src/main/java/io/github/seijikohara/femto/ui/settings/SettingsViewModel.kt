@@ -738,49 +738,12 @@ internal class SettingsViewModel(
                     updater.acknowledgeUpdatedTo()
                 }
 
-                is SettingsAction.ResetToDefaults -> {
-                    displayPreferences.resetToDefaults()
-                    locationPreferences.resetToDefaults()
-                    fontPreferences.resetToDefaults()
-                    calendarPreferences.resetToDefaults()
-                    updatePreferences.resetToDefaults()
-                    videoPreferences.resetToDefaults()
-                    navigationPreferences.resetToDefaults()
+                is SettingsAction.ResetSettings -> {
+                    resetSections(action.sections, deleteEnteredValues = action.deleteEnteredValues)
                 }
 
                 is SettingsAction.ResetSection -> {
-                    displayPreferences.resetKeys(action.sectionId.displayKeys)
-                    // The section's own DisplayPreferences keys are already cleared
-                    // above; only add the other-store reset a section additionally owns.
-                    when (action.sectionId) {
-                        SettingsSectionId.APPEARANCE -> {
-                            fontPreferences.resetToDefaults()
-                        }
-
-                        SettingsSectionId.LOCATION -> {
-                            locationPreferences.resetToDefaults()
-                        }
-
-                        SettingsSectionId.PANELS -> {
-                            calendarPreferences.resetToDefaults()
-                            videoPreferences.resetToDefaults()
-                        }
-
-                        SettingsSectionId.UPDATES -> {
-                            updatePreferences.resetToDefaults()
-                        }
-
-                        SettingsSectionId.NAVIGATION -> {
-                            navigationPreferences.resetToDefaults()
-                        }
-
-                        SettingsSectionId.SCREEN,
-                        SettingsSectionId.UNITS,
-                        SettingsSectionId.MAP,
-                        -> {
-                            // No store beyond DisplayPreferences.
-                        }
-                    }
+                    resetSections(setOf(action.sectionId), deleteEnteredValues = false)
                 }
 
                 SettingsAction.ResetDock -> {
@@ -828,6 +791,52 @@ internal class SettingsViewModel(
             mutableInstallRequests.tryEmit(SettingsAction.InstallOneTapUpdate(newOneTapToken()))
         }
     }
+
+    // The one path every settings reset takes, the header icon's and the
+    // checklist's alike. The display keys of every section go in one edit, so
+    // the dashboard redraws once rather than once per section.
+    private suspend fun resetSections(
+        sections: Set<SettingsSectionId>,
+        deleteEnteredValues: Boolean,
+    ) {
+        displayPreferences.resetKeys(
+            sections.flatMap { it.displayKeys }.toSet() - SettingsSectionId.ENTERED_VALUE_KEYS +
+                SettingsSectionId.ENTERED_VALUE_RESET_KEYS.takeIf { deleteEnteredValues }.orEmpty(),
+        )
+        sections.forEach { resetOtherStoreOf(it) }
+    }
+
+    // The reset a section owns beyond its DisplayPreferences keys.
+    private suspend fun resetOtherStoreOf(section: SettingsSectionId) =
+        when (section) {
+            SettingsSectionId.APPEARANCE -> {
+                fontPreferences.resetToDefaults()
+            }
+
+            SettingsSectionId.LOCATION -> {
+                locationPreferences.resetToDefaults()
+            }
+
+            SettingsSectionId.PANELS -> {
+                calendarPreferences.resetToDefaults()
+                videoPreferences.resetToDefaults()
+            }
+
+            SettingsSectionId.UPDATES -> {
+                updatePreferences.resetToDefaults()
+            }
+
+            SettingsSectionId.NAVIGATION -> {
+                navigationPreferences.resetToDefaults()
+            }
+
+            SettingsSectionId.SCREEN,
+            SettingsSectionId.UNITS,
+            SettingsSectionId.MAP,
+            -> {
+                // No store beyond DisplayPreferences.
+            }
+        }
 
     private fun newOneTapToken(): Int = (++lastOneTapToken).also { oneTapToken = it }
 

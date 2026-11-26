@@ -818,12 +818,14 @@
     <string name="diagnostics_spectrum_hint">Probe the spectrum while music is playing: silence here with an active session means the player bypasses the audio mixer.</string>
 
     <string name="settings_reset_to_defaults">Reset to defaults</string>
-    <string name="settings_reset_confirm_title">Reset all settings?</string>
-    <string name="settings_reset_confirm_message">This restores every display, unit, map, location, panel, font, calendar and update setting to its default value.</string>
+    <string name="settings_reset_dialog_title">Reset settings</string>
+    <string name="settings_reset_entered_values">Keys and addresses you entered</string>
+    <string name="settings_reset_entered_values_desc">Google Maps key, Map ID, custom style URL, tile host</string>
+    <string name="settings_reset_not_included">The dock, pinned and hidden apps, saved places and the track history are not reset here.</string>
     <string name="settings_reset_confirm">Reset</string>
     <string name="settings_reset_section">Reset this section</string>
     <string name="settings_reset_section_confirm_title">Reset %1$s?</string>
-    <string name="settings_reset_section_confirm_message">This restores every setting in this section to its default value.</string>
+    <string name="settings_reset_section_confirm_message">This restores every setting in this section to its default value. Keys and addresses you entered are kept.</string>
     <string name="settings_reset_dock">Reset dock</string>
     <string name="settings_reset_dock_confirm_title">Reset the dock?</string>
     <string name="settings_reset_dock_confirm_message">This restores the dock\'s button order and visibility, and the status icons\' order and visibility, to their defaults.</string>

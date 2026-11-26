@@ -37,13 +37,12 @@ import io.github.seijikohara.femto.testfixtures.FakeFontSelectionStore
 import io.github.seijikohara.femto.testfixtures.FakeInstallConfirmation
 import io.github.seijikohara.femto.testfixtures.FakeLocationSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeNavigationSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeTrackLogPort
 import io.github.seijikohara.femto.testfixtures.FakeUpdateSettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeUpdaterPort
-import io.github.seijikohara.femto.testfixtures.FakeVideoSettingsStore
-import io.github.seijikohara.femto.testfixtures.FakeVideoSourceGrants
 import io.github.seijikohara.femto.testfixtures.fakeCalendarInfo
+import io.github.seijikohara.femto.testfixtures.fakeSettingsViewModel
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
+import io.github.seijikohara.femto.testfixtures.mutateAllAwayFromDefault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -334,31 +333,143 @@ class SettingsViewModelTest {
             assertEquals(true, locationStore.settings.first().backgroundRangingEnabled)
         }
 
+    // The full reset through the dialog, every store included, is
+    // ResetSettingsDialogTest's.
     @Test
-    fun `ResetToDefaults restores display settings to their defaults`() =
+    fun `a reset of every section keeps the entered values when their row is not ticked`() =
         runTest(dispatcher) {
             val vm = viewModel()
-            // Move a representative field of each persisted type off its default.
-            vm.onAction(SettingsAction.SetFullscreen(FullscreenSetting.ON))
-            vm.onAction(SettingsAction.SetAccentColor(AccentColor.TEAL))
-            vm.onAction(SettingsAction.SetShowMusic(false))
-            vm.onAction(SettingsAction.SetMapTilt(10))
-            vm.onAction(SettingsAction.SetLocationIntervalMillis(2_000L))
+            val mutated = store.mutateAllAwayFromDefault()
+
+            vm.onAction(SettingsAction.ResetSettings(SettingsSectionId.entries.toSet(), deleteEnteredValues = false))
             advanceUntilIdle()
-            vm.onAction(SettingsAction.ResetToDefaults)
+
+            assertEquals(mutated.enteredValuesOnly(), store.settings.first())
+        }
+
+    // Without its key the Google Maps provider could only show its missing-key
+    // notice, so the provider goes back to its default with the entered values.
+    @Test
+    fun `the entered values row alone deletes the entered values and resets only the map provider besides`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val mutated = store.mutateAllAwayFromDefault()
+            moveOtherStoresAwayFromDefault()
+            assertEquals(MapBackend.GOOGLEMAPS, mutated.mapBackend)
+
+            vm.onAction(SettingsAction.ResetSettings(emptySet(), deleteEnteredValues = true))
             advanceUntilIdle()
-            assertEquals(DisplaySettings.Default, store.settings.first())
-            assertEquals(LocationSettings.Default, locationStore.settings.first())
+
+            assertEquals(
+                mutated.withoutEnteredValues().copy(mapBackend = DisplaySettings.Default.mapBackend),
+                store.settings.first(),
+            )
+            assertOtherStoresKept()
         }
 
     @Test
-    fun `ResetToDefaults also clears the hidden calendar set`() =
+    fun `a reset resets only the ticked sections and leaves the unticked ones as they are`() =
         runTest(dispatcher) {
-            val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L, 2L))
-            val vm = viewModel(calendarPrefs = calendarPrefs)
-            vm.onAction(SettingsAction.ResetToDefaults)
+            val vm = viewModel()
+            val mutated = store.mutateAllAwayFromDefault()
+            moveOtherStoresAwayFromDefault()
+
+            vm.onAction(
+                SettingsAction.ResetSettings(
+                    setOf(SettingsSectionId.UNITS, SettingsSectionId.PANELS),
+                    deleteEnteredValues = false,
+                ),
+            )
             advanceUntilIdle()
+
+            val default = DisplaySettings.Default
+            assertEquals(
+                mutated.copy(
+                    speedUnit = default.speedUnit,
+                    temperatureUnit = default.temperatureUnit,
+                    clock = default.clock,
+                    showClockSeconds = default.showClockSeconds,
+                    showCalendar = default.showCalendar,
+                    showWeather = default.showWeather,
+                    showMusic = default.showMusic,
+                    calendarDateOnly = default.calendarDateOnly,
+                    musicSpectrum = default.musicSpectrum,
+                    musicShowAlbum = default.musicShowAlbum,
+                    musicShowArt = default.musicShowArt,
+                ),
+                store.settings.first(),
+            )
+            // Appearance, Location, Updates and Navigation were not ticked.
+            assertOtherStoresKept()
+        }
+
+    // Panels' calendars and video setting are reset with it (see
+    // SettingsViewModelVideoTest for the video store).
+    @Test
+    fun `a reset resets each ticked section's other store`() =
+        runTest(dispatcher) {
+            val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L))
+            val vm = viewModel(calendarPrefs = calendarPrefs)
+            moveOtherStoresAwayFromDefault()
+
+            vm.onAction(
+                SettingsAction.ResetSettings(
+                    setOf(
+                        SettingsSectionId.APPEARANCE,
+                        SettingsSectionId.LOCATION,
+                        SettingsSectionId.PANELS,
+                        SettingsSectionId.UPDATES,
+                        SettingsSectionId.NAVIGATION,
+                    ),
+                    deleteEnteredValues = false,
+                ),
+            )
+            advanceUntilIdle()
+
+            assertEquals(FontSource.SystemDefault, fontStore.selection.first().latin)
+            assertEquals(LocationSettings.Default, locationStore.settings.first())
             assertEquals(emptySet(), calendarPrefs.hiddenCalendarIds.first())
+            assertEquals(UpdateSettings.Default.autoCheck, updateStore.current.autoCheck)
+            assertEquals(NavigationSettings.Default, navigationStore.current)
+        }
+
+    @Test
+    fun `a reset leaves the other stores of unticked sections alone`() =
+        runTest(dispatcher) {
+            val calendarPrefs = FakeCalendarPreferencesStore(initialHidden = setOf(1L))
+            val vm = viewModel(calendarPrefs = calendarPrefs)
+            moveOtherStoresAwayFromDefault()
+
+            vm.onAction(
+                SettingsAction.ResetSettings(
+                    setOf(SettingsSectionId.SCREEN, SettingsSectionId.UNITS, SettingsSectionId.MAP),
+                    deleteEnteredValues = true,
+                ),
+            )
+            advanceUntilIdle()
+
+            assertOtherStoresKept()
+            assertEquals(setOf(1L), calendarPrefs.hiddenCalendarIds.first())
+        }
+
+    @Test
+    fun `the Map and Appearance header resets keep the entered values`() =
+        runTest(dispatcher) {
+            val vm = viewModel()
+            val mutated = store.mutateAllAwayFromDefault()
+
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.MAP))
+            vm.onAction(SettingsAction.ResetSection(SettingsSectionId.APPEARANCE))
+            advanceUntilIdle()
+
+            val settings = store.settings.first()
+            assertEquals(mutated.googleMapsApiKey, settings.googleMapsApiKey)
+            assertEquals(mutated.googleMapsMapId, settings.googleMapsMapId)
+            assertEquals(mutated.mapTileHost, settings.mapTileHost)
+            assertEquals(mutated.mapCustomStyleUrl, settings.mapCustomStyleUrl)
+            // The rest of both sections is reset.
+            assertEquals(DisplaySettings.Default.mapBackend, settings.mapBackend)
+            assertEquals(DisplaySettings.Default.themeMode, settings.themeMode)
         }
 
     @Test
@@ -581,21 +692,6 @@ class SettingsViewModelTest {
             assertEquals(NavigationSettings.Default, navigationStore.current)
             // NAVIGATION owns no DisplayPreferences key, so the display store is untouched.
             assertEquals(11, store.settings.first().mapZoom)
-        }
-
-    @Test
-    fun `ResetToDefaults also restores the navigation settings`() =
-        runTest(dispatcher) {
-            val vm = viewModel()
-            vm.onAction(SettingsAction.SetRestoreRouteAfterRestart(false))
-            vm.onAction(SettingsAction.SetSuggestOtherRoutes(false))
-            vm.onAction(SettingsAction.SetTurnCardNextAfter(false))
-            advanceUntilIdle()
-
-            vm.onAction(SettingsAction.ResetToDefaults)
-            advanceUntilIdle()
-
-            assertEquals(NavigationSettings.Default, navigationStore.current)
         }
 
     @Test
@@ -1664,18 +1760,39 @@ class SettingsViewModelTest {
             assertEquals(11, store.settings.first().mapZoom)
         }
 
-    @Test
-    fun `ResetToDefaults also restores the auto-check default`() =
-        runTest(dispatcher) {
-            val vm = viewModel()
-            vm.onAction(SettingsAction.SetUpdateAutoCheck(false))
-            advanceUntilIdle()
+    // Moves one setting of each store a section owns beyond DisplayPreferences off
+    // its default (the calendar store is set up per test through viewModel()).
+    private suspend fun moveOtherStoresAwayFromDefault() {
+        fontStore.setSource(FontSlot.LATIN, FontSource.GoogleFonts("Roboto Slab"))
+        locationStore.setQuality(LocationQualitySetting.LOW_POWER)
+        updateStore.setAutoCheck(false)
+        navigationStore.setRerouteAutomatically(false)
+    }
 
-            vm.onAction(SettingsAction.ResetToDefaults)
-            advanceUntilIdle()
+    private suspend fun assertOtherStoresKept() {
+        assertEquals(FontSource.GoogleFonts("Roboto Slab"), fontStore.selection.first().latin)
+        assertEquals(LocationQualitySetting.LOW_POWER, locationStore.settings.first().quality)
+        assertEquals(false, updateStore.current.autoCheck)
+        assertEquals(false, navigationStore.current.rerouteAutomatically)
+    }
 
-            assertEquals(UpdateSettings.Default.autoCheck, updateStore.current.autoCheck)
-        }
+    // The defaults, holding this state's entered values.
+    private fun DisplaySettings.enteredValuesOnly() =
+        DisplaySettings.Default.copy(
+            googleMapsApiKey = googleMapsApiKey,
+            googleMapsMapId = googleMapsMapId,
+            mapCustomStyleUrl = mapCustomStyleUrl,
+            mapTileHost = mapTileHost,
+        )
+
+    // This state, with the entered values back at their defaults.
+    private fun DisplaySettings.withoutEnteredValues() =
+        copy(
+            googleMapsApiKey = DisplaySettings.Default.googleMapsApiKey,
+            googleMapsMapId = DisplaySettings.Default.googleMapsMapId,
+            mapCustomStyleUrl = DisplaySettings.Default.mapCustomStyleUrl,
+            mapTileHost = DisplaySettings.Default.mapTileHost,
+        )
 
     // Subscribes (WhileUiSubscribed runs the combine only while collected), stages
     // [state] and returns the section's state once it has settled.
@@ -1723,19 +1840,16 @@ class SettingsViewModelTest {
         updaterPort: UpdaterPort = updater,
         offlineRegionsAvailable: Boolean = false,
         routingData: Flow<RoutingDataSummary?> = flowOf(null),
-    ) = SettingsViewModel(
-        store,
-        fontStore,
-        locationStore,
-        calendarPrefs,
-        dockStore,
-        trackLog = FakeTrackLogPort(),
-        availableCalendars = flowOf(availableCalendars),
+    ) = fakeSettingsViewModel(
+        displayPreferences = store,
+        fontPreferences = fontStore,
+        locationPreferences = locationStore,
+        calendarPreferences = calendarPrefs,
+        dockPreferences = dockStore,
+        availableCalendars = availableCalendars,
         updater = updaterPort,
         updatePreferences = updateStore,
         motion = motion,
-        videoPreferences = FakeVideoSettingsStore(),
-        videoGrants = FakeVideoSourceGrants(),
         navigationPreferences = navigationStore,
         offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = dispatcher,
