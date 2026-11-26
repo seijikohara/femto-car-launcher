@@ -166,14 +166,14 @@ internal fun MusicEmptyState(
 /**
  * The track that played last, offered for resuming while no session is live, in the Playing card's layout
  * ([MusicCardLayout]): the placeholder art tile in the art slot (no artwork is kept for the track), the Playing card's
- * meta block with the eyebrow reading "Last played" with the app's name and icon, and a play button where the
- * transport row's play / pause sits. The button resumes the track ([onResume]); the rest of the card, the art tile
- * included, opens the app, as the Playing card does ([onLaunchSource]). The art tile is no expand affordance here:
- * there is no player to expand.
+ * meta block with the app's name and icon as the eyebrow, and a play button where the transport row's play / pause
+ * sits. The button resumes the track ([onResume]); the rest of the card, the art tile included, opens the app, as the
+ * Playing card does ([onLaunchSource]). The art tile is no expand affordance here: there is no player to expand.
  *
- * The meta block keeps the album line's and the progress row's space blank, so the eyebrow, title and artist land
- * where the Playing card has them and the card keeps the Playing card's size without a height reserve: the controls
- * row holds one button the transport row's size.
+ * The eyebrow carries the app's name alone, as on the Playing card, so the narrow column beside the art never cuts the
+ * name short; the "Last played" caption sits in the progress row's space instead. The album line keeps its space
+ * blank, so the eyebrow, title and artist land where the Playing card has them and the card keeps the Playing card's
+ * size without a height reserve: the controls row holds one button the transport row's size.
  */
 @Composable
 internal fun MusicLastPlayedState(
@@ -198,7 +198,7 @@ internal fun MusicLastPlayedState(
         },
     meta = { metaModifier ->
         MusicMetaAndProgress(
-            source = stringResource(R.string.music_last_played, state.appName),
+            source = state.appName,
             sourceIcon = state.appIcon,
             title = state.track.title,
             artist = state.track.artist,
@@ -211,7 +211,7 @@ internal fun MusicLastPlayedState(
             showAlbum = showAlbum,
             motionTier = motionTier,
             stationary = stationary,
-            blankAlbumAndProgress = true,
+            captionInsteadOfProgress = stringResource(R.string.music_last_played),
             modifier = metaModifier,
         )
     },
@@ -235,8 +235,8 @@ internal fun MusicLastPlayedState(
  * album-line toggle, so no constant can track it (the retired
  * `FemtoDimens.MusicCardMinHeight` drifted the moment the art started
  * following the meta column's height). The sample is measured but never
- * placed, so it is not drawn, not hit-testable, and absent from semantics —
- * the height twin of SpeedOverlay's `WidthReserve` invisible-sample idiom.
+ * placed, so it is neither drawn nor hit-testable, though its nodes still
+ * appear in the semantics tree that Compose UI tests search — the height twin of SpeedOverlay's `WidthReserve` invisible-sample idiom.
  *
  * [content] must emit exactly one layout node; it is measured with the
  * sample's height as its minimum, so a centring arrangement inside it spreads

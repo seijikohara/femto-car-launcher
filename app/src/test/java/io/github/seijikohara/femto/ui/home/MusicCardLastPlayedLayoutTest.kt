@@ -25,6 +25,7 @@ import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.testfixtures.DashboardFixtures
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.DashboardGeometry
+import io.github.seijikohara.femto.testfixtures.FAKE_MUSIC_APP_NAME
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.testfixtures.fakeNowPlaying
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
@@ -50,7 +51,8 @@ import kotlin.test.assertTrue
  * The music card offering the last played track, idle and resuming, keeps the Playing card's layout on the dashboard
  * at every geometry and display size the dashboard goldens cover ([DashboardGeometries], plus the SMALL and LARGE
  * cases of DashboardScreenshotTest): the track coming and going never moves the card or the cards above it, and the
- * art tile and the meta block sit where the Playing card has them. Each geometry is laid out at its own size inside
+ * art tile and the meta block sit where the Playing card has them, with the app's name alone in the eyebrow and
+ * "Last played" in the progress row's place. Each geometry is laid out at its own size inside
  * one window larger than all of them, as in RouteChoiceLayoutTest, and the state swaps in one composition, as on the
  * live dashboard.
  */
@@ -134,6 +136,34 @@ class MusicCardLastPlayedLayoutTest {
         assertEquals(emptyList(), leaks)
     }
 
+    @Test
+    fun `the last played card shows the last played caption and the playing card does not`() {
+        setDashboard()
+        geometry = DashboardGeometries.all.single { it.qualifiers == DashboardGeometries.HEAD_UNIT_853X512 }
+        musicState = DashboardFixtures.state.musicState
+        val playing = cardNodeCount(hasText(LAST_PLAYED))
+        val lastPlayed =
+            listOf(fakeLastPlayedState(), fakeLastPlayedState(resuming = true)).map { state ->
+                musicState = state
+                cardNodeCount(hasText(LAST_PLAYED))
+            }
+        assertEquals(listOf(0, 1, 1), listOf(playing) + lastPlayed)
+    }
+
+    @Test
+    fun `the last played card's eyebrow is the app's name alone`() {
+        setDashboard()
+        geometry = DashboardGeometries.all.single { it.qualifiers == DashboardGeometries.HEAD_UNIT_853X512 }
+        musicState = fakeLastPlayedState()
+        val texts = cardTexts()
+        // Anti-vacuous guard: the texts read are the card's own.
+        assertTrue(fakeLastPlayedState().track.title in texts, "the card's texts lack the title: $texts")
+        assertEquals(
+            listOf(FAKE_MUSIC_APP_NAME.uppercase()),
+            texts.filter { it.contains(FAKE_MUSIC_APP_NAME, ignoreCase = true) },
+        )
+    }
+
     private fun setDashboard() =
         rule.setContent {
             Box(modifier = Modifier.size(geometry.widthDp.dp, geometry.heightDp.dp)) {
@@ -203,6 +233,15 @@ class MusicCardLastPlayedLayoutTest {
         }
     }
 
+    // Every text inside the music card, in the merged tree a screen reader reads.
+    private fun cardTexts(): List<String> {
+        rule.waitForIdle()
+        return rule
+            .onAllNodes(hasAnyAncestor(hasTestTag(MUSIC_CARD_TAG)))
+            .fetchSemanticsNodes()
+            .flatMap { node -> node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } }
+    }
+
     // The bounds of the single node inside the music card matching [matcher]; null when there is none.
     private fun boundsOf(matcher: SemanticsMatcher): DpRect? {
         rule.waitForIdle()
@@ -227,6 +266,9 @@ class MusicCardLastPlayedLayoutTest {
 
     private companion object {
         const val EM_DASH = "—"
+
+        // The caption the last played card shows in the progress row's space.
+        const val LAST_PLAYED = "Last played"
 
         // The content descriptions of the transport row's play / pause and of the resume button.
         const val PLAY_PAUSE = "Play / pause"
