@@ -1,6 +1,5 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +12,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
@@ -34,8 +33,6 @@ import io.github.seijikohara.femto.ui.theme.FemtoDimens
 import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.cardCta
 import io.github.seijikohara.femto.ui.theme.cardCtaHint
-import io.github.seijikohara.femto.ui.theme.cardMeta
-import io.github.seijikohara.femto.ui.theme.cardTitle
 
 @Composable
 internal fun MusicConnectState(
@@ -167,75 +164,66 @@ internal fun MusicEmptyState(
 }
 
 /**
- * The track that played last, offered for resuming while no session is live: the Playing card's eyebrow (here "Last
- * played" with the app's name and icon), title and artist lines, and its play button where the transport row's
- * play / pause sits. The button resumes the track ([onResume]); the rest of the card opens the app, as the Playing
- * card does ([onLaunchSource]).
+ * The track that played last, offered for resuming while no session is live, in the Playing card's layout
+ * ([MusicCardLayout]): the placeholder art tile in the art slot (no artwork is kept for the track), the Playing card's
+ * meta block with the app's name and icon as the eyebrow, and a play button where the transport row's play / pause
+ * sits. The button resumes the track ([onResume]); the rest of the card, the art tile included, opens the app, as the
+ * Playing card does ([onLaunchSource]). The art tile is no expand affordance here: there is no player to expand.
  *
- * Inside the same height reserve as the idle states, so the card keeps the Playing card's size: everything here is a
- * subset of the Playing card's content (three of its meta lines, one button the transport row's height), so the
- * reserve, not the content, sets the height. Meta at the top and the button at the bottom put both where the
- * Playing card has them.
+ * The eyebrow carries the app's name alone, as on the Playing card, so the narrow column beside the art never cuts the
+ * name short; the "Last played" caption sits in the progress row's space instead. The album line keeps its space
+ * blank, so the eyebrow, title and artist land where the Playing card has them and the card keeps the Playing card's
+ * size without a height reserve: the controls row holds one button the transport row's size.
  */
 @Composable
 internal fun MusicLastPlayedState(
     state: MusicCardState.LastPlayed,
     onResume: (String) -> Unit,
     onLaunchSource: (String) -> Unit,
-    // Forwarded to the height sample: the album-line toggle changes the Playing
-    // card's height, and this card must match it either way.
     showAlbum: Boolean,
+    showArt: Boolean,
     motionTier: MotionTier,
     // The marquee gate the Playing card's lines take: long lines scroll only
     // while the vehicle is stationary.
     stationary: Boolean,
-) = Box(
+) = MusicCardLayout(
     // The Playing card's card-wide tap, with the label that names the app.
-    modifier =
-        Modifier
-            .fillMaxWidth()
-            .clickable(onClickLabel = stringResource(R.string.music_open_source, state.appName)) {
-                onLaunchSource(state.track.packageName)
-            },
+    openLabel = stringResource(R.string.music_open_source, state.appName),
+    onOpen = { onLaunchSource(state.track.packageName) },
+    art =
+        if (showArt) {
+            { artModifier -> AlbumArtPlaceholder(modifier = artModifier.clip(MaterialTheme.shapes.medium)) }
+        } else {
+            null
+        },
+    meta = { metaModifier ->
+        MusicMetaAndProgress(
+            source = state.appName,
+            sourceIcon = state.appIcon,
+            title = state.track.title,
+            artist = state.track.artist,
+            album = null,
+            positionMs = 0L,
+            durationMs = 0L,
+            positionUpdateTimeMs = 0L,
+            isPlaying = false,
+            playbackSpeed = 1f,
+            showAlbum = showAlbum,
+            motionTier = motionTier,
+            stationary = stationary,
+            captionInsteadOfProgress = stringResource(R.string.music_last_played),
+            modifier = metaModifier,
+        )
+    },
 ) {
-    val typography = MaterialTheme.typography
-    PlayingHeightReserve(showAlbum = showAlbum) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(FemtoDimens.CardPaddingCompact),
-            verticalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(MetaLineGap)) {
-                EyebrowLine(
-                    source = stringResource(R.string.music_last_played, state.appName),
-                    sourceIcon = state.appIcon,
-                    onExpand = null,
-                )
-                MetaLine(
-                    text = state.track.title,
-                    style = remember(typography) { typography.cardTitle() },
-                    color = MaterialTheme.colorScheme.onSurface,
-                    tier = motionTier,
-                    marquee = stationary,
-                )
-                MetaLine(
-                    // The Playing card's em dash for a track without an artist.
-                    text = state.track.artist ?: "—",
-                    style = remember(typography) { typography.cardMeta() },
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    tier = motionTier,
-                    marquee = stationary,
-                )
-            }
-            ResumeButton(
-                resuming = state.resuming,
-                description = stringResource(R.string.music_resume, state.track.title),
-                onClick = { onResume(state.track.packageName) },
-                modifier = Modifier.align(Alignment.CenterHorizontally),
-            )
-        }
+    // The play button alone, centred where the transport row centres its
+    // play / pause between the two skip buttons.
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        ResumeButton(
+            resuming = state.resuming,
+            description = stringResource(R.string.music_resume, state.track.title),
+            onClick = { onResume(state.track.packageName) },
+        )
     }
 }
 
@@ -247,8 +235,8 @@ internal fun MusicLastPlayedState(
  * album-line toggle, so no constant can track it (the retired
  * `FemtoDimens.MusicCardMinHeight` drifted the moment the art started
  * following the meta column's height). The sample is measured but never
- * placed, so it is not drawn, not hit-testable, and absent from semantics —
- * the height twin of SpeedOverlay's `WidthReserve` invisible-sample idiom.
+ * placed, so it is neither drawn nor hit-testable, though its nodes still
+ * appear in the semantics tree that Compose UI tests search — the height twin of SpeedOverlay's `WidthReserve` invisible-sample idiom.
  *
  * [content] must emit exactly one layout node; it is measured with the
  * sample's height as its minimum, so a centring arrangement inside it spreads
@@ -277,7 +265,7 @@ private fun PlayingHeightReserve(
 
 // Measured-only mirror of the Playing card's content: the meta block over the
 // transport row inside the shared compact inset — the exact structure
-// PlayingState lays out (the album art never exceeds the meta column's height,
+// MusicCardLayout lays out (the album art never exceeds the meta column's height,
 // so it plays no part in the total). The line contents are irrelevant: every
 // meta line is clamped to its style's lineHeight (see MetaLine's
 // singleLineBox), so empty strings measure the same as real metadata.

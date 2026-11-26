@@ -33,8 +33,10 @@ import kotlin.test.assertTrue
  * playing / connect CTA / last played track, idle or resuming) must render at
  * exactly the Playing card's height, so
  * a playback start or stop never resizes the card and reflows the calendar /
- * weather row above it. The reserve is measured from an unplaced sample of the
- * Playing layout (`PlayingHeightReserve`), so the equality must hold under the
+ * weather row above it. The nothing playing and connect states reserve the height
+ * by measuring an unplaced sample of the Playing layout (`PlayingHeightReserve`),
+ * and the last played card shares the Playing layout itself (`MusicCardLayout`),
+ * so the equality must hold under the
  * album-line toggle and user font settings alike — the dimensions a static dp
  * reserve historically drifted from. Each test swaps states in one composition
  * (the same transition the live card goes through) rather than composing the

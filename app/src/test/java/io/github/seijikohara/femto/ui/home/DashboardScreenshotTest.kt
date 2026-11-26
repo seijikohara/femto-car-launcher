@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.MapBackdrop
 import io.github.seijikohara.femto.testfixtures.RobolectricHaze
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -129,6 +130,17 @@ class DashboardScreenshotTest {
     @Test
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_dark() = capture("head-unit-853x512-dark", darkTheme = true)
+
+    // The music card offering the track that played last while no session is
+    // live: the Playing card's layout with the placeholder art and a lone
+    // play button.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_last_played() =
+        capture(
+            "head-unit-853x512-last-played",
+            uiState = DashboardFixtures.state.copy(musicState = fakeLastPlayedState()),
+        )
 
     // --- Route preview (issue #389 phase 3, nightly builds only): the speed
     // readout grows its route row under the address. The tests run the stable
