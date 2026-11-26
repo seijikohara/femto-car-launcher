@@ -48,6 +48,9 @@ internal class MusicSessionRepository(
     // Remembers the track each session plays, for the card to offer after a
     // restart. The session tests pass one over an in-memory store.
     private val lastPlayed: LastPlayedKeeper = LastPlayedKeeper.of(context),
+    // Records what the session watch saw, for the MUSIC diagnostics. The
+    // session tests pass a fresh one, as the process-wide trace outlives them.
+    private val trace: SessionTrace = SessionTrace.processWide,
 ) {
     private val sessionManager: MediaSessionManager = checkNotNull(context.getSystemService())
     private val audioManager: AudioManager = checkNotNull(context.getSystemService())
@@ -439,7 +442,34 @@ internal class MusicSessionRepository(
             playing =
                 firstOrNull { it.playbackState.isPlaying() }
                     ?.let { lastPlayedTrackOrNull(it.packageName, it.playbackState, it.metadata) },
-        )
+        ).also { recordInTrace() }
+
+    /**
+     * Record these sessions in the diagnostics trace, from the same controllers and the same primary pick the reading
+     * is built from, so the trace shows what the card's logic saw.
+     *
+     * While the diagnostics screen is open, its own repository writes the same process-wide trace beside the
+     * dashboard's. Both read the same sessions, so the second write of a change equals the snapshot the first one left
+     * and the trace drops it. The two watches can hold the priority order differently for a moment, since each re-reads
+     * it on its own; that costs extra snapshots, never a wrong one.
+     *
+     * A failure costs the snapshot, never the reading: the trace is diagnostics, and the card must not depend on it.
+     */
+    private fun List<MediaController>.recordInTrace() =
+        runCatching {
+            trace.record(
+                sessions =
+                    map { controller ->
+                        ObservedSession(
+                            sessionKey = controller.sessionToken,
+                            packageName = controller.packageName,
+                            state = controller.playbackState?.state,
+                            track = controller.metadata?.trackIdentity(),
+                        )
+                    },
+                cardSessionKey = selectPrimaryController(this)?.sessionToken,
+            )
+        }.onFailure { Log.w(TAG, "session trace not recorded", it) }
 
     private fun List<MediaController>.toNowPlaying(): NowPlaying? =
         selectPrimaryController(this)

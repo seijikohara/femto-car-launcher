@@ -6,12 +6,15 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import androidx.core.content.getSystemService
 import androidx.test.core.app.ApplicationProvider
+import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import io.github.seijikohara.femto.testfixtures.FakeLastPlayedStore
 import io.github.seijikohara.femto.testfixtures.addFakeSession
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedKeeper
 import io.github.seijikohara.femto.testfixtures.fakeLastPlayedTrack
+import io.github.seijikohara.femto.testfixtures.fakeSessionTrace
 import io.github.seijikohara.femto.testfixtures.grantNotificationListenerAccess
+import io.github.seijikohara.femto.testfixtures.pushPlaybackState
 import io.github.seijikohara.femto.testfixtures.startPlaying
 import kotlinx.coroutines.test.runTest
 import org.junit.Before
@@ -96,16 +99,63 @@ class MusicSessionRepositoryTest {
             sessionManager.addFakeSession(application, RESUMED_PACKAGE, PlaybackState.STATE_PLAYING, metadata = null)
             val remembering = fakeLastPlayedKeeper(store = FakeLastPlayedStore(fakeLastPlayedTrack()))
 
-            MusicSessionRepository(application, remembering).stateFlow().test {
+            MusicSessionRepository(application, remembering, fakeSessionTrace()).stateFlow().test {
                 assertEquals(MusicCardState.NoActiveSession, awaitItem())
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `the trace lists every session in order and marks the playing one as on the card`() =
+        runTest {
+            addSession(PLAYING_PACKAGE, PlaybackState.STATE_PLAYING)
+            addSession(PAUSED_PACKAGE, PlaybackState.STATE_PAUSED)
+            val trace = fakeSessionTrace()
+
+            repository(trace).stateFlow().test {
+                awaitCard(PLAYING_PACKAGE)
+
+                assertEquals(listOf(PLAYING_PACKAGE to true, PAUSED_PACKAGE to false), latestSessions(trace))
+                cancelAndIgnoreRemainingEvents()
+            }
+        }
+
+    @Test
+    fun `the trace puts the paused session on the card once the playing one stops`() =
+        runTest {
+            val playing = addSession(PLAYING_PACKAGE, PlaybackState.STATE_PLAYING)
+            addSession(PAUSED_PACKAGE, PlaybackState.STATE_PAUSED)
+            val trace = fakeSessionTrace()
+
+            repository(trace).stateFlow().test {
+                awaitCard(PLAYING_PACKAGE)
+
+                playing.pushPlaybackState(PlaybackState.STATE_STOPPED)
+                awaitCard(PAUSED_PACKAGE)
+
+                assertEquals(listOf(PLAYING_PACKAGE to false, PAUSED_PACKAGE to true), latestSessions(trace))
                 cancelAndIgnoreRemainingEvents()
             }
         }
 
     // The last played track is kept in memory here: these tests are about
     // which session reaches the card, and a remembered track would carry over
-    // from one test to the next through the real store.
-    private fun repository() = MusicSessionRepository(application, fakeLastPlayedKeeper())
+    // from one test to the next through the real store. Each test gets a trace
+    // of its own for the same reason: the process-wide one outlives the test.
+    private fun repository(trace: SessionTrace = fakeSessionTrace()) =
+        MusicSessionRepository(application, fakeLastPlayedKeeper(), trace)
+
+    // Skip the emissions before the card shows [packageName]: the session watch
+    // re-emits on callbacks this test does not drive, such as a media3 connect.
+    private tailrec suspend fun ReceiveTurbine<MusicCardState>.awaitCard(packageName: String): Unit =
+        if (playingPackage(awaitItem()) == packageName) Unit else awaitCard(packageName)
+
+    // The latest snapshot's sessions in order, each with whether it is the one
+    // on the card.
+    private fun latestSessions(trace: SessionTrace): List<Pair<String, Boolean>> =
+        trace.snapshots().last().let { snapshot ->
+            snapshot.sessions.map { it.packageName to (it.session == snapshot.cardSession) }
+        }
 
     private fun playingPackage(state: MusicCardState): String? =
         (state as? MusicCardState.Playing)?.nowPlaying?.packageName
@@ -133,6 +183,7 @@ class MusicSessionRepositoryTest {
     private companion object {
         const val IDLE_PACKAGE = "com.example.idle"
         const val PAUSED_PACKAGE = "com.example.paused"
+        const val PLAYING_PACKAGE = "com.example.playing"
         const val RESUMED_PACKAGE = "com.example.resumed"
     }
 }
