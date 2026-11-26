@@ -60,7 +60,6 @@ import io.github.seijikohara.femto.ui.destination.LastFix
 import io.github.seijikohara.femto.ui.drawer.AppDrawerPanelHost
 import io.github.seijikohara.femto.ui.home.HomeAction
 import io.github.seijikohara.femto.ui.home.HomeUiState
-import io.github.seijikohara.femto.ui.home.TurnCardState
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.TemperatureUnit
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
@@ -1008,27 +1007,23 @@ private fun DashboardOverlays(
         // window goes. The card's sizes count the widest distance, not the
         // current digits, so the window does not come and go from fix to fix.
         // Not before the clock and the speed readout have been measured: in
-        // the first frame after a rotation their sizes are still zero.
-        // TurnCardLayoutTest checks every geometry at every display size.
-        val turnCard =
-            uiState.activeRoute
-                ?.turnCard
-                ?.takeIf { clockSize != IntSize.Zero && speedHeightPx > 0 }
-                ?.let { turn ->
-                    val sizes = rememberTurnCardSizes(turn, speedUnit)
-                    val slots = routeCardSlots(TurnCardMaxWidth)
-                    // The window's top and bottom edges: its width sets its height.
-                    val videoEdges = videoPlacement?.let { it.top to it.top + it.width / VIDEO_ASPECT_RATIO }
-                    turnCardPlacementOrNull(sizes, slots, video = videoEdges, gap = cardGap)
-                        ?.let { placement -> TurnCardShown(turn, placement, hidesVideo = false) }
-                        ?: turnCardPlacementOrNull(sizes, slots, video = null, gap = cardGap)?.let { placement ->
-                            TurnCardShown(turn, placement, hidesVideo = videoEdges != null)
-                        }
-                }
+        // the first frame after a rotation their sizes are still zero, and the
+        // window waits with the card, so it never shows for that one frame.
+        // turnCardAndWindow is the one place that decides; TurnCardLayoutTest
+        // checks every geometry at every display size.
+        val turn = uiState.activeRoute?.turnCard
+        val turnLayout =
+            turnCardAndWindow(
+                sizes = turn?.let { rememberTurnCardSizes(it, speedUnit) },
+                slots = routeCardSlots(TurnCardMaxWidth).takeIf { clockSize != IntSize.Zero && speedHeightPx > 0 },
+                // The window's top and bottom edges: its width sets its height.
+                window = videoPlacement?.let { it.top to it.top + it.width / VIDEO_ASPECT_RATIO },
+                gap = cardGap,
+            )
 
         // A window the turn card has priority over is not composed at all, so
         // it is out of the semantics tree and takes no taps.
-        videoPlacement?.takeIf { turnCard?.hidesVideo != true }?.let { placement ->
+        videoPlacement?.takeIf { turnLayout.windowShown }?.let { placement ->
             VideoWindow(
                 state = video,
                 pictureVisible = videoPictureVisible,
@@ -1074,20 +1069,22 @@ private fun DashboardOverlays(
             )
         }
 
-        turnCard?.let { (turn, placement) ->
-            TurnCard(
-                state = turn,
-                speedUnit = speedUnit,
-                hazeState = hazeState,
-                glassConfig = glassConfig,
-                modifier =
-                    Modifier
-                        .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
-                        .padding(placement.insets(mirror))
-                        .width(placement.width)
-                        .heightIn(max = placement.maxHeight)
-                        .testTag(DashboardTags.TURN_CARD),
-            )
+        turn?.let { state ->
+            turnLayout.card?.let { (placement, form) ->
+                TurnCard(
+                    state = state,
+                    speedUnit = speedUnit,
+                    form = form,
+                    hazeState = hazeState,
+                    glassConfig = glassConfig,
+                    modifier =
+                        Modifier
+                            .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
+                            .padding(placement.insets(mirror))
+                            .width(placement.width)
+                            .testTag(DashboardTags.TURN_CARD),
+                )
+            }
         }
 
         // A tap on the margin ring around an open maximize panel dismisses it,
@@ -1367,7 +1364,7 @@ private fun mapControlsClearance(
 // Where a route card (the route choice card, the turn card) sits, as insets
 // from the top corner on the side opposite the cards, how wide it is, and how
 // tall it may grow.
-private data class RouteCardPlacement(
+internal data class RouteCardPlacement(
     val start: Dp,
     val top: Dp,
     val width: Dp,
@@ -1387,7 +1384,7 @@ private data class RouteCardPlacement(
 // tiles, and the turn card's also end them above the vehicle's chevron, which
 // the map drops below the middle of the screen; RouteChoiceLayoutTest and
 // TurnCardLayoutTest check both on every geometry.
-private data class RouteCardSlots(
+internal data class RouteCardSlots(
     val topRow: RouteCardPlacement,
     val belowClock: RouteCardPlacement,
     val topRowRoom: Dp,
@@ -1432,34 +1429,66 @@ private fun routeCardSlots(
     )
 }
 
-// The turn card that shows, where it goes, and whether it takes the video
-// window's place: it did not fit beside the window, so the window is not drawn.
-private data class TurnCardShown(
-    val state: TurnCardState,
+/** Where the turn card goes, and in which form: decided once, and drawn as decided. */
+internal data class TurnCardPlace(
     val placement: RouteCardPlacement,
-    val hidesVideo: Boolean,
+    val form: TurnCardForm,
 )
+
+/** What the dashboard draws of the turn card and the video window in a frame. */
+internal data class TurnCardAndWindow(
+    val card: TurnCardPlace?,
+    /** Whether the video window, where it is on, may show. */
+    val windowShown: Boolean,
+)
+
+/**
+ * Return what the dashboard draws of the turn card and the video window: the one place that decides both. [sizes] is
+ * null where the route has no turn card, [slots] null until the clock and the speed readout have been measured, and
+ * [window] null where the video window is off, else its top and bottom edges.
+ *
+ * Where the card and the window fit side by side, both show. Where they do not, the card takes its place as if the
+ * window were not there and the window does not show; where no card fits even then, the window shows as ever. While a
+ * turn card waits for the first measure, the window waits with it, so it never shows for one frame and goes.
+ */
+internal fun turnCardAndWindow(
+    sizes: TurnCardSizes?,
+    slots: RouteCardSlots?,
+    window: Pair<Dp, Dp>?,
+    gap: Dp,
+): TurnCardAndWindow =
+    when {
+        sizes == null -> TurnCardAndWindow(card = null, windowShown = true)
+        slots == null -> TurnCardAndWindow(card = null, windowShown = false)
+        else ->
+            turnCardPlaceOrNull(sizes, slots, window, gap)?.let { TurnCardAndWindow(it, windowShown = true) }
+                ?: turnCardPlaceOrNull(sizes, slots, window = null, gap = gap)?.let {
+                    TurnCardAndWindow(it, windowShown = window == null)
+                }
+                ?: TurnCardAndWindow(card = null, windowShown = true)
+    }
 
 /**
  * Return where the turn card goes, or null for no card: the first of the full card in the top row, the full card
  * below the clock, the compact card below the clock and the compact card in the top row that [sizes] say fits. The
- * [video] window, its top and bottom edges where it shows, starts where the card does, so a slot it reaches into, or
+ * video [window], its top and bottom edges where it shows, starts where the card does, so a slot it reaches into, or
  * reaches within [gap] of, is not available, and a slot above it ends [gap] above it.
  */
-private fun turnCardPlacementOrNull(
+private fun turnCardPlaceOrNull(
     sizes: TurnCardSizes,
     slots: RouteCardSlots,
-    video: Pair<Dp, Dp>?,
+    window: Pair<Dp, Dp>?,
     gap: Dp,
-): RouteCardPlacement? {
-    val topRow = slots.topRow.clearOf(video, gap)
-    val belowClock = slots.belowClock.clearOf(video, gap)
+): TurnCardPlace? {
+    val topRow = slots.topRow.clearOf(window, gap)
+    val belowClock = slots.belowClock.clearOf(window, gap)
     return listOf(topRow to true, belowClock to true, belowClock to false, topRow to false)
         .firstNotNullOfOrNull { (slot, full) ->
-            slot?.takeIf { place ->
-                sizes.formOrNull(place.width, place.maxHeight).let { form ->
-                    form != null && (form == TurnCardForm.FULL) == full
-                }
+            slot?.let { place ->
+                sizes
+                    .formOrNull(place.width, place.maxHeight)
+                    ?.takeIf { form -> (form == TurnCardForm.FULL) == full }
+                    ?.let { form -> TurnCardPlace(place, form) }
             }
         }
 }

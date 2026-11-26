@@ -9,13 +9,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.seijikohara.femto.testfixtures.RobolectricHaze
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
 import io.github.seijikohara.femto.testfixtures.TurnCardFixtures
 import io.github.seijikohara.femto.ui.home.components.TurnCard
+import io.github.seijikohara.femto.ui.home.components.TurnCardForm
 import io.github.seijikohara.femto.ui.home.components.TurnCardMinWidth
 import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
@@ -42,23 +42,25 @@ class TurnCardScreenshotTest {
     fun turn_card_dark() = capture("turn-card-dark", darkTheme = true)
 
     @Test
-    fun turn_card_compact_light() = capture("turn-card-compact-light", darkTheme = false, width = CompactSlotWidth)
+    fun turn_card_compact_light() = capture("turn-card-compact-light", darkTheme = false, compact = true)
 
     @Test
-    fun turn_card_compact_dark() = capture("turn-card-compact-dark", darkTheme = true, width = CompactSlotWidth)
+    fun turn_card_compact_dark() = capture("turn-card-compact-dark", darkTheme = true, compact = true)
 
     private fun capture(
         name: String,
         darkTheme: Boolean,
-        width: Dp = TurnCardMinWidth,
+        compact: Boolean = false,
     ) = captureRoboImage(filePath = "src/test/screenshots/$name.png", roborazziOptions = ScreenshotCompareOptions) {
         FemtoTheme(darkTheme = darkTheme) {
-            RobolectricHaze { Cards(width) }
+            RobolectricHaze { Cards(compact) }
         }
     }
 
+    // The full cards at their narrowest; the compact ones in a slot narrower than that, wide enough for the turn after
+    // next.
     @Composable
-    private fun Cards(width: Dp) =
+    private fun Cards(compact: Boolean) =
         Column(
             modifier =
                 Modifier
@@ -71,7 +73,13 @@ class TurnCardScreenshotTest {
                 TurnCard(
                     state = state,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
-                    modifier = Modifier.width(width),
+                    form =
+                        when {
+                            !compact -> TurnCardForm.FULL
+                            state.then != null -> TurnCardForm.COMPACT_THEN
+                            else -> TurnCardForm.COMPACT
+                        },
+                    modifier = Modifier.width(if (compact) CompactSlotWidth else TurnCardMinWidth),
                 )
             }
         }

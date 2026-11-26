@@ -2,7 +2,6 @@ package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -52,9 +51,10 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  * ([TurnCardState.then]), a small arrow for that one under "Then" at the end. No road names: the routing data has
  * none.
  *
- * The card shows in the first of its forms ([TurnCardForm]) that fits the room the caller gives it, as
- * [TurnCardSizes.formOrNull] measures it, so a larger Display size and a larger font both count. Where no form fits,
- * the card shows nothing. The caller gives the width, up to [TurnCardMaxWidth], and caps the height.
+ * The card draws the [form] its caller decided: the first of its forms that fits, as [TurnCardSizes.formOrNull]
+ * measures it, so a larger Display size and a larger font both count. The card does not decide again: a second
+ * decision from rounded constraints could disagree with the first by a fraction of a pixel. The caller gives the
+ * width, up to [TurnCardMaxWidth].
  *
  * The card carries no control. In every form it reads as one sentence to a screen reader ("Turn left in 300 m. Then:
  * Turn right."), so its parts are merged into one node. The full form is at least [TurnCardHeight] tall, more where a
@@ -64,6 +64,7 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
 internal fun TurnCard(
     state: TurnCardState,
     speedUnit: SpeedUnit,
+    form: TurnCardForm,
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
@@ -74,22 +75,13 @@ internal fun TurnCard(
         state.then?.let { then ->
             stringResource(R.string.turn_card_description_then, text, value, unit, turnText(then))
         } ?: stringResource(R.string.turn_card_description, text, value, unit)
-    val content = TurnCardContent(state = state, value = value, unit = unit, text = text)
-    val sizes = rememberTurnCardSizes(state, speedUnit)
-    // Only the form that shows is composed: a form tried and left out would stay in the semantics tree beside it.
-    BoxWithConstraints(modifier = modifier) {
-        sizes
-            .formOrNull(width = if (constraints.hasBoundedWidth) maxWidth else TurnCardMaxWidth, height = maxHeight)
-            ?.let { form ->
-                Box(
-                    modifier =
-                        Modifier
-                            .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-                            .semantics(mergeDescendants = true) { contentDescription = description },
-                ) {
-                    TurnCardBody(content, form)
-                }
-            }
+    Box(
+        modifier =
+            modifier
+                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                .semantics(mergeDescendants = true) { contentDescription = description },
+    ) {
+        TurnCardBody(TurnCardContent(state = state, value = value, unit = unit, text = text), form)
     }
 }
 
@@ -405,6 +397,7 @@ private fun TurnCardPreview() {
                 TurnCard(
                     state = state,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    form = TurnCardForm.FULL,
                     modifier = Modifier.width(TurnCardMinWidth),
                 )
             }

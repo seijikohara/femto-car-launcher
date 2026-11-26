@@ -1,6 +1,7 @@
 package io.github.seijikohara.femto.ui.home.components
 
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -106,6 +107,7 @@ class TurnCardTest {
                 TurnCard(
                     state = state,
                     speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                    form = TurnCardForm.FULL,
                     modifier = Modifier.width(TurnCardMinWidth),
                 )
             }
@@ -295,18 +297,18 @@ class TurnCardTest {
         fontScale: Float = 1f,
         speedUnit: () -> SpeedUnit = { SpeedUnit.KILOMETERS_PER_HOUR },
     ) {
+        // The card in the form the one decision picks for [width] by [maxHeight], as the dashboard draws it; nothing
+        // where no form fits, which leaves the slot [width] wide and no height.
         rule.setContent {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
                 FemtoTheme {
-                    TurnCard(
-                        state = state(),
-                        speedUnit = speedUnit(),
-                        modifier =
-                            Modifier
-                                .width(width)
-                                .heightIn(max = maxHeight)
-                                .testTag(CARD),
-                    )
+                    val shown = state()
+                    val unit = speedUnit()
+                    Box(modifier = Modifier.width(width).testTag(CARD)) {
+                        rememberTurnCardSizes(shown, unit).formOrNull(width, maxHeight)?.let { form ->
+                            TurnCard(state = shown, speedUnit = unit, form = form, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
                 }
             }
         }
