@@ -341,11 +341,15 @@ class TurnCardLayoutTest {
             .fetchSemanticsNodes()
             .isNotEmpty()
 
-    // The form the card shows, read off what it draws: its one-sentence node, the full form's line of text, and the
-    // turn after next's caption. Null where the card shows nothing.
+    // The form the card shows, read off what it draws: the full form's line of text, and the turn after next's
+    // caption. Null where the dashboard places no card: the card's own node carries the tag, and the dashboard
+    // composes it only where a form fits.
     private fun shownForm(): TurnCardForm? =
         when {
-            countInCard(SemanticsMatcher.keyIsDefined(SemanticsProperties.ContentDescription)) == 0 -> null
+            rule
+                .onAllNodes(hasTestTag(DashboardTags.TURN_CARD), useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isEmpty() -> null
             countInCard(hasText(LONGEST_TEXT)) > 0 -> TurnCardForm.FULL
             countInCard(hasText("Then")) > 0 -> TurnCardForm.COMPACT_THEN
             else -> TurnCardForm.COMPACT
