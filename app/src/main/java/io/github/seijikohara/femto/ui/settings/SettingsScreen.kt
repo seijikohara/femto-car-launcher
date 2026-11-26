@@ -277,6 +277,7 @@ private fun settingsCategoryEntries(
         },
         SettingsCategoryEntry(SettingsCategoryId.SYSTEM) {
             SystemSection(
+                categories = visibleSettingsCategories(uiState),
                 onAction = onAction,
                 onOpenNotificationAccess = onOpenNotificationAccess,
                 onOpenSystemSettings = onOpenSystemSettings,

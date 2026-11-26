@@ -5,14 +5,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.ui.settings.SettingsAction
+import io.github.seijikohara.femto.ui.settings.SettingsCategoryId
 import io.github.seijikohara.femto.ui.settings.SettingsDocument
 
 // The System category's rows: action links plus the global reset. Unlike the
 // other categories, System has no SettingsSectionId of its own (see
 // SettingsCategoryId), so the shared master-detail wrapper never gives it a
-// per-category reset icon — ResetRow below is its only reset affordance.
+// per-category reset icon — ResetSettingsRow below is its only reset
+// affordance, offering each of [categories] (the ones Settings lists).
 @Composable
 internal fun SystemSection(
+    categories: List<SettingsCategoryId>,
     onAction: (SettingsAction) -> Unit,
     onOpenNotificationAccess: () -> Unit,
     onOpenSystemSettings: () -> Unit,
@@ -63,5 +66,5 @@ internal fun SystemSection(
             shapes = shapes,
         )
     }
-    item { shapes -> ResetRow(onConfirm = { onAction(SettingsAction.ResetToDefaults) }, shapes = shapes) }
+    item { shapes -> ResetSettingsRow(categories = categories, onReset = onAction, shapes = shapes) }
 }
