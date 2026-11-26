@@ -350,8 +350,11 @@ class TurnCardLayoutTest {
                 .onAllNodes(hasTestTag(DashboardTags.TURN_CARD), useUnmergedTree = true)
                 .fetchSemanticsNodes()
                 .isEmpty() -> null
+
             countInCard(hasText(LONGEST_TEXT)) > 0 -> TurnCardForm.FULL
+
             countInCard(hasText("Then")) > 0 -> TurnCardForm.COMPACT_THEN
+
             else -> TurnCardForm.COMPACT
         }
 
