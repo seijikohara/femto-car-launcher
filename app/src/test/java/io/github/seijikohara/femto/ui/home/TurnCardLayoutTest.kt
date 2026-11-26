@@ -140,6 +140,28 @@ class TurnCardLayoutTest {
         )
     }
 
+    // The window's presence follows the card's stable sizes: at a red light the distance moving between 94 m and 104 m,
+    // or the turn after next coming and going, must not make it come and go. Where the card hides it, it stays hidden;
+    // where both fit, it stays.
+    @Test
+    fun `the window does not come and go with the distance or the turn after next`() {
+        videoOn = true
+        setDashboard()
+
+        assertEquals(
+            mapOf("mainstream-1280x720" to listOf(false), "head-unit-853x512" to listOf(true)),
+            listOf("mainstream-1280x720", "head-unit-853x512").associateWith { id ->
+                geometry = DashboardGeometries.all.single { it.id == id }
+                FLICKER_STATES
+                    .map { state ->
+                        uiState = state
+                        rule.waitForIdle()
+                        videoShown()
+                    }.distinct()
+            },
+        )
+    }
+
     // Where the two do not both fit, the card takes its place as if the window were not there, and the window is not
     // drawn; it comes back as soon as the card goes, whatever sent the card away.
     @Test
@@ -458,6 +480,16 @@ class TurnCardLayoutTest {
                     "phone-portrait-412x915" to
                         listOf("full below", "compact top +window", "full below", "compact+then below", "none +window"),
                 )
+
+        // The same turn at 94 m and at 104 m, with and without the turn after next.
+        val FLICKER_STATES: List<HomeUiState> =
+            listOf(94.0, 104.0).flatMap { meters ->
+                listOf(TurnCardFixtures.turnThen, TurnCardFixtures.turn).map { turn ->
+                    LONGEST_TURN_STATE.let { state ->
+                        state.copy(activeRoute = state.activeRoute?.copy(turnCard = turn.copy(distanceMeters = meters)))
+                    }
+                }
+            }
 
         // Each way the card goes while the route stays on the map or leaves it: the window must come back.
         val CARD_GONE: Map<String, (HomeUiState) -> HomeUiState> =
