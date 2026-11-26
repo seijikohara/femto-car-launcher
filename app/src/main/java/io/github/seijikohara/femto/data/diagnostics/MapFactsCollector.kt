@@ -33,6 +33,10 @@ import io.github.seijikohara.femto.data.routing.RouteRestoreDecision
 import io.github.seijikohara.femto.data.routing.RouteRun
 import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
+import io.github.seijikohara.femto.data.voice.EnglishVoice
+import io.github.seijikohara.femto.data.voice.PlatformSpeechEnginePort
+import io.github.seijikohara.femto.data.voice.SpeechEngine
+import io.github.seijikohara.femto.data.voice.speechEngines
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -142,6 +146,8 @@ internal data class RoutingFacts(
     val routeActive: Boolean = false,
     /** How many turn hints that route has; null when it has no turn data, which is not the same as none. */
     val activeTurnCount: Int? = null,
+    /** The text-to-speech engines spoken turn prompts would need; null when they were not asked. */
+    val speechEngines: List<SpeechEngine>? = null,
 )
 
 // Counts, sizes and times only: a tile name says where the owner drives, and an engine message can too.
@@ -200,6 +206,26 @@ private fun routingFacts(
             add(DiagnosticFact("Route restore", FactValue.Text(facts.restore?.label() ?: NO_RUN_YET)))
         }
         add(DiagnosticFact("Geocoder", FactValue.Text(if (facts.geocoderPresent) "present" else "absent")))
+        // Shown in every build, like the geocoder: the line decides whether spoken prompts are worth building for a
+        // device, so it has to be readable before any build speaks. No engine is the normal case on a head unit
+        // (Android 13 ships none of its own), so it is a plain value and never a warning.
+        facts.speechEngines?.let { add(DiagnosticFact("Text-to-speech", FactValue.Text(it.summary()))) }
+    }
+
+// "com.example.tts (default): English available; com.example.other: no English". An engine is named by its package,
+// as the platform names it.
+private fun List<SpeechEngine>.summary(): String =
+    joinToString("; ") { engine ->
+        "${engine.packageName}${if (engine.isDefault) " (default)" else ""}: ${engine.english.words()}"
+    }.ifEmpty { "no engine" }
+
+private fun EnglishVoice.words(): String =
+    when (this) {
+        EnglishVoice.AVAILABLE -> "English available"
+        EnglishVoice.MISSING_DATA -> "English voice data missing"
+        EnglishVoice.NOT_SUPPORTED -> "no English"
+        EnglishVoice.DID_NOT_START -> "did not start"
+        EnglishVoice.NO_ANSWER -> "did not answer"
     }
 
 private const val NO_RUN_YET = "none this session"
@@ -562,6 +588,7 @@ internal class MapFactsCollector(
             restore = if (enabled) RoutePersistence.get(context).decision.value else null,
             routeActive = activeRoute != null,
             activeTurnCount = activeRoute?.route?.turns?.size,
+            speechEngines = speechEngines(PlatformSpeechEnginePort(context)),
         )
     }
 }
