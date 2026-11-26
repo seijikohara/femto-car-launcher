@@ -272,6 +272,11 @@ internal data class RouteFollow(
     val upcomingTurns: List<UpcomingTurn>? = null,
     /** Whether the vehicle has left the route and is not back on it yet ([OffRouteWatch.left]). */
     val offRoute: Boolean = false,
+    /**
+     * Whether a fix has been placed on the line yet. False for the starting value, which puts the vehicle at the start
+     * of the line: a route restored after a restart can lie far behind the vehicle until the first fix comes.
+     */
+    val fixPlaced: Boolean = false,
 )
 
 /**
@@ -297,6 +302,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                         watch = OffRouteWatch(),
                         onLine = null,
                         passed = LinePosition.Start,
+                        fixPlaced = false,
                     ),
                 ) { step, fix ->
                     val position = line.follow(fix.point, step.position)
@@ -317,6 +323,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                             } else {
                                 LinePosition(max(step.passed.travelledMeters, position.travelledMeters))
                             },
+                        fixPlaced = true,
                     )
                 }.map { step ->
                     RouteFollow(
@@ -325,6 +332,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                         onLine = step.onLine,
                         upcomingTurns = turnsAlong?.let { line.turnsAhead(it, step.passed, step.progress) },
                         offRoute = step.watch.left,
+                        fixPlaced = step.fixPlaced,
                     )
                 }.distinctUntilChanged(),
         )
@@ -377,6 +385,7 @@ private data class FollowStep(
     // A position farther back than that behind this mark is a real jump back, a detour or a vehicle that turned round,
     // and the mark starts again there, so the turns ahead are worked out afresh.
     val passed: LinePosition,
+    val fixPlaced: Boolean,
 )
 
 // A segment's point nearest a fix: the squared distance to it, and the length of line behind it.

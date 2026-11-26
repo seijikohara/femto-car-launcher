@@ -25,9 +25,10 @@ internal enum class RouteRowTime {
 
 /**
  * The Navigation settings (issue #389): which parts of the route preview run besides the line on the map, which time
- * its row shows, and whether the map draws the vehicle on the route line while it drives along it. Each of the first
- * four defaults is what the route preview did before these settings existed, so a driver who never opens them sees no
- * change there; the vehicle is drawn on the line unless the driver switches it off.
+ * its row shows, whether the map draws the vehicle on the route line while it drives along it, and what the turn card
+ * over the map shows. Each of the first four defaults is what the route preview did before these settings existed, so
+ * a driver who never opens them sees no change there; the vehicle is drawn on the line, and the turn card shows with
+ * the turn after next but without "continue straight", unless the driver switches them.
  */
 internal data class NavigationSettings(
     val rerouteAutomatically: Boolean,
@@ -35,6 +36,12 @@ internal data class NavigationSettings(
     val restoreRouteAfterRestart: Boolean,
     val routeRowTime: RouteRowTime,
     val vehicleOnRouteLine: Boolean,
+    /** Whether the turn card shows the next turn over the map. */
+    val turnCard: Boolean,
+    /** Whether the turn card shows the turn after next when it follows closely. */
+    val turnCardNextAfter: Boolean,
+    /** Whether the turn card also announces "continue straight". */
+    val turnCardStraight: Boolean,
 ) {
     companion object {
         val Default =
@@ -44,6 +51,9 @@ internal data class NavigationSettings(
                 restoreRouteAfterRestart = true,
                 routeRowTime = RouteRowTime.ARRIVAL,
                 vehicleOnRouteLine = true,
+                turnCard = true,
+                turnCardNextAfter = true,
+                turnCardStraight = false,
             )
     }
 }
@@ -64,6 +74,12 @@ internal interface NavigationSettingsStore {
     suspend fun setRouteRowTime(value: RouteRowTime)
 
     suspend fun setVehicleOnRouteLine(value: Boolean)
+
+    suspend fun setTurnCard(value: Boolean)
+
+    suspend fun setTurnCardNextAfter(value: Boolean)
+
+    suspend fun setTurnCardStraight(value: Boolean)
 
     suspend fun resetToDefaults()
 }
@@ -90,6 +106,9 @@ internal class NavigationPreferences(
                     // A name a later build wrote, and this one does not know, reads as the default.
                     routeRowTime = prefs[ROUTE_ROW_TIME_KEY].toEnumOr(NavigationSettings.Default.routeRowTime),
                     vehicleOnRouteLine = prefs[VEHICLE_ON_LINE_KEY] ?: NavigationSettings.Default.vehicleOnRouteLine,
+                    turnCard = prefs[TURN_CARD_KEY] ?: NavigationSettings.Default.turnCard,
+                    turnCardNextAfter = prefs[TURN_CARD_NEXT_AFTER_KEY] ?: NavigationSettings.Default.turnCardNextAfter,
+                    turnCardStraight = prefs[TURN_CARD_STRAIGHT_KEY] ?: NavigationSettings.Default.turnCardStraight,
                 )
             }
 
@@ -113,6 +132,18 @@ internal class NavigationPreferences(
         context.navigationDataStore.editOrLog(TAG) { it[VEHICLE_ON_LINE_KEY] = value }
     }
 
+    override suspend fun setTurnCard(value: Boolean) {
+        context.navigationDataStore.editOrLog(TAG) { it[TURN_CARD_KEY] = value }
+    }
+
+    override suspend fun setTurnCardNextAfter(value: Boolean) {
+        context.navigationDataStore.editOrLog(TAG) { it[TURN_CARD_NEXT_AFTER_KEY] = value }
+    }
+
+    override suspend fun setTurnCardStraight(value: Boolean) {
+        context.navigationDataStore.editOrLog(TAG) { it[TURN_CARD_STRAIGHT_KEY] = value }
+    }
+
     // Every key here is a setting, and the read path falls back to NavigationSettings.Default for a missing one, so
     // clearing the file restores the defaults without repeating them.
     override suspend fun resetToDefaults() {
@@ -125,5 +156,8 @@ internal class NavigationPreferences(
         val RESTORE_KEY = booleanPreferencesKey("restore_route_after_restart")
         val ROUTE_ROW_TIME_KEY = stringPreferencesKey("route_row_time")
         val VEHICLE_ON_LINE_KEY = booleanPreferencesKey("vehicle_on_route_line")
+        val TURN_CARD_KEY = booleanPreferencesKey("turn_card")
+        val TURN_CARD_NEXT_AFTER_KEY = booleanPreferencesKey("turn_card_next_after")
+        val TURN_CARD_STRAIGHT_KEY = booleanPreferencesKey("turn_card_straight")
     }
 }

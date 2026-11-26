@@ -1,7 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import android.location.Location
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -641,9 +640,10 @@ private fun RowEndButton(
  *
  * The arrival time is read from [clock] whenever the progress changes (each
  * fix), and once a minute besides, so it keeps moving while no fix arrives.
- * The time left is in the locale's short units ("1 hr, 5 min left"), which
- * fit the row whole up to a day's drive on the head unit (RouteRowTimeTest),
- * so the row never needs the narrow ones the route choice card falls back to.
+ * The time left is the bare duration in the locale's short units ("1 hr,
+ * 5 min"), with no word beside it, which fit the row whole up to a day's
+ * drive on the head unit (RouteRowTimeTest), so the row never needs the
+ * narrow ones the route choice card falls back to.
  * While a reroute runs, or after one that found nothing, its status takes the
  * time's place: the old line's time no longer holds.
  */
@@ -696,7 +696,7 @@ private fun RouteRow(
     Text(
         text =
             when (reroute) {
-                RerouteStatus.NONE -> stringResource(routeRowFormat(time), timeText)
+                RerouteStatus.NONE -> routeRowTimeText(time, timeText)
                 RerouteStatus.REROUTING -> stringResource(R.string.speed_route_rerouting)
                 RerouteStatus.NO_DATA -> stringResource(R.string.speed_route_reroute_no_data)
                 RerouteStatus.FAILED -> stringResource(R.string.speed_route_reroute_failed)
@@ -715,12 +715,16 @@ private fun RouteRow(
     )
 }
 
-// The route row's text around its time: "ETA 10:26" or "18 min left".
-@StringRes
-private fun routeRowFormat(time: RouteRowTime): Int =
+// The route row's time: "ETA 10:26", or the bare travel time left ("18 min"). The travel time's units come from the
+// device's language, so no English word goes beside them.
+@Composable
+private fun routeRowTimeText(
+    time: RouteRowTime,
+    timeText: String,
+): String =
     when (time) {
-        RouteRowTime.ARRIVAL -> R.string.speed_route_arrival
-        RouteRowTime.REMAINING -> R.string.speed_route_remaining
+        RouteRowTime.ARRIVAL -> stringResource(R.string.speed_route_arrival, timeText)
+        RouteRowTime.REMAINING -> timeText
     }
 
 // The caption style the address and route rows share: the glance caption on
@@ -752,12 +756,20 @@ internal fun remainingDistanceText(
     speedUnit: SpeedUnit,
     locale: Locale = Locale.getDefault(),
 ): String =
-    speedUnit.tripDistanceFromMeters(meters).let { distance ->
-        // The threshold judges the value as shown, rounded to tenths: 9.96
-        // shows as 10.0, which belongs with the whole units.
-        val tenths = (distance * 10.0).roundToLong() / 10.0
-        if (tenths < WHOLE_DISTANCE_FROM) String.format(locale, "%.1f", tenths) else "${distance.roundToInt()}"
-    }
+    remainingDistanceTenthsOrNull(meters, speedUnit)?.let { String.format(locale, "%.1f", it) }
+        ?: "${speedUnit.tripDistanceFromMeters(meters).roundToInt()}"
+
+/**
+ * Return the remaining distance [meters] in [speedUnit]'s distance unit rounded to tenths where it shows a decimal
+ * ([remainingDistanceText]), or null where it shows whole units.
+ */
+internal fun remainingDistanceTenthsOrNull(
+    meters: Double,
+    speedUnit: SpeedUnit,
+): Double? =
+    // The threshold judges the value as shown, rounded to tenths: 9.96 shows as 10.0, which belongs with the whole
+    // units.
+    ((speedUnit.tripDistanceFromMeters(meters) * 10.0).roundToLong() / 10.0).takeIf { it < WHOLE_DISTANCE_FROM }
 
 /**
  * Return the arrival clock time [remainingSeconds] after [now] in [zone], on

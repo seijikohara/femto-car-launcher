@@ -10,6 +10,7 @@ import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.MapBackdrop
 import io.github.seijikohara.femto.testfixtures.RobolectricHaze
 import io.github.seijikohara.femto.testfixtures.ScreenshotCompareOptions
+import io.github.seijikohara.femto.testfixtures.fakeLastPlayedState
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
 import io.github.seijikohara.femto.ui.home.components.MapConfig
@@ -130,6 +131,17 @@ class DashboardScreenshotTest {
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_dark() = capture("head-unit-853x512-dark", darkTheme = true)
 
+    // The music card offering the track that played last while no session is
+    // live: the Playing card's layout with the placeholder art and a lone
+    // play button.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_last_played() =
+        capture(
+            "head-unit-853x512-last-played",
+            uiState = DashboardFixtures.state.copy(musicState = fakeLastPlayedState()),
+        )
+
     // --- Route preview (issue #389 phase 3, nightly builds only): the speed
     // readout grows its route row under the address. The tests run the stable
     // build, where routing is off, so the state carries the route explicitly. ---
@@ -143,8 +155,8 @@ class DashboardScreenshotTest {
     fun dashboard_head_unit_route_dark() =
         capture("head-unit-853x512-route-dark", darkTheme = true, uiState = DashboardFixtures.routeState)
 
-    // The route row set to the time remaining (Settings → Navigation): "18 min
-    // left" in place of the arrival time.
+    // The route row set to the time remaining (Settings → Navigation): the bare
+    // duration, "18 min", in place of the arrival time.
     @Test
     @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
     fun dashboard_head_unit_route_remaining() =
@@ -189,6 +201,52 @@ class DashboardScreenshotTest {
     @Config(qualifiers = DashboardGeometries.PHONE_LANDSCAPE_915X412)
     fun dashboard_phone_landscape_route_choice() =
         capture("phone-landscape-915x412-route-choice", uiState = DashboardFixtures.routeChoiceState)
+
+    // The turn card over the map (issue #389 phase 4), in the choice card's
+    // corner: a turn, a turn with the turn after next, and the destination on
+    // the head unit, the turn in dark, and the turn on the narrower geometries,
+    // where the card sits under the clock or, on a phone in portrait, at its
+    // narrowest.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card() =
+        capture("head-unit-853x512-turn-card", uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card_dark() =
+        capture("head-unit-853x512-turn-card-dark", darkTheme = true, uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card_then() =
+        capture("head-unit-853x512-turn-card-then", uiState = DashboardFixtures.routeTurnThenState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_turn_card_arrive() =
+        capture("head-unit-853x512-turn-card-arrive", uiState = DashboardFixtures.routeArriveState)
+
+    // The largest Display size leaves the turn card less room above the speed
+    // readout than the full card needs: the compact card shows instead.
+    @Test
+    @Config(qualifiers = DashboardGeometries.HEAD_UNIT_853X512)
+    fun dashboard_head_unit_large_scale_turn_card() =
+        capture("head-unit-853x512-large-turn-card", UiScale.LARGE, uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.FLOOR_800X480)
+    fun dashboard_floor_turn_card() = capture("floor-800x480-turn-card", uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.PHONE_PORTRAIT_412X915)
+    fun dashboard_phone_portrait_turn_card() =
+        capture("phone-portrait-412x915-turn-card", uiState = DashboardFixtures.routeTurnState)
+
+    @Test
+    @Config(qualifiers = DashboardGeometries.PHONE_LANDSCAPE_915X412)
+    fun dashboard_phone_landscape_turn_card() =
+        capture("phone-landscape-915x412-turn-card", uiState = DashboardFixtures.routeTurnState)
 
     private fun capture(
         name: String,

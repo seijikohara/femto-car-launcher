@@ -623,6 +623,30 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetTurnCard writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetTurnCard(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.turnCard)
+        }
+
+    @Test
+    fun `SetTurnCardNextAfter writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetTurnCardNextAfter(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.turnCardNextAfter)
+        }
+
+    @Test
+    fun `SetTurnCardStraight writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetTurnCardStraight(true))
+            advanceUntilIdle()
+            assertEquals(true, navigationStore.current.turnCardStraight)
+        }
+
+    @Test
     fun `the navigation rows mirror the navigation store`() =
         runTest(dispatcher) {
             val vm = viewModel()
@@ -633,6 +657,9 @@ class SettingsViewModelTest {
             navigationStore.setSuggestOtherRoutes(false)
             navigationStore.setRouteRowTime(RouteRowTime.REMAINING)
             navigationStore.setVehicleOnRouteLine(false)
+            navigationStore.setTurnCard(false)
+            navigationStore.setTurnCardNextAfter(false)
+            navigationStore.setTurnCardStraight(true)
             advanceUntilIdle()
 
             assertEquals(
@@ -640,6 +667,9 @@ class SettingsViewModelTest {
                     suggestOtherRoutes = false,
                     routeRowTime = RouteRowTime.REMAINING,
                     vehicleOnRouteLine = false,
+                    turnCard = false,
+                    turnCardNextAfter = false,
+                    turnCardStraight = true,
                 ),
                 vm.uiState.value.navigation,
             )
@@ -651,6 +681,8 @@ class SettingsViewModelTest {
             val vm = viewModel()
             vm.onAction(SettingsAction.SetRerouteAutomatically(false))
             vm.onAction(SettingsAction.SetRouteRowTime(RouteRowTime.REMAINING))
+            vm.onAction(SettingsAction.SetTurnCard(false))
+            vm.onAction(SettingsAction.SetTurnCardStraight(true))
             vm.onAction(SettingsAction.SetMapZoom(11))
             advanceUntilIdle()
 

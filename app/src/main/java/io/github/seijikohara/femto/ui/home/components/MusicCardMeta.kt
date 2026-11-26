@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -22,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -29,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -49,6 +52,7 @@ import io.github.seijikohara.femto.ui.theme.ScrollingText
 import io.github.seijikohara.femto.ui.theme.cardMeta
 import io.github.seijikohara.femto.ui.theme.cardTitle
 import io.github.seijikohara.femto.ui.theme.eyebrow
+import io.github.seijikohara.femto.ui.theme.progressCaption
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import kotlinx.coroutines.delay
 
@@ -117,31 +121,37 @@ internal fun AlbumArt(
                     modifier = Modifier.fillMaxSize(),
                 )
             } else {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(
-                                        MaterialTheme.colorScheme.primary,
-                                        MaterialTheme.colorScheme.tertiary,
-                                    ),
-                                ),
-                            ),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    FemtoIcon(
-                        imageVector = Lucide.Music,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(48.dp),
-                    )
-                }
+                AlbumArtPlaceholder(modifier = Modifier.fillMaxSize())
             }
         }
     }
 }
+
+/**
+ * Draw the tile that stands in for album art: the accent gradient with a music note. The Playing card shows it for a
+ * track without art, and the last played card shows it in the art slot, since no artwork is kept for that track.
+ */
+@Composable
+internal fun AlbumArtPlaceholder(modifier: Modifier = Modifier) =
+    Box(
+        modifier =
+            modifier.background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary,
+                        MaterialTheme.colorScheme.tertiary,
+                    ),
+                ),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        FemtoIcon(
+            imageVector = Lucide.Music,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.size(48.dp),
+        )
+    }
 
 // Slot indices into MusicMetaAndProgress's Layout children — see the fit
 // algorithm below.
@@ -153,7 +163,12 @@ private const val PROGRESS_SLOT = 4
 
 // Gap between the source eyebrow / title / artist / album lines — a little air
 // between the lines so the metadata block reads cleanly rather than cramped.
-internal val MetaLineGap: Dp = 4.dp
+private val MetaLineGap: Dp = 4.dp
+
+// A slot measured at its real size but drawn blank and cleared from
+// semantics, so the space reads as empty to the eye and to accessibility
+// alike (no em dash, no 0:00).
+private val BlankSlot = Modifier.clearAndSetSemantics {}.drawWithContent {}
 
 /**
  * Title, artist, album, source eyebrow, and the playback progress row, laid
@@ -164,6 +179,11 @@ internal val MetaLineGap: Dp = 4.dp
  * protected of the three; the eyebrow outranks the album because it also
  * carries the tap-to-expand affordance ([onExpand]), so dropping it would cost
  * the card its full-screen-player entry when the album art is hidden.
+ *
+ * With [captionInsteadOfProgress] set, the block keeps the same slots and
+ * heights but shows that caption where the progress row would be and leaves
+ * the album line blank: the last played card's layout, which matches the
+ * Playing card's line for line.
  *
  * This replaces a fixed-height [Column] (`Arrangement.spacedBy(_, CenterVertically)`
  * over lines clamped to their nominal `lineHeight`): squeezed by an ancestor
@@ -176,7 +196,7 @@ internal val MetaLineGap: Dp = 4.dp
  *
  * The block always reports the *natural* height of whatever it kept — even
  * when the incoming constraints are bounded — rather than stretching to fill
- * a taller allocation. The caller ([PlayingState]) pins its row to the row's
+ * a taller allocation. The caller ([MusicCardLayout]) pins its row to the row's
  * min intrinsic height — which this natural height alone defines, the album
  * art sitting out the vote — and sizes the art to match, while the card wraps
  * its content; a block that stretched to a taller bound would both reopen the
@@ -206,7 +226,15 @@ internal fun MusicMetaAndProgress(
     // Scroll long title / artist / album lines to their full length while the
     // vehicle is stationary; static ellipsis while moving. See [MetaLine].
     stationary: Boolean = false,
+    // When non-null, a one-line caption takes the progress row's place: the
+    // row's space holds the caption, left-aligned and vertically centred, and
+    // the album line keeps its space blank. The last played card passes "Last
+    // played": it has no album or progress to show, and holding their space
+    // puts its eyebrow, title and artist where the Playing card has them, with
+    // the same line dropping on a short card.
+    captionInsteadOfProgress: String? = null,
 ) {
+    val albumModifier = if (captionInsteadOfProgress != null) BlankSlot else Modifier
     // Title, artist and album styles derive from the M3 type roles once and are
     // remembered so a track-change recomposition doesn't reallocate them.
     val typography = MaterialTheme.typography
@@ -248,17 +276,41 @@ internal fun MusicMetaAndProgress(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     tier = motionTier,
                     marquee = stationary,
+                    modifier = albumModifier,
                 )
             } else {
                 Spacer(modifier = Modifier.size(0.dp))
             }
-            Progress(
-                positionMs = positionMs,
-                durationMs = durationMs,
-                positionUpdateTimeMs = positionUpdateTimeMs,
-                isPlaying = isPlaying,
-                playbackSpeed = playbackSpeed,
-            )
+            val progress = @Composable { progressModifier: Modifier ->
+                Progress(
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    positionUpdateTimeMs = positionUpdateTimeMs,
+                    isPlaying = isPlaying,
+                    playbackSpeed = playbackSpeed,
+                    modifier = progressModifier,
+                )
+            }
+            if (captionInsteadOfProgress != null) {
+                // The blank progress row sizes the slot, so the caption never
+                // changes the block's height; the caption is drawn over it.
+                Box {
+                    progress(BlankSlot)
+                    Text(
+                        text = captionInsteadOfProgress,
+                        style = MaterialTheme.typography.progressCaption(),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier =
+                            Modifier
+                                .matchParentSize()
+                                .wrapContentHeight(align = Alignment.CenterVertically, unbounded = true),
+                    )
+                }
+            } else {
+                progress(Modifier)
+            }
         },
     ) { measurables, constraints ->
         val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
@@ -310,7 +362,7 @@ internal fun MusicMetaAndProgress(
 // to the whole meta block — so it stays distinct from the card-wide
 // "open the source app" tap the title / artist / album lines fall through to.
 @Composable
-internal fun EyebrowLine(
+private fun EyebrowLine(
     source: String,
     sourceIcon: ImageBitmap?,
     onExpand: (() -> Unit)?,
@@ -365,7 +417,7 @@ internal fun EyebrowLine(
 // real track switch) rather than popping, matching the album art beside it
 // and the full-screen panel's metadata.
 @Composable
-internal fun MetaLine(
+private fun MetaLine(
     text: String,
     style: TextStyle,
     color: Color,
