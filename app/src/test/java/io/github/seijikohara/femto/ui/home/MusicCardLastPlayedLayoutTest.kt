@@ -165,6 +165,17 @@ class MusicCardLastPlayedLayoutTest {
         )
     }
 
+    @Test
+    fun `the last played card exposes the artist in the merged tree`() {
+        setDashboard()
+        geometry = DashboardGeometries.all.single { it.qualifiers == DashboardGeometries.HEAD_UNIT_853X512 }
+        musicState = fakeLastPlayedState()
+        val artist = checkNotNull(fakeLastPlayedState().track.artist)
+        // Anti-vacuous guard: the same matcher finds the title, so the card's merged nodes are the ones searched.
+        assertEquals(1, cardNodeCount(hasText(fakeLastPlayedState().track.title)), "the card shows no title node")
+        assertEquals(1, cardNodeCount(hasText(artist)), "the card exposes no node with the artist")
+    }
+
     private fun setDashboard() =
         rule.setContent {
             Box(modifier = Modifier.size(geometry.widthDp.dp, geometry.heightDp.dp)) {
