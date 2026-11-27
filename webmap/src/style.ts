@@ -113,34 +113,46 @@ const ACCENT_LAND = recolorData.accentLandLayers;
 // at markerPos = 100. From the shared map-recolor-data.json.
 export const MAX_MARKER_DROP = recolorData.maxMarkerDrop;
 
+// The highest the self-marker rises above centre, as a fraction of map height,
+// where the bottom overlays reach past the middle: it keeps the marker out of
+// the top fifth of the map, where the clock and the compass sit. From the
+// shared map-recolor-data.json.
+export const MAX_MARKER_RISE = recolorData.maxMarkerRise;
+
 // Clamp a host-pushed markerPos into the valid 0..100 range (treating a missing
-// value as 0). The single SSOT for the clamp shared by markerPadTop and the
-// DOM-chevron `top` placement in main.ts.
+// value as 0). The single SSOT for the clamp markerDrop applies.
 export function clampMarkerPos(markerPos: number): number {
     return Math.max(0, Math.min(100, markerPos || 0));
 }
 
-// Marker drop below centre as a fraction of map height. Capped at MAX_MARKER_DROP
-// and additionally clamped so the chevron stays above the bottom speed overlay:
-// the lowest the centre may sit is 0.5 - bottomSafe, where bottomSafe is the
-// overlay's measured footprint (plus marker clearance) the host pushes. A short
-// map pane or a tall overlay shrinks the usable range instead of burying the
-// marker.
+// Marker offset from centre as a fraction of map height, positive below it.
+// bottomSafe is the bottom overlays' measured footprint (plus the marker
+// clearance) the host pushes, so 0.5 - bottomSafe is the room they leave below
+// the middle. Inside that room the marker drops per markerPos, capped at
+// MAX_MARKER_DROP: a short map pane or a tall overlay shrinks the range instead
+// of burying the marker. Where the overlays reach past the middle there is no
+// room below it, so the marker rises to their top edge, just above the speed
+// readout, whatever markerPos says, and no higher than MAX_MARKER_RISE. Both
+// branches give 0 at the middle, so a layout that crosses it moves the marker
+// without a jump.
 export function markerDrop(markerPos: number, bottomSafe: number): number {
-    const maxDrop = Math.max(0, Math.min(MAX_MARKER_DROP, 0.5 - (bottomSafe || 0)));
-    return (clampMarkerPos(markerPos) / 100) * maxDrop;
+    const room = 0.5 - (bottomSafe || 0);
+    if (room < 0) return Math.max(room, -MAX_MARKER_RISE);
+    return (clampMarkerPos(markerPos) / 100) * Math.min(MAX_MARKER_DROP, room);
 }
 
-// Top camera padding (px) that places the centred location at the height the
-// marker sits at. padTop shifts the focal point down so the location (and its
-// marker) sits lower in the frame; the 2x compensates the half-of-padding
-// geometry so the location lands exactly under the chevron.
-export function markerPadTop(
+// Vertical camera padding (px) that places the centred location at the height
+// the marker sits at: top padding shifts the focal point down for a marker
+// below the middle, bottom padding shifts it up for one raised above it. The
+// 2x compensates the half-of-padding geometry so the location lands exactly
+// under the chevron.
+export function markerPadVertical(
     markerPos: number,
     bottomSafe: number,
     containerHeight: number,
-): number {
-    return 2 * markerDrop(markerPos, bottomSafe) * containerHeight;
+): { top: number; bottom: number } {
+    const shift = 2 * markerDrop(markerPos, bottomSafe) * containerHeight;
+    return { top: Math.max(0, shift), bottom: Math.max(0, -shift) };
 }
 
 // Magnitude of the marker's horizontal shift from centre as a fraction of map
@@ -190,10 +202,10 @@ export interface MarkerSpot {
 }
 
 // The OSM placement: mid-way across the strip the side reserves leave
-// (markerXFraction, away from each reserved side) and dropped per
-// markerPos (markerDrop). MapLibre's camera padding moves the perspective's
-// vanishing point along with it, so the road ahead runs straight up through
-// the chevron wherever it sits.
+// (markerXFraction, away from each reserved side), and dropped per markerPos
+// or raised above tall bottom overlays (markerDrop). MapLibre's camera padding
+// moves the perspective's vanishing point along with it, so the road ahead
+// runs straight up through the chevron wherever it sits.
 export function markerSpot(layout: MarkerLayout): MarkerSpot {
     return {
         x: markerXFraction(layout.leftSafe) - markerXFraction(layout.rightSafe),

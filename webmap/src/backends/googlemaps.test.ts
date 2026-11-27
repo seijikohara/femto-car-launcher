@@ -447,6 +447,7 @@ interface PushOptions {
     zoom?: number;
     rightSafe?: number;
     leftSafe?: number;
+    bottomSafe?: number;
 }
 
 // One host push, with the host's default layout.
@@ -454,7 +455,7 @@ function push(
     win: Window,
     fix: { lat: number; lng: number },
     bearing: number,
-    { tilt = 55, zoom = 16, rightSafe = 0.428, leftSafe = 0 }: PushOptions = {},
+    { tilt = 55, zoom = 16, rightSafe = 0.428, leftSafe = 0, bottomSafe = 0.1 }: PushOptions = {},
 ): void {
     win.updateCamera(
         fix.lat,
@@ -463,7 +464,7 @@ function push(
         zoom,
         tilt,
         70,
-        0.1,
+        bottomSafe,
         rightSafe,
         leftSafe,
         "#3367d6",
@@ -663,6 +664,28 @@ describe("the Google Maps page", () => {
                 { fix: FIX, heading: null },
             );
             expect(reporter.report).not.toHaveBeenCalledWith("follow", false);
+        },
+    );
+
+    // The bottom overlays cover 75 % of the map: the chevron rises to their
+    // top edge, a quarter of the height down, which puts it above the
+    // viewport centre the perspective converges on. The steeper camera takes
+    // it near the horizon.
+    it.each([
+        { tilt: 55, fovyDeg: 30 },
+        { tilt: 67.5, fovyDeg: 55 },
+    ])(
+        "holds the fix under a chevron raised above the middle (tilt $tilt°, fovy $fovyDeg°)",
+        async ({ tilt, fovyDeg }) => {
+            fake.optics.fovyDeg = fovyDeg;
+            const page = await boot("VECTOR", "VECTOR");
+            push(page.win, FIX, 90, { tilt, bottomSafe: 0.75 });
+            page.run(140);
+            expect(Number.parseFloat(page.marker.style.top)).toBeCloseTo(25);
+            const at = screenOf(page.map, FIX);
+            expect(Math.hypot(at.x + MX * W, at.y + 0.25 * H)).toBeLessThan(1e-6);
+            expect(leanPx(page.map, FIX, 90)).toBeLessThan(1e-6);
+            expect(lensReports().at(-1)).toMatch(/^measured,/);
         },
     );
 
