@@ -12,6 +12,12 @@ internal object TurnCardFixtures {
     /** [turn] with a right turn following closely: the small arrow under "Then". */
     val turnThen = turn.copy(then = TurnManeuver.Turn(TurnKind.RIGHT))
 
+    /** [state] with the control for the spoken prompts, which are [on] or off. */
+    fun withVoice(
+        state: TurnCardState,
+        on: Boolean,
+    ) = state.copy(spoken = on)
+
     /** No turn left: the flag, "1.2 km", "Destination". */
     val arrive = TurnCardState(maneuver = TurnManeuver.Arrive, distanceMeters = 1_240.0)
 }

@@ -2220,9 +2220,13 @@ class HomeViewModelTest {
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
             val shown = mutableListOf<Boolean?>()
 
-            shown += viewModel.uiState.value.activeRoute?.turnCard?.spoken
+            shown += viewModel.uiState.value.activeRoute
+                ?.turnCard
+                ?.spoken
             settings.value = settings.value.copy(spokenPrompts = false)
-            shown += viewModel.uiState.value.activeRoute?.turnCard?.spoken
+            shown += viewModel.uiState.value.activeRoute
+                ?.turnCard
+                ?.spoken
 
             assertEquals(listOf<Boolean?>(true, false), shown)
         }
@@ -2239,13 +2243,19 @@ class HomeViewModelTest {
                     voiceUnavailableFlow = unavailable,
                 )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
-            val whileUnavailable = viewModel.uiState.value.activeRoute?.turnCard
+            val whileUnavailable = viewModel.uiState.value.activeRoute
+                ?.turnCard
 
             unavailable.value = false
 
             assertEquals(
                 Pair(null, true),
-                Pair(whileUnavailable?.spoken, viewModel.uiState.value.activeRoute?.turnCard?.spoken),
+                Pair(
+                    whileUnavailable?.spoken,
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard
+                        ?.spoken,
+                ),
             )
         }
 
@@ -2299,7 +2309,8 @@ class HomeViewModelTest {
     fun `a tap does nothing with no card on the map`() =
         runTest {
             val written = mutableListOf<Boolean>()
-            val viewModel = routeViewModel(available = true, route = EQUATOR_ROUTE, setSpokenPrompts = { written += it })
+            val viewModel =
+                routeViewModel(available = true, route = EQUATOR_ROUTE, setSpokenPrompts = { written += it })
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
             viewModel.onAction(HomeAction.ToggleSpokenPrompts)

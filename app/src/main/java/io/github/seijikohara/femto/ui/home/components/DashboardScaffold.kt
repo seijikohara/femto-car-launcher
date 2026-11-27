@@ -1077,6 +1077,7 @@ private fun DashboardOverlays(
                     form = form,
                     hazeState = hazeState,
                     glassConfig = glassConfig,
+                    onToggleVoice = { onAction(HomeAction.ToggleSpokenPrompts) },
                     modifier =
                         Modifier
                             .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)

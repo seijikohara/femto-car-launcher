@@ -12,15 +12,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -94,6 +102,175 @@ class TurnCardTest {
         setCard(TurnCardFixtures.turnThen)
 
         rule.onNodeWithContentDescription("Turn left in 300 m. Then: Turn right.").assertHasNoClickAction()
+    }
+
+    // --- The control for the spoken prompts ---------------------------------------------------------------------
+
+    @Test
+    fun `a tap on the card calls the toggle once in each form`() {
+        val taps = mutableListOf<String>()
+        val forms =
+            listOf(
+                Triple("full", TurnCardFixtures.withVoice(TurnCardFixtures.turnThen, on = true), Dp.Infinity),
+                Triple(
+                    "compact with then",
+                    TurnCardFixtures.withVoice(TurnCardFixtures.turnThen, on = true),
+                    BELOW_FULL,
+                ),
+                Triple("compact", TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true), BELOW_FULL),
+            )
+        var form by mutableStateOf(forms.first())
+        setCard(
+            { form.second },
+            width = TurnCardMinWidth,
+            maxHeight = { form.third },
+            onToggleVoice = { taps += form.first },
+        )
+
+        forms.forEach { next ->
+            form = next
+            rule.waitForIdle()
+            rule.onNode(hasContentDescription("Turn left in 300 m", substring = true)).performClick()
+            rule.waitForIdle()
+        }
+
+        assertEquals(forms.map { it.first }, taps)
+    }
+
+    @Test
+    fun `without the control the card has no click action and a tap calls nothing`() {
+        var taps = 0
+        setCard({ TurnCardFixtures.turnThen }, onToggleVoice = { taps++ })
+
+        val card = rule.onNodeWithContentDescription("Turn left in 300 m. Then: Turn right.")
+        card.assertHasNoClickAction()
+        card.performClick()
+        rule.waitForIdle()
+
+        assertEquals(0, taps)
+    }
+
+    @Test
+    fun `the card is a switch that reads on with the spoken prompts on`() {
+        setCard({ TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true) })
+
+        rule
+            .onNodeWithContentDescription("Turn left in 300 m.")
+            .assertHasClickAction()
+            .assertIsOn()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Spoken prompts on"))
+    }
+
+    @Test
+    fun `the card is a switch that reads off with the spoken prompts off`() {
+        setCard({ TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = false) })
+
+        rule
+            .onNodeWithContentDescription("Turn left in 300 m.")
+            .assertHasClickAction()
+            .assertIsOff()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Spoken prompts off"))
+    }
+
+    @Test
+    fun `the speaker shows only where the card has the control`() {
+        var state by mutableStateOf(TurnCardFixtures.turn)
+        setCard({ state })
+        val without = rule.onAllNodesWithTag(VOICE, useUnmergedTree = true).fetchSemanticsNodes().size
+
+        state = TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = false)
+        rule.waitForIdle()
+
+        assertEquals(
+            0 to 1,
+            without to rule.onAllNodesWithTag(VOICE, useUnmergedTree = true).fetchSemanticsNodes().size,
+        )
+    }
+
+    // The speaker is drawn over the box, so no form may measure larger for it.
+    @Test
+    fun `the speaker changes no form's height`() {
+        val cases =
+            listOf(
+                Triple(TurnCardFixtures.turnThen, Dp.Infinity, TurnCardHeight),
+                Triple(TurnCardFixtures.turn, BELOW_FULL, 56.dp),
+                Triple(TurnCardFixtures.turnThen, BELOW_FULL, 64.dp),
+            )
+        var case by mutableStateOf(cases.first())
+        var voice by mutableStateOf(false)
+        setCard(
+            { if (voice) TurnCardFixtures.withVoice(case.first, on = true) else case.first },
+            width = TurnCardMinWidth,
+            maxHeight = { case.second },
+        )
+
+        val heights =
+            cases.map { next ->
+                case = next
+                voice = false
+                rule.waitForIdle()
+                val without = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height
+                voice = true
+                rule.waitForIdle()
+                Triple(next.third, without, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+            }
+
+        assertEquals(cases.map { Triple(it.third, it.third, it.third) }, heights)
+    }
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the full form`() =
+        assertSpeakerClear(TurnCardFixtures.turnThen, maxHeight = Dp.Infinity, width = TurnCardMinWidth)
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the full form at a larger font`() =
+        assertSpeakerClear(
+            TurnCardFixtures.turnThen,
+            maxHeight = Dp.Infinity,
+            width = TurnCardMaxWidth,
+            fontScale = LARGE_FONT_SCALE,
+        )
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the compact form with the turn after next`() =
+        assertSpeakerClear(TurnCardFixtures.turnThen, maxHeight = BELOW_FULL, width = TurnCardMinWidth)
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the compact form`() =
+        assertSpeakerClear(TurnCardFixtures.turn, maxHeight = BELOW_FULL, width = TurnCardMinWidth)
+
+    // The speaker sits in the end padding, past every text of the form: it touches none, and stays inside the card.
+    private fun assertSpeakerClear(
+        state: TurnCardState,
+        maxHeight: Dp,
+        width: Dp,
+        fontScale: Float = 1f,
+    ) {
+        setCard(
+            { TurnCardFixtures.withVoice(state, on = true) },
+            width = width,
+            maxHeight = maxHeight,
+            fontScale = fontScale,
+        )
+        val card = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot()
+        val glyph = rule.onNodeWithTag(VOICE, useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val textRights =
+            listOf("300", "m", "Turn left", "Then").mapNotNull { text ->
+                rule
+                    .onAllNodesWithText(text, useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .firstOrNull()
+                    ?.let { rule.onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot().right }
+            }
+
+        assertEquals(
+            Triple(true, true, true),
+            Triple(
+                glyph.left >= card.right - END_PADDING && glyph.right <= card.right,
+                glyph.top >= card.top && glyph.bottom <= card.bottom,
+                textRights.isNotEmpty() && textRights.all { it <= glyph.left },
+            ),
+        )
     }
 
     // The narrowest card with the turn after next leaves its text the least room: every text still fits on its line,
@@ -296,6 +473,16 @@ class TurnCardTest {
         maxHeight: Dp = Dp.Infinity,
         fontScale: Float = 1f,
         speedUnit: () -> SpeedUnit = { SpeedUnit.KILOMETERS_PER_HOUR },
+        onToggleVoice: () -> Unit = {},
+    ) = setCard(state, width, { maxHeight }, fontScale, speedUnit, onToggleVoice)
+
+    private fun setCard(
+        state: () -> TurnCardState,
+        width: Dp,
+        maxHeight: () -> Dp,
+        fontScale: Float = 1f,
+        speedUnit: () -> SpeedUnit = { SpeedUnit.KILOMETERS_PER_HOUR },
+        onToggleVoice: () -> Unit = {},
     ) {
         // The card in the form the one decision picks for [width] by [maxHeight], as the dashboard draws it; nothing
         // where no form fits, which leaves the slot [width] wide and no height.
@@ -305,8 +492,14 @@ class TurnCardTest {
                     val shown = state()
                     val unit = speedUnit()
                     Box(modifier = Modifier.width(width).testTag(CARD)) {
-                        rememberTurnCardSizes(shown, unit).formOrNull(width, maxHeight)?.let { form ->
-                            TurnCard(state = shown, speedUnit = unit, form = form, modifier = Modifier.fillMaxWidth())
+                        rememberTurnCardSizes(shown, unit).formOrNull(width, maxHeight())?.let { form ->
+                            TurnCard(
+                                state = shown,
+                                speedUnit = unit,
+                                form = form,
+                                modifier = Modifier.fillMaxWidth(),
+                                onToggleVoice = onToggleVoice,
+                            )
                         }
                     }
                 }
@@ -337,6 +530,10 @@ class TurnCardTest {
 
     private companion object {
         const val CARD = "turn-card"
+        const val VOICE = TURN_CARD_VOICE_TAG
+
+        // The end padding every form keeps beside its content (CardPaddingHorizontal).
+        val END_PADDING = 16.dp
 
         // The largest step Android's own font-size setting offers on many devices.
         const val LARGE_FONT_SCALE = 1.5f

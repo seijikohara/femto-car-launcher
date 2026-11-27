@@ -87,7 +87,12 @@ internal fun turnCardStateOrNull(
                     pointIndex = first.turn.pointIndex,
                     spoken = settings.spoken,
                 )
-            } ?: TurnCardState(maneuver = TurnManeuver.Arrive, distanceMeters = remainingMeters, spoken = settings.spoken)
+            }
+                ?: TurnCardState(
+                    maneuver = TurnManeuver.Arrive,
+                    distanceMeters = remainingMeters,
+                    spoken = settings.spoken,
+                )
         }
 
 private fun TurnKind.announced(showStraight: Boolean): Boolean =

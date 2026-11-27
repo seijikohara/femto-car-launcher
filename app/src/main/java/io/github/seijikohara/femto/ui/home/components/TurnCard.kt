@@ -10,22 +10,30 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Volume2
+import com.composables.icons.lucide.VolumeX
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -36,6 +44,7 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
 import io.github.seijikohara.femto.ui.locale.shortDistanceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -56,9 +65,18 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  * decision from rounded constraints could disagree with the first by a fraction of a pixel. The caller gives the
  * width, up to [TurnCardMaxWidth].
  *
- * The card carries no control. In every form it reads as one sentence to a screen reader ("Turn left in 300 m. Then:
- * Turn right."), so its parts are merged into one node. The full form is at least [TurnCardHeight] tall, more where a
- * larger font needs it; its line of text shrinks to fit rather than wrap, never below the 16 sp floor.
+ * In every form the card reads as one sentence to a screen reader ("Turn left in 300 m. Then: Turn right."), so its
+ * parts are merged into one node. The full form is at least [TurnCardHeight] tall, more where a larger font needs it;
+ * its line of text shrinks to fit rather than wrap, never below the 16 sp floor.
+ *
+ * Where [TurnCardState.spoken] is set, the whole card is one switch for the spoken prompts ([onToggleVoice]) and a
+ * small speaker shows the state, sounding when they are on and crossed out when off; the state also reads to a screen
+ * reader. With it null the card has no control, no click and no speaker. The speaker is drawn over the card's box,
+ * inside the end padding (see [VoiceGlyphSize]), so it moves no form's measured size and no content.
+ *
+ * The tap target is the card itself: at least [TurnCardCompactMinWidth] wide and 56 dp tall at the compact forms'
+ * least, which is 8 dp under [FemtoDimens.MinTouchTarget]. A larger target would need a larger layout, which would
+ * change the sizes [TurnCardSizes] measures and the dashboard places the card by.
  */
 @Composable
 internal fun TurnCard(
@@ -68,6 +86,7 @@ internal fun TurnCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    onToggleVoice: () -> Unit = {},
 ) {
     val (value, unit) = turnDistance(state.distanceMeters, speedUnit)
     val text = turnText(state.maneuver)
@@ -75,13 +94,43 @@ internal fun TurnCard(
         state.then?.let { then ->
             stringResource(R.string.turn_card_description_then, text, value, unit, turnText(then))
         } ?: stringResource(R.string.turn_card_description, text, value, unit)
+    val spoken = state.spoken
+    val voiceState =
+        spoken?.let { on ->
+            stringResource(if (on) R.string.turn_card_voice_on else R.string.turn_card_voice_off)
+        }
     Box(
         modifier =
             modifier
                 .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-                .semantics(mergeDescendants = true) { contentDescription = description },
+                // After the chrome, so the press ripple is clipped to the card's shape, as the video window's is.
+                .then(
+                    if (spoken != null) {
+                        Modifier
+                            .clip(MaterialTheme.shapes.large)
+                            .toggleable(value = spoken, role = Role.Switch, onValueChange = { onToggleVoice() })
+                    } else {
+                        Modifier
+                    },
+                ).semantics(mergeDescendants = true) {
+                    contentDescription = description
+                    voiceState?.let { stateDescription = it }
+                },
     ) {
         TurnCardBody(TurnCardContent(state = state, value = value, unit = unit, text = text), form)
+        spoken?.let { on ->
+            FemtoIcon(
+                imageVector = if (on) Lucide.Volume2 else Lucide.VolumeX,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier =
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = VoiceGlyphEndInset)
+                        .size(VoiceGlyphSize)
+                        .testTag(TURN_CARD_VOICE_TAG),
+            )
+        }
     }
 }
 
@@ -361,6 +410,21 @@ private fun ThenColumn(
     )
     TurnArrow(maneuver = then, modifier = Modifier.size(ThenArrowSize), color = color, showExitNumber = false)
 }
+
+/**
+ * The speaker's size and its inset from the card's end edge. Every form pads its content [CardPaddingHorizontal] (16 dp)
+ * from the end edge, so the strip between the content and the edge is free in all three forms, at every geometry and
+ * Display size (the padding is a dp, scaled with everything else, and no font touches it). The speaker's box takes
+ * 1 dp + 14 dp of it from the edge, leaving 1 dp between the box and the content, and more to the ink, which a Lucide
+ * icon draws 2/24 of its size in from the box. It sits at the card's vertical centre, where the card's rounded corners
+ * (16 dp, so only the 16 dp at the top and bottom edges) do not reach: the compact forms are 56 dp tall, so the box
+ * spans 21 to 35 dp. A larger glyph would need more than the padding, and the content would have to give way.
+ */
+private val VoiceGlyphSize = 14.dp
+
+/** The speaker's test tag: it has no semantics of its own, the card's switch carries the state. */
+internal const val TURN_CARD_VOICE_TAG = "turn-card-voice"
+private val VoiceGlyphEndInset = 1.dp
 
 /** The turn's arrow, at the size of a tap target so it reads at a glance; the arrows' golden grid draws it too. */
 internal val TurnArrowSize = FemtoDimens.MinTouchTarget
