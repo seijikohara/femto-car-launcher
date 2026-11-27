@@ -12,8 +12,9 @@ import kotlin.math.roundToInt
 private const val LABEL_STEP_METERS = 10
 
 /**
- * Return the sentence to speak for this prompt, in English whatever the device's language, with the distance in
- * [speedUnit]'s family. The turn's text starts in lower case inside a sentence ("In 300 metres, turn left.") and keeps
+ * Return the sentence to speak for this prompt, with the distance in [speedUnit]'s family. The sentence reads the
+ * app's string resources, which are English only today and so is the voice. When they are translated, this sentence
+ * must keep reading the English ones, or the voice's language must follow the translation. The turn's text starts in lower case inside a sentence ("In 300 metres, turn left.") and keeps
  * its capital where it opens one ("Turn left.").
  */
 internal fun TurnPrompt.text(

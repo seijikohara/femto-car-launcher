@@ -26,9 +26,10 @@ internal enum class RouteRowTime {
 /**
  * The Navigation settings (issue #389): which parts of the route preview run besides the line on the map, which time
  * its row shows, whether the map draws the vehicle on the route line while it drives along it, what the turn card
- * over the map shows, and whether the launcher speaks it. Each of the first four defaults is what the route preview did before these settings existed, so
- * a driver who never opens them sees no change there; the vehicle is drawn on the line, and the turn card shows with
- * the turn after next but without "continue straight", unless the driver switches them.
+ * over the map shows, and whether the launcher speaks it. Each of the first four defaults is what the route preview
+ * did before these settings existed, so a driver who never opens them sees no change there; the vehicle is drawn on
+ * the line, and the turn card shows with the turn after next but without "continue straight", unless the driver
+ * switches them.
  */
 internal data class NavigationSettings(
     val rerouteAutomatically: Boolean,
