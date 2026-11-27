@@ -19,6 +19,7 @@ import io.github.seijikohara.femto.testfixtures.DashboardFixtures
 import io.github.seijikohara.femto.testfixtures.DashboardGeometries
 import io.github.seijikohara.femto.testfixtures.DashboardGeometry
 import io.github.seijikohara.femto.testfixtures.fakeVideoUiState
+import io.github.seijikohara.femto.testfixtures.selfMarkerChevronBounds
 import io.github.seijikohara.femto.ui.home.components.DashboardScaffold
 import io.github.seijikohara.femto.ui.home.components.DashboardTags
 import io.github.seijikohara.femto.ui.home.components.GlassConfig
@@ -39,10 +40,11 @@ import kotlin.test.assertTrue
 /**
  * Where the video window sits across the dashboard geometry matrix
  * ([DashboardGeometries]) on both driver sides: never over the compass, the
- * map control column, the clock, the speed readout or the cards, and in the
- * upper half of the screen, clear of the self-marker (which the map drops
- * below centre) and of the map credit in the bottom corner. Each geometry is
- * laid out at its own size inside one window larger than all of them.
+ * map control column, the clock, the speed readout, the cards or the vehicle's
+ * chevron at the default marker position, which the map raises above the
+ * middle where the bottom overlays reach past it, and in the upper half of the
+ * screen, clear of the map credit in the bottom corner. Each geometry is laid
+ * out at its own size inside one window larger than all of them.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -53,6 +55,9 @@ class VideoWindowLayoutTest {
 
     private var geometry by mutableStateOf(DashboardGeometries.all.first())
     private var driverSide by mutableStateOf(DriverSide.RIGHT)
+
+    // The map placement the dashboard hands the map, which puts the chevron.
+    private var mapConfig = MapConfig()
 
     @Test
     fun `the window clears every dashboard overlay at every geometry`() {
@@ -72,7 +77,10 @@ class VideoWindowLayoutTest {
                         modifier = Modifier.fillMaxSize(),
                         driverSide = driverSide,
                         clock = DashboardFixtures.fixedClock,
-                        mapSurface = { _, _ -> Box(Modifier.fillMaxSize()) },
+                        mapSurface = { _, config ->
+                            mapConfig = config
+                            Box(Modifier.fillMaxSize())
+                        },
                         video = fakeVideoUiState(),
                     )
                 }
@@ -108,8 +116,10 @@ class VideoWindowLayoutTest {
             ).filter { window.overlaps(bounds(it)) }
                 .map { "$case: window $window covers $it ${bounds(it)}" }
         val aspect = window.width / window.height
+        val chevron = selfMarkerChevronBounds(mapConfig, geometry.widthDp.dp, geometry.heightDp.dp)
         return overlaps +
             listOfNotNull(
+                "$case: window $window covers the chevron $chevron".takeIf { window.overlaps(chevron) },
                 "$case: window $window reaches below the screen's middle".takeIf {
                     window.bottom > (geometry.heightDp / 2).dp
                 },
