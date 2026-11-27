@@ -21,8 +21,9 @@
 //     switched off at construction.)
 //
 // Like the OSM backend, the screen-pinned chevron sits clear of the side
-// cards (and drops with markerPos to clear the bottom overlay), and the
-// camera holds the GPS location under it. Google Maps has no camera
+// cards (and drops with markerPos within the room the bottom overlays leave,
+// or rises to their top edge where they pass the middle), and the camera
+// holds the GPS location under it. Google Maps has no camera
 // `padding` (MapLibre's way to put the location there), so the glide carries
 // the chevron's screen offset in its pose and the page derives the camera
 // centre from it every frame with flat Web Mercator math (cameraCenterFor in
@@ -979,8 +980,9 @@ export async function init(reporter: PageReporter, pending: PendingBridgeCalls):
         }
     }
 
-    // Pin the chevron at its spot (markerSpot: clear of the side cards and
-    // dropped per markerPos) and glide the camera to hold the fix under it —
+    // Pin the chevron at its spot (markerSpot: clear of the side cards, and
+    // dropped per markerPos or raised above tall bottom overlays) and glide
+    // the camera to hold the fix under it —
     // the OSM `markerEl.left/top` + camera `padding` parity, done without a
     // native padding API: the pose carries the fix as its anchor
     // plus the chevron's offset, and moveCam derives the camera centre (and

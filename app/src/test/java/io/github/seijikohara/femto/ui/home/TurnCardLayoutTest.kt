@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -57,8 +58,10 @@ import kotlin.test.assertEquals
 /**
  * Where the turn card (issue #389 phase 4) sits across the dashboard geometry matrix ([DashboardGeometries]), on both
  * driver sides, with its longest line and the turn after next showing. At the default Display size it shows in full
- * everywhere: never over the compass, the map control column, the clock, the speed readout, the cards or the vehicle's
- * chevron at the default marker position, inside the screen, no narrower than its minimum, and no line cut short.
+ * everywhere except on a phone in landscape, where the chevron the map raises above the speed readout leaves room only
+ * for the compact card: never over the compass, the map control column, the clock, the speed readout, the cards or the
+ * vehicle's chevron at the default marker position, inside the screen, no narrower than the full card's minimum, and no
+ * line cut short.
  * FitText cuts a line short only once even the 16 sp floor would overflow, so a line not cut short is one at 16 sp or
  * more. At every Display size, with the video window off and on, wherever it shows it ends a gap above the speed
  * readout, stays inside the screen and clear of the chevron and the video window, which it hides where the two do not
@@ -78,18 +81,23 @@ class TurnCardLayoutTest {
     private var fontScale by mutableFloatStateOf(1f)
     private var videoOn by mutableStateOf(false)
     private var uiState by mutableStateOf(LONGEST_TURN_STATE)
+    private var markerPos by mutableIntStateOf(MapConfig().markerPos)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
 
+    // A phone in landscape is the exception: its bottom overlays pass the middle, so the map raises the chevron to the
+    // speed readout's top, and the full card has no room above it.
     @Test
-    fun `at the default display size the card shows in full and clears every overlay and the chevron`() {
+    fun `at the default display size the card shows in full, but compact in phone landscape, clear of the chevron`() {
         setDashboard()
 
         assertEquals(
             emptyList(),
             each(DashboardGeometries.all) { case ->
-                listOfNotNull("$case: shows ${shownForm()}".takeIf { shownForm() != TurnCardForm.FULL }) +
+                val expected =
+                    if (geometry.id == "phone-landscape-915x412") TurnCardForm.COMPACT_THEN else TurnCardForm.FULL
+                listOfNotNull("$case: shows ${shownForm()}".takeIf { shownForm() != expected }) +
                     coverFailures(case) +
                     cutLines(case) +
                     listOfNotNull(
@@ -114,6 +122,24 @@ class TurnCardLayoutTest {
                 UiScale.entries.flatMap { scale ->
                     uiScale = scale
                     each(DashboardGeometries.all) { case -> shownFailures(case) }
+                }
+            },
+        )
+    }
+
+    // The card's bound comes from where the marker may sit, not from the Marker position setting: at the top and at the
+    // bottom of its range the card still ends above the chevron.
+    @Test
+    fun `at every display size and marker position the card shows only clear of the chevron`() {
+        setDashboard()
+
+        assertEquals(
+            emptyList(),
+            listOf(0, 100).flatMap { position ->
+                markerPos = position
+                UiScale.entries.flatMap { scale ->
+                    uiScale = scale
+                    each(DashboardGeometries.all) { case -> shownFailures("$case markerPos $position") }
                 }
             },
         )
@@ -243,7 +269,7 @@ class TurnCardLayoutTest {
                             showClockSeconds = true,
                             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                             temperatureUnit = TemperatureUnit.CELSIUS,
-                            mapConfig = MapConfig(),
+                            mapConfig = MapConfig(markerPos = markerPos),
                             panels = PanelVisibility(),
                             glassConfig = GlassConfig(),
                             onAction = {},
@@ -458,19 +484,20 @@ class TurnCardLayoutTest {
             }
 
         // The form and the slot each geometry gets at the default font, for Display sizes SMALL, COMPACT, MEDIUM,
-        // COMFORTABLE and LARGE.
+        // COMFORTABLE and LARGE. Where the bottom overlays pass the middle, the card ends above the chevron the map
+        // raises to the speed readout's top, so it takes a smaller form there or none.
         val PLACEMENTS_VIDEO_OFF: Map<String, List<String>> =
             mapOf(
-                "floor-800x480" to listOf("full top", "full below", "full below", "full below", "none"),
-                "head-unit-853x512" to listOf("full top", "full top", "full below", "full below", "compact below"),
+                "floor-800x480" to listOf("full top", "full below", "full below", "compact+then below", "none"),
+                "head-unit-853x512" to listOf("full top", "full top", "full below", "full below", "none"),
                 "budget-1024x600" to listOf("full top", "full top", "full top", "full below", "full below"),
                 "mainstream-1280x720" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "ultrawide-1920x720" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "flagship-1920x1080" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "premium-2000x1200" to listOf("full top", "full top", "full top", "full top", "full top"),
-                "phone-landscape-915x412" to listOf("full top", "full top", "full below", "none", "none"),
+                "phone-landscape-915x412" to listOf("full top", "full top", "compact+then below", "none", "none"),
                 "phone-portrait-412x915" to
-                    listOf("full below", "full below", "full below", "compact+then below", "compact below"),
+                    listOf("full below", "full below", "full below", "compact+then below", "none"),
                 "tablet-800x1280" to listOf("full top", "full top", "full top", "full top", "full below"),
                 "car-portrait-1024x1365" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "car-portrait-tall-1200x1920" to listOf("full top", "full top", "full top", "full top", "full top"),
@@ -483,14 +510,14 @@ class TurnCardLayoutTest {
             PLACEMENTS_VIDEO_OFF.mapValues { (_, row) -> row.map { if (it == "none") "none +window" else it } } +
                 mapOf(
                     "head-unit-853x512" to
-                        listOf("full top", "full top", "compact+then top +window", "full below", "compact below"),
+                        listOf("full top", "full top", "compact+then top +window", "full below", "none +window"),
                     "phone-portrait-412x915" to
                         listOf(
                             "full below",
                             "compact top +window",
                             "full below",
                             "compact+then below",
-                            "compact below",
+                            "none +window",
                         ),
                 )
 

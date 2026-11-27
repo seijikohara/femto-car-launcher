@@ -79,8 +79,24 @@ function setup() {
             remove: vi.fn(),
         }),
     });
-    const push = (fix: { lat: number; lon: number }, rightSafe = 0.428, zoom = 16): void =>
-        engine.updateCamera(fix.lat, fix.lon, 90, zoom, 55, 70, 0.1, rightSafe, 0, "#3367d6");
+    const push = (
+        fix: { lat: number; lon: number },
+        rightSafe = 0.428,
+        zoom = 16,
+        bottomSafe = 0.1,
+    ): void =>
+        engine.updateCamera(
+            fix.lat,
+            fix.lon,
+            90,
+            zoom,
+            55,
+            70,
+            bottomSafe,
+            rightSafe,
+            0,
+            "#3367d6",
+        );
     const gesture = (type: string): void => listeners.get(type)?.({ originalEvent: {} });
     return { engine, map, marker, styleWrites, push, gesture };
 }
@@ -140,6 +156,23 @@ describe("the OSM follow engine", () => {
         page.push({ lat: FIX.lat + 1e-4, lon: FIX.lon });
         expect(page.styleWrites).toEqual([]);
         expect(page.marker.style.setProperty).not.toHaveBeenCalled();
+    });
+
+    it("raises the chevron and the padded centre above the middle when the overlays pass it", () => {
+        // The bottom overlays cover 70 % of the 512 px map: the chevron sits
+        // at their top edge, 30 % down, and the camera's bottom padding puts
+        // the fix there.
+        const page = setup();
+        page.push(FIX, 0, 16, 0.7);
+        expect(page.marker.style.top).toMatch(/%$/);
+        expect(Number.parseFloat(page.marker.style.top)).toBeCloseTo(30);
+        const padding = page.map.jumps.at(-1)?.padding;
+        expect(padding?.top).toBe(0);
+        expect(padding?.bottom).toBeCloseTo(2 * 0.2 * 512);
+        // A re-follow eases home with the same padding.
+        page.gesture("dragstart");
+        page.engine.setFollow(true);
+        expect(page.map.eases.at(-1)?.padding).toEqual(padding);
     });
 
     it("zooms a detached map about the padded centre, where the chevron was", () => {

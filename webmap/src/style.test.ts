@@ -15,10 +15,11 @@ import {
     DEFAULT_TERRAIN_TILEJSON_URL,
     injectFeatures,
     MAX_MARKER_DROP,
+    MAX_MARKER_RISE,
     markerDrop,
     markerPadLeft,
     markerPadRight,
-    markerPadTop,
+    markerPadVertical,
     markerSpot,
     markerXFraction,
     rewriteHost,
@@ -486,9 +487,32 @@ describe("markerDrop", () => {
         expect(markerDrop(50, 0.4)).toBeCloseTo(0.05);
     });
 
-    it("never drops when the overlay leaves no room", () => {
+    it("sits at the middle when the overlays reach exactly to it", () => {
         expect(markerDrop(100, 0.5)).toBe(0);
-        expect(markerDrop(100, 0.8)).toBe(0);
+        expect(markerDrop(0, 0.5)).toBe(0);
+    });
+
+    it("rises to the overlays' top edge when they reach past the middle", () => {
+        // bottomSafe 0.6 leaves the map's top 40 % uncovered: the marker
+        // sits at 0.4 of the height, 0.1 above the middle.
+        expect(markerDrop(70, 0.6)).toBeCloseTo(-0.1);
+        expect(markerDrop(70, 0.75)).toBeCloseTo(-0.25);
+    });
+
+    it("rises whatever markerPos says", () => {
+        expect(markerDrop(0, 0.6)).toBe(markerDrop(70, 0.6));
+        expect(markerDrop(100, 0.6)).toBe(markerDrop(70, 0.6));
+    });
+
+    it("rises no higher than MAX_MARKER_RISE", () => {
+        expect(MAX_MARKER_RISE).toBe(0.3);
+        expect(markerDrop(70, 0.8)).toBeCloseTo(-MAX_MARKER_RISE);
+        expect(markerDrop(70, 0.95)).toBe(-MAX_MARKER_RISE);
+    });
+
+    it("moves continuously across the middle", () => {
+        expect(Math.abs(markerDrop(70, 0.5 - 1e-9))).toBeLessThan(1e-8);
+        expect(Math.abs(markerDrop(70, 0.5 + 1e-9))).toBeLessThan(1e-8);
     });
 
     it("clamps out-of-range positions", () => {
@@ -497,22 +521,34 @@ describe("markerDrop", () => {
     });
 });
 
-describe("markerPadTop", () => {
+describe("markerPadVertical", () => {
     it("keeps the focal point centred at markerPos 0", () => {
-        expect(markerPadTop(0, 0, 480)).toBe(0);
+        expect(markerPadVertical(0, 0, 480)).toEqual({ top: 0, bottom: 0 });
     });
 
     it("drops the focal point by 2 * MAX_MARKER_DROP of the height at markerPos 100", () => {
-        expect(markerPadTop(100, 0, 480)).toBeCloseTo(2 * MAX_MARKER_DROP * 480);
+        const padding = markerPadVertical(100, 0, 480);
+        expect(padding.top).toBeCloseTo(2 * MAX_MARKER_DROP * 480);
+        expect(padding.bottom).toBe(0);
     });
 
     it("clamps out-of-range positions", () => {
-        expect(markerPadTop(250, 0, 480)).toBe(markerPadTop(100, 0, 480));
-        expect(markerPadTop(-5, 0, 480)).toBe(0);
+        expect(markerPadVertical(250, 0, 480)).toEqual(markerPadVertical(100, 0, 480));
+        expect(markerPadVertical(-5, 0, 480)).toEqual({ top: 0, bottom: 0 });
     });
 
     it("tracks the overlay-clamped drop", () => {
-        expect(markerPadTop(100, 0.4, 480)).toBeCloseTo(2 * 0.1 * 480);
+        expect(markerPadVertical(100, 0.4, 480).top).toBeCloseTo(2 * 0.1 * 480);
+    });
+
+    it("pads the bottom instead to raise the focal point above the middle", () => {
+        const padding = markerPadVertical(70, 0.6, 480);
+        expect(padding.top).toBe(0);
+        expect(padding.bottom).toBeCloseTo(2 * 0.1 * 480);
+    });
+
+    it("raises the focal point no higher than MAX_MARKER_RISE", () => {
+        expect(markerPadVertical(70, 0.95, 480).bottom).toBeCloseTo(2 * MAX_MARKER_RISE * 480);
     });
 });
 
@@ -565,6 +601,12 @@ describe("markerSpot", () => {
         expect(markerSpot({ ...layout, rightSafe: 0, leftSafe: 0.428 }).x).toBe(
             markerXFraction(0.428),
         );
+    });
+
+    it("raises the marker above the middle when the bottom overlays reach past it", () => {
+        const spot = markerSpot({ markerPos: 70, bottomSafe: 0.65, rightSafe: 0, leftSafe: 0 });
+        expect(spot.y).toBeCloseTo(-0.15);
+        expect(spot.x).toBe(0);
     });
 
     it("puts the marker midway between a reserve on each side", () => {

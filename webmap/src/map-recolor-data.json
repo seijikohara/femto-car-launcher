@@ -1,5 +1,6 @@
 {
   "accentLandLayers": ["landcover", "landuse", "park"],
   "roadMinorKeywords": ["minor", "path", "subtle"],
-  "maxMarkerDrop": 0.32
+  "maxMarkerDrop": 0.32,
+  "maxMarkerRise": 0.3
 }

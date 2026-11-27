@@ -36,7 +36,7 @@ import {
     startStaleTicker,
 } from "./chevron";
 import { createMarkerTransition } from "./marker-motion";
-import { markerPadLeft, markerPadRight, markerPadTop, markerSpot } from "./style";
+import { markerPadLeft, markerPadRight, markerPadVertical, markerSpot } from "./style";
 
 // The camera-option shape this engine passes to easeTo/jumpTo — a structural
 // subset of maplibre-gl's camera options.
@@ -198,12 +198,11 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
             zoom: fix.zoom,
             pitch: fix.tilt,
             padding: {
-                top: markerPadTop(
+                ...markerPadVertical(
                     fix.markerPos,
                     fix.bottomSafe,
                     map.getContainer().clientHeight || 0,
                 ),
-                bottom: 0,
                 left: markerPadLeft(fix.leftSafe, map.getContainer().clientWidth || 0),
                 right: markerPadRight(fix.rightSafe, map.getContainer().clientWidth || 0),
             },
@@ -379,8 +378,11 @@ export function createFollowEngine(deps: FollowEngineDeps): FollowEngine {
                 zoom: Number.isFinite(zoom) ? zoom : 16,
                 pitch: tilt || 0,
                 padding: {
-                    top: markerPadTop(markerPos, bottomSafe, map.getContainer().clientHeight || 0),
-                    bottom: 0,
+                    ...markerPadVertical(
+                        markerPos,
+                        bottomSafe,
+                        map.getContainer().clientHeight || 0,
+                    ),
                     left: markerPadLeft(leftSafe, map.getContainer().clientWidth || 0),
                     right: markerPadRight(rightSafe, map.getContainer().clientWidth || 0),
                 },

@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
 /**
  * Where [ExposedMapRegion] centres its content: in the middle of what the two side reserves and the bottom reserve
  * leave of the map, with a reserve on the right, on the left, and on both sides at once (the cards on one side and
- * the dock on the other).
+ * the dock on the other), and no lower than the middle of the upper half where the bottom reserve passes the middle.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], qualifiers = "w1200dp-h700dp-mdpi")
@@ -48,6 +48,8 @@ class ExposedMapRegionTest {
                 Reserves(left = 0.4f, right = 0f, bottom = 0.2f) to (700f to 200f),
                 Reserves(left = 0.1f, right = 0.4f, bottom = 0f) to (350f to 250f),
                 Reserves(left = 0.4f, right = 0.1f, bottom = 0f) to (650f to 250f),
+                // Bottom overlays past the middle still leave the content the upper half.
+                Reserves(left = 0f, right = 0f, bottom = 0.8f) to (500f to 125f),
             )
         cases.forEach { (reserves, centre) ->
             mapConfig =

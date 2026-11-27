@@ -49,6 +49,7 @@ import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.data.display.DockPosition
 import io.github.seijikohara.femto.data.display.DockWidth
 import io.github.seijikohara.femto.data.display.DriverSide
+import io.github.seijikohara.femto.data.display.MapBackend
 import io.github.seijikohara.femto.data.display.MotionTier
 import io.github.seijikohara.femto.data.music.MusicCardState
 import io.github.seijikohara.femto.data.places.PlaceTarget
@@ -70,6 +71,8 @@ import io.github.seijikohara.femto.ui.video.VideoAction
 import io.github.seijikohara.femto.ui.video.VideoUiState
 import kotlinx.coroutines.flow.StateFlow
 import java.time.Clock
+import kotlin.math.cos
+import kotlin.math.sqrt
 
 // Which info cards the dashboard renders. Each defaults to visible; hiding one
 // lets the remaining cards reflow, and hiding all leaves the bare full-screen map.
@@ -467,6 +470,9 @@ private fun DashboardContent(
         } else {
             bottomCardBand
         }
+    // Not capped at the middle: where the bottom overlays reach past it, the map raises
+    // the marker to their top edge, and the map page bounds how far it rises
+    // (webmap/src/style.ts markerDrop), as it bounds the side shifts.
     val bottomSafeFraction =
         with(density) {
             val heightPx = maxHeight.roundToPx()
@@ -474,11 +480,14 @@ private fun DashboardContent(
                 val dockBottom = if (dockPosition == DockPosition.BOTTOM) dockExtent else 0.dp
                 val overlay = overlayHeightPx + (MarkerOverlayClearance + dockBottom).toPx()
                 val below = speedOverlayBottomInset(bottomCards, cardGap, bottomCardExtent).toPx()
-                ((overlay + below) / heightPx).coerceIn(0f, 0.5f)
+                ((overlay + below) / heightPx).coerceIn(0f, 1f)
             } else {
                 0f
             }
         }
+    // The middle of the map in the overlay box's own frame, which a top dock insets: the
+    // highest the Marker position setting can put the marker (see DashboardOverlays).
+    val markerMiddle = maxHeight / 2 - (if (dockPosition == DockPosition.TOP) dockExtent else 0.dp)
 
     // The map fills the whole viewport, behind the dock and every overlay; it stays
     // composed as a single instance so the WebView is never torn down and rebuilt.
@@ -551,6 +560,8 @@ private fun DashboardContent(
         bottomCardBand = bottomCardBand,
         bottomCardExtent = bottomCardExtent,
         onWrappedBandHeightChange = { wrappedBandHeightPx = it },
+        markerMiddle = markerMiddle,
+        chevronReach = chevronReach(mapConfig),
         floatingCardWidth = floatingCardWidth,
         hasCards = hasCards,
         hazeState = hazeState,
@@ -661,6 +672,10 @@ private fun DashboardOverlays(
     bottomCardBand: Dp,
     bottomCardExtent: Dp,
     onWrappedBandHeightChange: (Int) -> Unit,
+    // The middle of the map in this box's frame, and how far above its centre the chevron
+    // draws (see DashboardContent).
+    markerMiddle: Dp,
+    chevronReach: Dp,
     floatingCardWidth: Dp,
     hasCards: Boolean,
     hazeState: HazeState,
@@ -955,7 +970,19 @@ private fun DashboardOverlays(
                     clockInset = if (landscapeCards) floatingCardWidth + cardGap else outerPad,
                     clockWidth = clockSize.width.toDp(),
                     clockHeight = clockSize.height.toDp(),
-                    speedTop = maxHeight - speedBottomInset - speedHeightPx.toDp(),
+                    // The chevron's centre never sits above the higher of two lines: the
+                    // bottom overlays' top edge, where the map raises the marker once they
+                    // pass the middle, and the middle, below which Marker position drops
+                    // it. So the cards end a gap above the readout, or at the highest the
+                    // chevron's top can come where that is higher, whatever the setting:
+                    // the chevron gets no gap of its own. Past the page's rise cap the
+                    // marker stops lower, under the overlays, so there the bound is a
+                    // little generous.
+                    speedTop =
+                        (maxHeight - speedBottomInset - speedHeightPx.toDp()).let { speedTop ->
+                            val chevronTop = minOf(speedTop - MarkerOverlayClearance, markerMiddle) - chevronReach
+                            minOf(speedTop, chevronTop + cardGap)
+                        },
                     cardMaxWidth = cardMaxWidth,
                 )
             }
@@ -1339,7 +1366,9 @@ private data class VideoWindowPlacement(
 // sits in the top row when that row has room beside the clock, which sits in
 // the top corner on the card side; otherwise it drops below the clock, which
 // keeps it in the upper part of the map, clear of the speed readout at the
-// bottom and of the self-marker the map places below centre.
+// bottom and of the self-marker, which the map places below centre or, where
+// the bottom overlays pass the middle, just above the readout
+// (VideoWindowLayoutTest checks it on every geometry).
 private fun videoWindowPlacement(
     overlayWidth: Dp,
     mapAreaWidth: Dp,
@@ -1391,10 +1420,9 @@ internal data class RouteCardPlacement(
 // area's width. [topRowRoom] is the top row's width before the card's cap.
 // Either way the compass, the control column, the clock and the cards stay
 // uncovered, and [RouteCardPlacement.maxHeight] keeps the card above the speed
-// readout's top edge. The choice card's own height, a header and one row of
-// tiles, and the turn card's also end them above the vehicle's chevron, which
-// the map drops below the middle of the screen; RouteChoiceLayoutTest and
-// TurnCardLayoutTest check both on every geometry.
+// readout's top edge and above the highest the vehicle's chevron can come (the
+// caller's speedTop); RouteChoiceLayoutTest and TurnCardLayoutTest check both on
+// every geometry.
 internal data class RouteCardSlots(
     val topRow: RouteCardPlacement,
     val belowClock: RouteCardPlacement,
@@ -1691,6 +1719,37 @@ private val CompactScreenPadding: Dp = 12.dp
 // its ripple) clears it; together with the panel gap (cardGap) it forms the bottom
 // band the marker drop must avoid (MapConfig.bottomSafeFraction).
 private val MarkerOverlayClearance: Dp = 20.dp
+
+/**
+ * Half the vehicle chevron's box: webmap/index.html draws #self-marker's svg 34 px (dp in the WebView) square, its tip
+ * at the top edge's middle.
+ */
+internal val ChevronHalfBox: Dp = 17.dp
+
+/**
+ * Return the vertical squash the map's [tiltDeg] puts on the chevron: the page lays it on the ground with
+ * `perspective(600px) rotateX(tilt)` (webmap/src/chevron.ts), whose first-order effect is cos(tilt); the perspective
+ * shrinks the receding top further.
+ */
+internal fun chevronSquash(tiltDeg: Int): Float = cos(Math.toRadians(tiltDeg.toDouble())).toFloat()
+
+/**
+ * Return an upper bound on how far above its centre the vehicle's chevron draws on the map [mapConfig] describes. On
+ * the OpenStreetMap map it points up heading-up, so its tip reaches half the box; north-up turns it in plane, so a
+ * corner of the box may come to the top; either is squashed by the tilt. On Google the page lays no perspective on a
+ * raster map and turns the chevron there, and the launcher cannot tell raster from vector (Automatic leaves it to the
+ * provider), so the corner counts unsquashed.
+ */
+internal fun chevronReach(mapConfig: MapConfig): Dp =
+    with(mapConfig) {
+        when (backend) {
+            MapBackend.OSM -> ChevronHalfBox * (if (northUp) CornerPerHalfSide else 1f) * chevronSquash(tiltDeg)
+            MapBackend.GOOGLEMAPS -> ChevronHalfBox * CornerPerHalfSide
+        }
+    }
+
+// The box's corner distance from its centre, per half side.
+private val CornerPerHalfSide = sqrt(2f)
 
 // The landscape floating card column scales with the viewport so the side-by-side
 // calendar + weather cards keep usable width, clamped at both ends. The fraction
