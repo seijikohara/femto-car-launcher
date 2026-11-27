@@ -5,7 +5,7 @@ paths:
 
 # Docs site
 
-Rules for `docs/`, the Astro source of the project website published to GitHub Pages at `https://seijikohara.github.io/femto-car-launcher/` by `.github/workflows/docs.yml` (push to `main`; `ci.yml`'s `docs-site` job proves the build on every CI run — pull requests and pushes to `main` or `develop` alike — but never deploys). The site started from the Astro Haze template (MIT notice kept in `docs/LICENSE-astro-haze` for the surviving `Seo.astro`, `Picture.astro`, `lib/url.ts`); styling is Tailwind CSS v4 + shadcn/ui (Base UI, `nova`). Everything under `docs/src/` is ours to edit.
+Rules for `docs/`, the Astro source of the project website published to GitHub Pages at `https://seijikohara.github.io/femto-car-launcher/` by `.github/workflows/docs.yml` (on a push to `main`, and on `main` again each time `ci.yml` publishes a nightly, so the nightly catalog follows `develop`; `ci.yml`'s `docs-site` job proves the build on every CI run — pull requests and pushes to `main` or `develop` alike — but never deploys). The site started from the Astro Haze template (MIT notice kept in `docs/LICENSE-astro-haze` for the surviving `Seo.astro`, `Picture.astro`, `lib/url.ts`); styling is Tailwind CSS v4 + shadcn/ui (Base UI, `nova`). Everything under `docs/src/` is ours to edit.
 
 ## Content SSOT
 
