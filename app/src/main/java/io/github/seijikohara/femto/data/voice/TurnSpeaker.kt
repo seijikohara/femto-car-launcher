@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +16,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val TAG = "TurnSpeaker"
+
+// A prompt not reported ended this long after the engine accepted it counts as cut short. The longest sentence takes a
+// few seconds to say; an engine whose process dies mid-prompt reports nothing, and without a bound the sound would stay
+// lowered for the rest of the route.
+private const val PROMPT_MAX_MS = 15_000L
 
 /** One opened engine. */
 internal interface SpeechSession {
@@ -109,6 +115,9 @@ internal class TurnSpeaker(
 
     // The prompt that holds the sound, by its number; a prompt that a newer one replaced no longer does.
     private var playing: Int? = null
+
+    // The bound on [playing]: it sends the prompt's end when the engine has not, and goes with the prompt.
+    private var playingBound: Job? = null
     private var focusHeld = false
 
     // After the fields above: the coroutine may start on another thread before the constructor returns.
@@ -265,7 +274,14 @@ internal class TurnSpeaker(
                     runCatching { open.speak(text) { played -> commands.trySend(Command.Ended(sequence, played)) } }
                         .onFailure { Log.w(TAG, "voice engine failed: ${it.javaClass.simpleName}") }
                         .getOrDefault(false)
-                if (!accepted) {
+                if (accepted) {
+                    playingBound?.cancel()
+                    playingBound =
+                        scope.launch {
+                            delay(PROMPT_MAX_MS)
+                            commands.trySend(Command.Ended(sequence, played = false))
+                        }
+                } else {
                     playing = null
                     releaseFocus()
                     record(label, PromptOutcome.ENGINE_REFUSED)
@@ -281,6 +297,7 @@ internal class TurnSpeaker(
     ) {
         if (playing == sequence) {
             playing = null
+            playingBound?.cancel()
             releaseFocus()
             mutableLastPrompt.update {
                 it?.copy(outcome = if (played) PromptOutcome.PLAYED else PromptOutcome.CUT_SHORT)
@@ -299,6 +316,8 @@ internal class TurnSpeaker(
         session?.let { open -> runCatching { open.close() } }
         session = null
         playing = null
+        playingBound?.cancel()
+        playingBound = null
         releaseFocus()
         mutableStatus.value = SpeakerStatus.Closed
     }

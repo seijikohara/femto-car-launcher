@@ -4,6 +4,7 @@ import io.github.seijikohara.femto.testfixtures.FakeSpeechEnginePort
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -227,6 +228,79 @@ class TurnSpeakerTest {
             assertEquals(SpokenPrompt("final at 80 m", PromptOutcome.PLAYED), speaker.lastPrompt.value)
         }
 
+    // An engine whose process dies mid-prompt never reports the end: the sound must not stay lowered for the rest of
+    // the route.
+    @Test
+    fun `a prompt that never ends releases the sound once after the bound and is recorded as cut short`() =
+        runTest {
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(FakeSpeechSession()), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+            advanceTimeBy(PROMPT_BOUND_MS - 1)
+            runCurrent()
+            val justBefore = focus.releases
+
+            advanceTimeBy(2)
+            runCurrent()
+
+            assertEquals(
+                Triple(0, 1, SpokenPrompt("final at 80 m", PromptOutcome.CUT_SHORT)),
+                Triple(justBefore, focus.releases, speaker.lastPrompt.value),
+            )
+        }
+
+    @Test
+    fun `a prompt that ends in time is not ended a second time by its bound`() =
+        runTest {
+            val session = FakeSpeechSession()
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(session), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+            advanceTimeBy(1_000)
+            session.end(0, played = true)
+            runCurrent()
+
+            advanceTimeBy(2 * PROMPT_BOUND_MS)
+            runCurrent()
+
+            assertEquals(
+                Pair(1, SpokenPrompt("final at 80 m", PromptOutcome.PLAYED)),
+                Pair(focus.releases, speaker.lastPrompt.value),
+            )
+        }
+
+    // The older prompt's bound must not end the newer one, which holds the sound until its own end or bound.
+    @Test
+    fun `a newer prompt keeps the sound past the bound of the one it replaced`() =
+        runTest {
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(FakeSpeechSession()), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("In 300 metres, turn left.", label = "advance at 300 m")
+            runCurrent()
+            advanceTimeBy(10_000)
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+
+            advanceTimeBy(PROMPT_BOUND_MS - 10_000 + 1_000)
+            runCurrent()
+            val pastTheFirstBound = focus.releases
+            advanceTimeBy(10_000)
+            runCurrent()
+
+            assertEquals(
+                Triple(0, 1, SpokenPrompt("final at 80 m", PromptOutcome.CUT_SHORT)),
+                Triple(pastTheFirstBound, focus.releases, speaker.lastPrompt.value),
+            )
+        }
+
     @Test
     fun `closing while the engine is opening leaves it closed and closes a session that arrives late`() =
         runTest {
@@ -384,5 +458,8 @@ class TurnSpeakerTest {
 
     private companion object {
         const val ENGINE = "com.example.tts"
+
+        // The speaker's own bound on a prompt, as its tests see it: a prompt of a few seconds has long ended by then.
+        const val PROMPT_BOUND_MS = 15_000L
     }
 }
