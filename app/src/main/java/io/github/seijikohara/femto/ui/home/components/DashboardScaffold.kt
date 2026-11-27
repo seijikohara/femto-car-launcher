@@ -1270,16 +1270,14 @@ private fun DashboardOverlays(
 }
 
 // The share of the map's width that [reserve] covers from one side edge, as the map
-// takes it (MapConfig.rightSafeFraction / leftSafeFraction). The cap is the map page's
-// own (webmap/src/style.ts markerXFraction moves the marker by half the fraction, 0.35
-// of the width at most): a lower cap here left the marker short of the middle of the
-// exposed strip on a narrow screen with the dock on the cards' side.
+// takes it (MapConfig.rightSafeFraction / leftSafeFraction). Not capped here: the map
+// page bounds how far the marker moves (webmap/src/style.ts markerXFraction), and a
+// cap of its own here (0.45, once) left the marker short of the middle of the exposed
+// strip on a narrow screen with the dock on the cards' side.
 private fun sideSafeFraction(
     reserve: Dp,
     width: Dp,
-): Float = if (width > 0.dp) (reserve / width).coerceIn(0f, MAX_SIDE_SAFE_FRACTION) else 0f
-
-private const val MAX_SIDE_SAFE_FRACTION = 0.7f
+): Float = if (width > 0.dp) (reserve / width).coerceIn(0f, 1f) else 0f
 
 // How far above the overlay box's bottom edge the speed readout ends. In landscape one
 // card gap, above the edge or the dock. In portrait the card band's extent and no more:

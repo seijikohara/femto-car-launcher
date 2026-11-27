@@ -58,18 +58,13 @@ class SpeedReadoutPlacementTest {
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
 
+    // One pass for both rules: laying out the 480 arrangements is the cost, not the checks.
     @Test
-    fun `the readout is centred on the chevron in every arrangement`() {
-        setDashboard()
-        assertEquals(emptyList(), eachArrangement { case -> listOfNotNull(offCentre(case)) })
-    }
-
-    @Test
-    fun `in portrait the readout ends where the card band begins`() {
+    fun `the readout is centred on the chevron, and in portrait it ends where the card band begins`() {
         setDashboard()
         assertEquals(
             emptyList(),
-            eachArrangement { case -> if (height > width) listOfNotNull(offTheBand(case)) else emptyList() },
+            eachArrangement { case -> listOfNotNull(offCentre(case), if (height > width) offTheBand(case) else null) },
         )
     }
 

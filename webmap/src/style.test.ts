@@ -566,6 +566,13 @@ describe("markerSpot", () => {
             markerXFraction(0.428),
         );
     });
+
+    it("puts the marker midway between a reserve on each side", () => {
+        // Cards over the right 40 % and a dock over the left 10 % leave the map
+        // from 10 % to 60 % of the width: its middle is 35 %, 15 % left of centre.
+        const spot = markerSpot({ markerPos: 70, bottomSafe: 0.1, rightSafe: 0.4, leftSafe: 0.1 });
+        expect(spot.x).toBeCloseTo(-0.15);
+    });
 });
 
 describe("clampMarkerPos", () => {

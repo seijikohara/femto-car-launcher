@@ -44,14 +44,14 @@ internal data class MapConfig(
     // markerPos or screen aspect; 0 means "unmeasured", leaving the MAX_MARKER_DROP
     // cap as the only bound.
     val bottomSafeFraction: Float = 0f,
-    // Fraction (0..0.7) of the map width covered from the right edge — the floating
+    // Fraction (0..1) of the map width covered from the right edge — the floating
     // cards of a RIGHT driver side, a dock on the right edge, or both — measured at
     // layout time; the horizontal analogue of [bottomSafeFraction]. The page puts
     // the marker at the middle of what is left between this and [leftSafeFraction]
     // (webmap/src/style.ts: markerSpot, on both map backends). 0 on both sides
     // keeps the marker centred.
     val rightSafeFraction: Float = 0f,
-    // Fraction (0..0.7) of the map width covered from the left edge — the cards of
+    // Fraction (0..1) of the map width covered from the left edge — the cards of
     // a LEFT driver side, a dock on the left edge, or both; the mirror of
     // [rightSafeFraction]. Both can be set at once (cards on one side, the dock on
     // the other).

@@ -144,11 +144,13 @@ export function markerPadTop(
 }
 
 // Magnitude of the marker's horizontal shift from centre as a fraction of map
-// width, to clear the floating cards on one side. Half the safe zone lands the
-// marker mid-way across the exposed strip; capped at 0.35 so a wide card set never
-// pushes it past the opposite quarter. Independent of markerPos; the caller applies
-// the direction (LEFT for a right-card reserve, RIGHT for a left-card reserve).
-// Reused for both [markerPadRight] and [markerPadLeft].
+// width, to clear what covers the map from one side edge (the floating cards, a
+// side dock). Half the safe zone lands the marker mid-way across the exposed
+// strip; capped at 0.35 so a wide reserve never pushes it past the opposite
+// quarter. Independent of markerPos; the caller applies the direction (LEFT for
+// a right reserve, RIGHT for a left one), and with a reserve on each side the two
+// shifts add up to the middle of what is left between them. Reused for both
+// [markerPadRight] and [markerPadLeft].
 export function markerXFraction(safe: number): number {
     // Clamp both ends, mirroring the Kotlin coerceIn(0f, 0.35f): a negative safe
     // fraction (a layout/rounding glitch upstream) must not shift the marker past
@@ -157,15 +159,15 @@ export function markerXFraction(safe: number): number {
 }
 
 // Right camera padding (px) that shifts the focal point left so the location sits
-// left of centre, clear of the right cards; the 2x compensates the half-of-padding
-// geometry.
+// left of centre, clear of the right reserve; the 2x compensates the
+// half-of-padding geometry.
 export function markerPadRight(rightSafe: number, containerWidth: number): number {
     return 2 * markerXFraction(rightSafe) * containerWidth;
 }
 
 // Left camera padding (px) that shifts the focal point right so the location sits
-// right of centre, clear of the left cards; the horizontal mirror of
-// [markerPadRight] for a left-side (driver's-left) card reserve.
+// right of centre, clear of the left reserve; the horizontal mirror of
+// [markerPadRight]. Both paddings apply together when each side has a reserve.
 export function markerPadLeft(leftSafe: number, containerWidth: number): number {
     return 2 * markerXFraction(leftSafe) * containerWidth;
 }
@@ -187,8 +189,8 @@ export interface MarkerSpot {
     y: number;
 }
 
-// The OSM placement: mid-way across the strip beside the cards
-// (markerXFraction, away from whichever side reserves them) and dropped per
+// The OSM placement: mid-way across the strip the side reserves leave
+// (markerXFraction, away from each reserved side) and dropped per
 // markerPos (markerDrop). MapLibre's camera padding moves the perspective's
 // vanishing point along with it, so the road ahead runs straight up through
 // the chevron wherever it sits.
