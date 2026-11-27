@@ -182,8 +182,8 @@ internal class HomeViewModel(
     // settings the way the dashboard resolves it.
     speedUnitFlow: Flow<SpeedUnit> = flowOf(SpeedUnit.KILOMETERS_PER_HOUR),
     // The sentence a turn prompt speaks, in the unit it is spoken in; the
-    // factory reads the app's string resources. The default speaks nothing
-    // the tests could not do without.
+    // factory reads the app's string resources. The default is empty, as the
+    // default callbacks below never speak it.
     private val turnPromptText: (TurnPrompt, SpeedUnit) -> String = { _, _ -> "" },
     // The spoken turn prompts (TurnSpeaker): open the engine for the route
     // now followed, speak a prompt (with the label diagnostics keep of it),
