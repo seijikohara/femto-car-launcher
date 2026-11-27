@@ -28,11 +28,12 @@ import io.github.seijikohara.femto.ui.home.CandidateSummary
 import io.github.seijikohara.femto.ui.home.HomeUiState
 import io.github.seijikohara.femto.ui.home.RouteChoiceState
 import io.github.seijikohara.femto.ui.home.TurnCardState
+import io.github.seijikohara.femto.ui.home.components.ChevronHalfBox
 import io.github.seijikohara.femto.ui.home.components.MapConfig
+import io.github.seijikohara.femto.ui.home.components.chevronSquash
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
-import kotlin.math.cos
 
 /**
  * The dashboard render inputs shared by the goldens (`DashboardScreenshotTest`)
@@ -190,10 +191,9 @@ private val FixtureRouteCandidates =
 private val RippleRadius = 24.dp
 private val RippleAlpha = 0.18f
 
-// Matches the live marker's <svg width="34" height="34" viewBox="0 0 30 30">
-// (webmap/index.html): a square icon box, sized in dp, housing a 30-unit
+// The live marker's square icon box (ChevronHalfBox), housing a 30-unit
 // viewBox scaled uniformly to fill it.
-private val ChevronBoxSize = 34.dp
+private val ChevronBoxSize = ChevronHalfBox * 2
 private val ChevronViewBoxSize = 30f
 private val ChevronStrokeWidth = 1.5.dp
 
@@ -281,4 +281,4 @@ private fun MapConfig.selfMarkerCenterFraction(): Offset =
     )
 
 // The marker's vertical squash on the pitched ground plane (see SelfMarker).
-private fun MapConfig.markerForeshortening(): Float = cos(Math.toRadians(tiltDeg.toDouble())).toFloat()
+private fun MapConfig.markerForeshortening(): Float = chevronSquash(tiltDeg)

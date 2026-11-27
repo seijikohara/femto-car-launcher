@@ -6,6 +6,11 @@ name: Docs site
 # Pages keeps the previous deployment when a run fails, so a red build never
 # takes the site down.
 #
+# It also runs on main, by workflow_dispatch, each time ci.yml publishes a
+# nightly (its nightly-catalog job): the site and the stable catalog come out
+# unchanged, and the nightly catalog follows develop instead of waiting for
+# the next promotion.
+#
 # Every deploy carries two screenshot catalogs, built across three jobs:
 # - nightly-catalog renders the nightly catalog from develop. develop carries
 #   code main has not taken yet (Renovate automerges dependency updates into
@@ -148,7 +153,8 @@ jobs:
     # Explicit rather than inherited: this job produces the public site, so
     # it must never restore a cache that develop's code could have written,
     # even if the workflow-level default changes. Every deploy pays for a
-    # cold Gradle, which is fine at one deploy per main push.
+    # cold Gradle, the price of that rule, at one deploy per main push and
+    # per published nightly.
     cache-mode: none
     defaults:
       run:

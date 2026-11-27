@@ -154,6 +154,10 @@ jobs:
       # gh release create/delete + tag manipulation require write access to repo
       # contents. The default GITHUB_TOKEN satisfies this for the same repo.
       contents: write
+    outputs:
+      # "true" only when this run put a new nightly out; empty when the APK was
+      # unchanged and every publishing step was skipped.
+      published: ${{ steps.publish.outputs.published }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -252,6 +256,7 @@ jobs:
           release-tag: nightly
 
       - name: Publish rolling nightly prerelease
+        id: publish
         if: steps.apk.outputs.unchanged != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -313,6 +318,29 @@ jobs:
             --notes-file "$RUNNER_TEMP/nightly-notes.md" \
             --prerelease \
             --latest=false
+          echo "published=true" >> "$GITHUB_OUTPUT"
+
+  # The site's nightly screenshot catalog is rendered from develop, but the site
+  # deploys from main only (docs.yml, and the Pages environment admits no other
+  # branch), so between two promotions the catalog would keep showing the develop
+  # of the last one. Each published nightly therefore starts docs.yml on main: the
+  # site and the stable catalog come out as they were, and the nightly catalog is
+  # rendered from develop as it stands. A workflow_dispatch is one of the two events
+  # the run's own token may raise (docs.github.com, "Triggering a workflow"), and
+  # docs.yml queues its runs, keeping only the newest one waiting, so a burst of
+  # nightlies costs one extra deploy at most.
+  nightly-catalog:
+    name: Refresh the nightly catalog
+    runs-on: ubuntu-latest
+    needs: nightly
+    if: needs.nightly.outputs.published == 'true'
+    permissions:
+      actions: write # start a workflow run; nothing else
+    steps:
+      - name: Start the Docs site workflow on main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run docs.yml --repo "$GITHUB_REPOSITORY" --ref main
 
   release:
     name: Publish release

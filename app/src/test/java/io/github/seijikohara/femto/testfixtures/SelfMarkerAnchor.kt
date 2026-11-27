@@ -21,18 +21,23 @@ private val RecolorDataFile = File("../webmap/src/map-recolor-data.json")
  * inputs the live page receives.
  */
 internal object SelfMarkerAnchor {
-    // Same cap the live page reads from map-recolor-data.json — never a
+    // Same caps the live page reads from map-recolor-data.json — never a
     // duplicated literal (AGENTS.md#ssot-dry).
-    val maxMarkerDrop: Float = readMaxMarkerDrop()
+    val maxMarkerDrop: Float = readRecolorDataFloat("maxMarkerDrop")
+    val maxMarkerRise: Float = readRecolorDataFloat("maxMarkerRise")
 
-    /** Marker drop below centre, as a fraction of map height. */
+    /** Return the marker's offset from centre as a fraction of map height, positive below it. */
     fun drop(
         markerPos: Int,
         bottomSafeFraction: Float,
-    ): Float {
-        val cap = minOf(maxMarkerDrop, 0.5f - bottomSafeFraction).coerceAtLeast(0f)
-        return clampMarkerPos(markerPos) / 100f * cap
-    }
+    ): Float =
+        (0.5f - bottomSafeFraction).let { room ->
+            if (room < 0f) {
+                room.coerceAtLeast(-maxMarkerRise)
+            } else {
+                clampMarkerPos(markerPos) / 100f * minOf(maxMarkerDrop, room)
+            }
+        }
 
     /**
      * Horizontal shift from centre, as a fraction of map width. Positive
@@ -48,14 +53,14 @@ internal object SelfMarkerAnchor {
 
     private fun clampMarkerPos(markerPos: Int): Float = markerPos.toFloat().coerceIn(0f, 100f)
 
-    private fun readMaxMarkerDrop(): Float {
+    private fun readRecolorDataFloat(key: String): Float {
         check(RecolorDataFile.isFile) {
             "${RecolorDataFile.path} not found - expected the JVM test working directory to be app/"
         }
         return Json
             .parseToJsonElement(RecolorDataFile.readText())
             .jsonObject
-            .getValue("maxMarkerDrop")
+            .getValue(key)
             .jsonPrimitive
             .float
     }

@@ -38,23 +38,25 @@ internal data class MapConfig(
     // as STANDARD). May carry a provider key — see MapScheme.mapStyleRefFor.
     val customStyleUrl: String = "",
     val markerPos: Int = 70,
-    // Fraction (0..0.5) of the map height the bottom speed overlay occupies,
-    // measured at layout time (not a persisted setting). The marker drop is
-    // clamped against it so the chevron always clears the overlay regardless of
-    // markerPos or screen aspect; 0 means "unmeasured", leaving the MAX_MARKER_DROP
-    // cap as the only bound.
+    // Fraction (0..1) of the map height the bottom overlays occupy (the speed
+    // readout, the portrait card band, a bottom dock), measured at layout time
+    // (not a persisted setting). The marker drop is clamped against it so the
+    // chevron clears the overlays regardless of markerPos or screen aspect, and
+    // past one half the marker rises to their top edge (webmap/src/style.ts
+    // markerDrop); 0 means "unmeasured", leaving the MAX_MARKER_DROP cap as the
+    // only bound.
     val bottomSafeFraction: Float = 0f,
-    // Fraction (0..0.45) of the map width the right-hand floating cards occupy,
-    // measured at layout time — the horizontal analogue of [bottomSafeFraction]:
-    // the page places the marker clear of those cards (webmap/src/style.ts:
-    // markerSpot, on both map backends). 0 keeps the marker centred
-    // (portrait, or no cards).
+    // Fraction (0..1) of the map width covered from the right edge — the floating
+    // cards of a RIGHT driver side, a dock on the right edge, or both — measured at
+    // layout time; the horizontal analogue of [bottomSafeFraction]. The page puts
+    // the marker at the middle of what is left between this and [leftSafeFraction]
+    // (webmap/src/style.ts: markerSpot, on both map backends). 0 on both sides
+    // keeps the marker centred.
     val rightSafeFraction: Float = 0f,
-    // Fraction (0..0.45) of the map width the left-hand floating cards occupy —
-    // the horizontal mirror of [rightSafeFraction], set when the dashboard anchors
-    // to the driver's LEFT; the page places the marker clear of those cards the
-    // same way. Only one of [rightSafeFraction] / [leftSafeFraction] is ever
-    // non-zero; 0 keeps the marker centred.
+    // Fraction (0..1) of the map width covered from the left edge — the cards of
+    // a LEFT driver side, a dock on the left edge, or both; the mirror of
+    // [rightSafeFraction]. Both can be set at once (cards on one side, the dock on
+    // the other).
     val leftSafeFraction: Float = 0f,
     val buildings3d: Boolean = false,
     val terrain: Boolean = false,
