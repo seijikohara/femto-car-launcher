@@ -381,7 +381,8 @@ private class LastSegmentPosition(
  * [FemtoDimens.MinTouchTarget] tall. [onClick] makes the whole segment the tap
  * target, with the Expressive press-shape morph; a row without one only
  * reports. A caller that needs a role beyond a plain click (a switch) adds it
- * through [modifier].
+ * through [modifier]. With [enabled] false the segment takes no click and reads
+ * as unavailable; a row without [onClick] is unaffected.
  */
 @Composable
 internal fun SettingsListItem(
@@ -393,6 +394,7 @@ internal fun SettingsListItem(
     // updates in place, e.g. the export progress/outcome).
     summaryLiveRegion: Boolean = false,
     onClick: (() -> Unit)? = null,
+    enabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val itemModifier = modifier.fillMaxWidth().heightIn(min = FemtoDimens.MinTouchTarget)
@@ -420,6 +422,7 @@ internal fun SettingsListItem(
             onClick = onClick,
             shapes = shapes,
             modifier = itemModifier,
+            enabled = enabled,
             supportingContent = supporting,
             trailingContent = trailing,
             colors = colors,
@@ -656,7 +659,8 @@ internal fun <T> ChoiceDialog(
 // presentation-only (onCheckedChange = null) and never double-fires. The
 // segment's click carries the switch role and on / off state itself, since the
 // list item's own checked overload would announce a checkbox. An optional
-// [summary] explains what the toggle does (e.g. attribution / cost notes).
+// [summary] explains what the toggle does (e.g. attribution / cost notes). With
+// [enabled] false the row takes no tap and the switch reads as unavailable.
 @Composable
 internal fun SwitchRow(
     title: String,
@@ -665,6 +669,7 @@ internal fun SwitchRow(
     shapes: ListItemShapes,
     modifier: Modifier = Modifier,
     summary: String? = null,
+    enabled: Boolean = true,
 ) = SettingsListItem(
     title = title,
     shapes = shapes,
@@ -675,8 +680,9 @@ internal fun SwitchRow(
         },
     summary = summary,
     onClick = { onCheckedChange(!checked) },
+    enabled = enabled,
 ) {
-    Switch(checked = checked, onCheckedChange = null)
+    Switch(checked = checked, onCheckedChange = null, enabled = enabled)
 }
 
 // A numeric row: an inline slider under the title / current-value line, with an

@@ -39,6 +39,8 @@ internal class FakeNavigationSettingsStore(
 
     override suspend fun setTurnCardStraight(value: Boolean) = state.update { it.copy(turnCardStraight = value) }
 
+    override suspend fun setSpokenPrompts(value: Boolean) = state.update { it.copy(spokenPrompts = value) }
+
     override suspend fun resetToDefaults() {
         state.value = NavigationSettings.Default
     }

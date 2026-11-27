@@ -566,6 +566,10 @@
     <!-- The quoted words are the turn card's own line of text for going straight on (turn_card_straight). -->
     <string name="settings_navigation_turn_card_straight">Show \"Continue straight\"</string>
     <string name="settings_navigation_turn_card_straight_desc">Also show where the route goes straight on across a bigger road.</string>
+    <string name="settings_navigation_spoken_prompts">Spoken prompts</string>
+    <string name="settings_navigation_spoken_prompts_desc">Say each turn before it comes, in English, through this device\'s text-to-speech engine.</string>
+    <string name="settings_navigation_spoken_prompts_no_engine">This device has no text-to-speech engine.</string>
+    <string name="settings_navigation_spoken_prompts_no_english">No text-to-speech engine on this device has an English voice.</string>
     <string name="settings_navigation_vehicle_on_line">Keep the vehicle on the route</string>
     <string name="settings_navigation_vehicle_on_line_desc">Draw the vehicle on the route line while it drives along it. Off draws it at the GPS position.</string>
     <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->

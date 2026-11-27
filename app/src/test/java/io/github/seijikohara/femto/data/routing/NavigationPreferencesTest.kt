@@ -41,6 +41,7 @@ class NavigationPreferencesTest {
                 turnCard = true,
                 turnCardNextAfter = true,
                 turnCardStraight = false,
+                spokenPrompts = true,
             ),
             NavigationSettings.Default,
         )
@@ -59,9 +60,10 @@ class NavigationPreferencesTest {
             store.setTurnCard(false)
             store.setTurnCardNextAfter(false)
             store.setTurnCardStraight(true)
+            store.setSpokenPrompts(false)
 
             assertEquals(
-                NavigationSettings(false, false, false, RouteRowTime.REMAINING, false, false, false, true),
+                NavigationSettings(false, false, false, RouteRowTime.REMAINING, false, false, false, true, false),
                 store.settings.first(),
             )
         }
@@ -92,6 +94,7 @@ class NavigationPreferencesTest {
             store.setTurnCard(false)
             store.setTurnCardNextAfter(false)
             store.setTurnCardStraight(true)
+            store.setSpokenPrompts(false)
 
             store.resetToDefaults()
 

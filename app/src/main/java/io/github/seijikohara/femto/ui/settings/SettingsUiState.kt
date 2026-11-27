@@ -29,6 +29,7 @@ import io.github.seijikohara.femto.data.location.TripAutoResetSetting
 import io.github.seijikohara.femto.data.routing.NavigationSettings
 import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.video.VideoSettings
+import io.github.seijikohara.femto.data.voice.SpeechAvailability
 
 /** State for the in-app settings screen: the persisted display + font choices. */
 internal data class SettingsUiState(
@@ -226,6 +227,12 @@ internal data class NavigationSettingsUi(
     val turnCard: Boolean,
     val turnCardNextAfter: Boolean,
     val turnCardStraight: Boolean,
+    val spokenPrompts: Boolean,
+    /**
+     * What the device's text-to-speech engines said about English; null until they have been asked, and a switch
+     * that works until then. Without a usable voice the Spoken prompts row is disabled and shows off.
+     */
+    val speech: SpeechAvailability? = null,
 ) {
     companion object {
         val Initial =
@@ -238,6 +245,7 @@ internal data class NavigationSettingsUi(
                 turnCard = NavigationSettings.Default.turnCard,
                 turnCardNextAfter = NavigationSettings.Default.turnCardNextAfter,
                 turnCardStraight = NavigationSettings.Default.turnCardStraight,
+                spokenPrompts = NavigationSettings.Default.spokenPrompts,
             )
     }
 }
@@ -570,6 +578,11 @@ internal sealed interface SettingsAction {
 
     /** Have the turn card also announce "continue straight", or not. */
     data class SetTurnCardStraight(
+        val value: Boolean,
+    ) : SettingsAction
+
+    /** Speak the turn card's content through the text-to-speech engine, or not. */
+    data class SetSpokenPrompts(
         val value: Boolean,
     ) : SettingsAction
 

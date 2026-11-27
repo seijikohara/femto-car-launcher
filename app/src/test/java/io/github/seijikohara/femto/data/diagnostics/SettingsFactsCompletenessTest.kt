@@ -68,6 +68,7 @@ class SettingsFactsCompletenessTest {
             "turnCard" to "Turn card",
             "turnCardNextAfter" to "Turn card next after",
             "turnCardStraight" to "Turn card straight",
+            "spokenPrompts" to "Spoken prompts",
         )
 
     private val propertyToFactLabel: Map<String, String> =
@@ -188,15 +189,17 @@ class SettingsFactsCompletenessTest {
         val defaults = navigationSettingsFacts(NavigationSettings.Default).map { it.value }
         val changed =
             navigationSettingsFacts(
-                NavigationSettings(false, false, false, RouteRowTime.REMAINING, false, false, false, true),
+                NavigationSettings(false, false, false, RouteRowTime.REMAINING, false, false, false, true, false),
             ).map { it.value }
 
         assertEquals(
-            listOf("true", "true", "true", "arrival time", "true", "true", "true", "false").map { FactValue.Text(it) },
+            listOf("true", "true", "true", "arrival time", "true", "true", "true", "false", "true").map {
+                FactValue.Text(it)
+            },
             defaults,
         )
         assertEquals(
-            listOf("false", "false", "false", "time remaining", "false", "false", "false", "true").map {
+            listOf("false", "false", "false", "time remaining", "false", "false", "false", "true", "false").map {
                 FactValue.Text(it)
             },
             changed,
