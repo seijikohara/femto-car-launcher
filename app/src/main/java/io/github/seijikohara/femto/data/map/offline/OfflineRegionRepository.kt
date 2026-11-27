@@ -102,6 +102,8 @@ internal sealed interface RegionOffer {
         val usedAfterBytes: Long,
         val limitBytes: Long?,
         val freeBytes: Long,
+        /** The place that answered with [file], which the download fetches from. */
+        val fileUrl: String = region.fileUrl,
     ) : RegionOffer
 
     data class OverLimit(
@@ -208,19 +210,41 @@ internal class OfflineRegionRepository internal constructor(
             }
 
             else -> {
-                when (val probe = feed.probe(region.fileUrl)) {
-                    is ProbeResult.Found -> offerFor(region, probe.file)
-
-                    ProbeResult.Gone -> RegionOffer.Unavailable(region, Reason.GONE)
-
-                    // Without a size neither the limit nor the free space can be checked, limit or not.
-                    ProbeResult.SizeUnknown -> RegionOffer.Unavailable(region, Reason.SIZE_UNKNOWN)
-
-                    ProbeResult.Unavailable -> RegionOffer.Unavailable(region, Reason.NETWORK)
-                }
+                offerAt(region, listOfNotNull(region.fileUrl, region.alternateFileUrl))
             }
         }
     }
+
+    // The index does not say which of the region's places holds its file, so each is asked in turn, the one beside
+    // the extract first, where the index implies it is. Only "no such file" leads on to the next place. Any other
+    // answer says nothing about where the file is, and asking on would turn a host that did not answer into "no
+    // map file".
+    private suspend fun offerAt(
+        region: CatalogRegion,
+        places: List<String>,
+    ): RegionOffer =
+        when (val probe = feed.probe(places.first())) {
+            is ProbeResult.Found -> {
+                offerFor(region, probe.file, places.first())
+            }
+
+            ProbeResult.Gone -> {
+                places
+                    .drop(1)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { offerAt(region, it) }
+                    ?: RegionOffer.Unavailable(region, Reason.GONE)
+            }
+
+            // Without a size neither the limit nor the free space can be checked, limit or not.
+            ProbeResult.SizeUnknown -> {
+                RegionOffer.Unavailable(region, Reason.SIZE_UNKNOWN)
+            }
+
+            ProbeResult.Unavailable -> {
+                RegionOffer.Unavailable(region, Reason.NETWORK)
+            }
+        }
 
     /** Start the download [offer] describes, unless a download exists or its region has been saved since. */
     fun start(offer: RegionOffer.Ready) {
@@ -320,6 +344,7 @@ internal class OfflineRegionRepository internal constructor(
     private suspend fun offerFor(
         region: CatalogRegion,
         file: RemoteFile,
+        fileUrl: String,
     ): RegionOffer {
         val limitBytes = limit().bytes
         val (keptBytes, freeBytes) = withContext(ioDispatcher) { files.keptBytes() to files.freeBytes() }
@@ -335,7 +360,7 @@ internal class OfflineRegionRepository internal constructor(
             }
 
             StorageDecision.Allowed -> {
-                RegionOffer.Ready(region, file, keptBytes + file.sizeBytes, limitBytes, freeBytes)
+                RegionOffer.Ready(region, file, keptBytes + file.sizeBytes, limitBytes, freeBytes, fileUrl)
             }
         }
     }
@@ -554,7 +579,7 @@ private fun RegionOffer.Ready.pendingRecord(): PendingDownloadRecord =
     PendingDownloadRecord(
         id = region.id,
         name = region.name,
-        url = region.fileUrl,
+        url = fileUrl,
         sizeBytes = file.sizeBytes,
         etag = file.etag,
         lastModifiedEpochMs = file.lastModifiedEpochMs,
