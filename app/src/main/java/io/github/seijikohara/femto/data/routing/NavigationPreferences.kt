@@ -25,10 +25,11 @@ internal enum class RouteRowTime {
 
 /**
  * The Navigation settings (issue #389): which parts of the route preview run besides the line on the map, which time
- * its row shows, whether the map draws the vehicle on the route line while it drives along it, and what the turn card
- * over the map shows. Each of the first four defaults is what the route preview did before these settings existed, so
- * a driver who never opens them sees no change there; the vehicle is drawn on the line, and the turn card shows with
- * the turn after next but without "continue straight", unless the driver switches them.
+ * its row shows, whether the map draws the vehicle on the route line while it drives along it, what the turn card
+ * over the map shows, and whether the launcher speaks it. Each of the first four defaults is what the route preview
+ * did before these settings existed, so a driver who never opens them sees no change there; the vehicle is drawn on
+ * the line, and the turn card shows with the turn after next but without "continue straight", unless the driver
+ * switches them.
  */
 internal data class NavigationSettings(
     val rerouteAutomatically: Boolean,
@@ -42,6 +43,8 @@ internal data class NavigationSettings(
     val turnCardNextAfter: Boolean,
     /** Whether the turn card also announces "continue straight". */
     val turnCardStraight: Boolean,
+    /** Whether the launcher speaks the turn card's content through the text-to-speech engine. */
+    val spokenPrompts: Boolean,
 ) {
     companion object {
         val Default =
@@ -54,6 +57,7 @@ internal data class NavigationSettings(
                 turnCard = true,
                 turnCardNextAfter = true,
                 turnCardStraight = false,
+                spokenPrompts = true,
             )
     }
 }
@@ -80,6 +84,8 @@ internal interface NavigationSettingsStore {
     suspend fun setTurnCardNextAfter(value: Boolean)
 
     suspend fun setTurnCardStraight(value: Boolean)
+
+    suspend fun setSpokenPrompts(value: Boolean)
 
     suspend fun resetToDefaults()
 }
@@ -109,6 +115,7 @@ internal class NavigationPreferences(
                     turnCard = prefs[TURN_CARD_KEY] ?: NavigationSettings.Default.turnCard,
                     turnCardNextAfter = prefs[TURN_CARD_NEXT_AFTER_KEY] ?: NavigationSettings.Default.turnCardNextAfter,
                     turnCardStraight = prefs[TURN_CARD_STRAIGHT_KEY] ?: NavigationSettings.Default.turnCardStraight,
+                    spokenPrompts = prefs[SPOKEN_PROMPTS_KEY] ?: NavigationSettings.Default.spokenPrompts,
                 )
             }
 
@@ -144,6 +151,10 @@ internal class NavigationPreferences(
         context.navigationDataStore.editOrLog(TAG) { it[TURN_CARD_STRAIGHT_KEY] = value }
     }
 
+    override suspend fun setSpokenPrompts(value: Boolean) {
+        context.navigationDataStore.editOrLog(TAG) { it[SPOKEN_PROMPTS_KEY] = value }
+    }
+
     // Every key here is a setting, and the read path falls back to NavigationSettings.Default for a missing one, so
     // clearing the file restores the defaults without repeating them.
     override suspend fun resetToDefaults() {
@@ -159,5 +170,6 @@ internal class NavigationPreferences(
         val TURN_CARD_KEY = booleanPreferencesKey("turn_card")
         val TURN_CARD_NEXT_AFTER_KEY = booleanPreferencesKey("turn_card_next_after")
         val TURN_CARD_STRAIGHT_KEY = booleanPreferencesKey("turn_card_straight")
+        val SPOKEN_PROMPTS_KEY = booleanPreferencesKey("spoken_prompts")
     }
 }

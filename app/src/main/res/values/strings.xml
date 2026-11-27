@@ -103,6 +103,22 @@
     <string name="turn_card_description">%1$s in %2$s %3$s.</string>
     <!-- The same, when the card shows the turn after next: %4$s = that turn's line of text ("Turn right"). -->
     <string name="turn_card_description_then">%1$s in %2$s %3$s. Then: %4$s.</string>
+    <!-- The voice_* strings are spoken by the text-to-speech engine and never shown. In the advance sentences %1$s is
+         the distance's value ("300"), %2$s its unit spelled out and %3$s the turn's line of text in lower case ("turn
+         left"); %4$s is the line of the turn that follows closely, also in lower case. -->
+    <string name="voice_turn_advance">In %1$s %2$s, %3$s.</string>
+    <string name="voice_turn_advance_then">In %1$s %2$s, %3$s, then %4$s.</string>
+    <!-- In the final sentences %1$s is the turn's line of text with its capital ("Turn left") and %2$s the next
+         turn's in lower case. -->
+    <string name="voice_turn_final">%1$s.</string>
+    <string name="voice_turn_final_then">%1$s, then %2$s.</string>
+    <string name="voice_arrive_advance">In %1$s %2$s, you will reach your destination.</string>
+    <string name="voice_arrive_final">You have arrived.</string>
+    <!-- The distance's unit as a spoken word: an engine would spell "m" or "ft" letter by letter. -->
+    <string name="voice_unit_metres">metres</string>
+    <string name="voice_unit_feet">feet</string>
+    <string name="voice_unit_kilometres">kilometres</string>
+    <string name="voice_unit_miles">miles</string>
 
     <!-- Weather curve axis label for the first (current) hour. -->
     <string name="weather_curve_now">Now</string>
@@ -550,6 +566,10 @@
     <!-- The quoted words are the turn card's own line of text for going straight on (turn_card_straight). -->
     <string name="settings_navigation_turn_card_straight">Show \"Continue straight\"</string>
     <string name="settings_navigation_turn_card_straight_desc">Also show where the route goes straight on across a bigger road.</string>
+    <string name="settings_navigation_spoken_prompts">Spoken prompts</string>
+    <string name="settings_navigation_spoken_prompts_desc">Say each turn before it comes, in English, through this device\'s text-to-speech engine.</string>
+    <string name="settings_navigation_spoken_prompts_no_engine">This device has no text-to-speech engine.</string>
+    <string name="settings_navigation_spoken_prompts_no_english">No text-to-speech engine on this device has an English voice.</string>
     <string name="settings_navigation_vehicle_on_line">Keep the vehicle on the route</string>
     <string name="settings_navigation_vehicle_on_line_desc">Draw the vehicle on the route line while it drives along it. Off draws it at the GPS position.</string>
     <!-- The routing data sheet. An area is named by its brouter.de file name, e.g. "E135_N35". -->

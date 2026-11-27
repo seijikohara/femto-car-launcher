@@ -44,6 +44,8 @@ import io.github.seijikohara.femto.data.video.VideoSettings
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSourceGrants
 import io.github.seijikohara.femto.data.video.adoptSourceOrRefusal
+import io.github.seijikohara.femto.data.voice.SpeechAvailability
+import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -62,6 +64,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -133,6 +136,10 @@ internal class SettingsViewModel(
     // The routing data on the device while routing is offered, else null
     // (routingDataSummaryFlow); off unless a test turns it on.
     routingData: Flow<RoutingDataSummary?> = flowOf(null),
+    // What the device's text-to-speech engines say about English, asked once and only where the Navigation category
+    // is offered; null means not asked, which leaves the Spoken prompts switch working. The factory's engines are
+    // started for the question, so it never runs in a build without routing.
+    private val speechAvailability: suspend () -> SpeechAvailability? = { null },
 ) : ViewModel() {
     // VM-local export progress folded into the derived UiState below; every
     // other UiState field mirrors a persisted store, the updater's state aside.
@@ -301,22 +308,48 @@ internal class SettingsViewModel(
             )
         }.distinctUntilChanged()
 
+    // The engines' answer, null until asked; see [askSpeechOnce].
+    private val speech = MutableStateFlow<SpeechAvailability?>(null)
+    private var speechAsked = false
+
+    // Asked the first time the Navigation category is offered, not at construction, so that a build or a screen
+    // without it never starts an engine; the answer stands for the life of this view model.
+    private fun askSpeechOnce() {
+        if (!speechAsked) {
+            speechAsked = true
+            viewModelScope.launch {
+                speech.value =
+                    try {
+                        speechAvailability()
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "text-to-speech engines not asked: ${e.javaClass.simpleName}")
+                        null
+                    }
+            }
+        }
+    }
+
     // The Navigation rows, one per setting of the navigation store.
     private val navigation: Flow<NavigationSettingsUi> =
-        navigationPreferences.settings
-            .catchAsDefault(TAG, "navigation settings", NavigationSettings.Default)
-            .map { settings ->
-                NavigationSettingsUi(
-                    rerouteAutomatically = settings.rerouteAutomatically,
-                    suggestOtherRoutes = settings.suggestOtherRoutes,
-                    restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
-                    routeRowTime = settings.routeRowTime,
-                    vehicleOnRouteLine = settings.vehicleOnRouteLine,
-                    turnCard = settings.turnCard,
-                    turnCardNextAfter = settings.turnCardNextAfter,
-                    turnCardStraight = settings.turnCardStraight,
-                )
-            }.distinctUntilChanged()
+        combine(
+            navigationPreferences.settings.catchAsDefault(TAG, "navigation settings", NavigationSettings.Default),
+            speech,
+        ) { settings, speechAnswer ->
+            NavigationSettingsUi(
+                rerouteAutomatically = settings.rerouteAutomatically,
+                suggestOtherRoutes = settings.suggestOtherRoutes,
+                restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
+                routeRowTime = settings.routeRowTime,
+                vehicleOnRouteLine = settings.vehicleOnRouteLine,
+                turnCard = settings.turnCard,
+                turnCardNextAfter = settings.turnCardNextAfter,
+                turnCardStraight = settings.turnCardStraight,
+                spokenPrompts = settings.spokenPrompts,
+                speech = speechAnswer,
+            )
+        }.distinctUntilChanged()
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.
@@ -330,7 +363,10 @@ internal class SettingsViewModel(
             // routing data's directory read.
             combine(
                 video,
-                routingData.onStart { emit(null) }.catchAsDefault(TAG, "routing data", null),
+                routingData
+                    .onStart { emit(null) }
+                    .catchAsDefault(TAG, "routing data", null)
+                    .onEach { if (it != null) askSpeechOnce() },
                 navigation,
                 ::Triple,
             ),
@@ -661,6 +697,10 @@ internal class SettingsViewModel(
                     navigationPreferences.setTurnCardStraight(action.value)
                 }
 
+                is SettingsAction.SetSpokenPrompts -> {
+                    navigationPreferences.setSpokenPrompts(action.value)
+                }
+
                 SettingsAction.CheckForUpdates -> {
                     updater.checkNow()
                 }
@@ -884,6 +924,9 @@ internal class SettingsViewModelFactory(
                     // it never creates the store.
                     installed = { RoutingTileStore.get(application).installed },
                 ),
+            // Reached only where the Navigation category is offered, so a build without routing never creates the
+            // speaker.
+            speechAvailability = { TurnSpeaker.get(application).availability() },
         ) as T
     }
 

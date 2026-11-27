@@ -23,6 +23,7 @@ import io.github.seijikohara.femto.data.routing.CandidateFinder
 import io.github.seijikohara.femto.data.routing.CandidateSearch
 import io.github.seijikohara.femto.data.routing.CandidateSearchEnding
 import io.github.seijikohara.femto.data.routing.InstalledRoutingTile
+import io.github.seijikohara.femto.data.routing.NavigationPreferences
 import io.github.seijikohara.femto.data.routing.RerouteStats
 import io.github.seijikohara.femto.data.routing.Rerouter
 import io.github.seijikohara.femto.data.routing.RouteConditions
@@ -35,7 +36,12 @@ import io.github.seijikohara.femto.data.routing.RouteRunOutcome
 import io.github.seijikohara.femto.data.routing.RoutingTileStore
 import io.github.seijikohara.femto.data.voice.EnglishVoice
 import io.github.seijikohara.femto.data.voice.PlatformSpeechEnginePort
+import io.github.seijikohara.femto.data.voice.PromptOutcome
+import io.github.seijikohara.femto.data.voice.SpeakerStatus
+import io.github.seijikohara.femto.data.voice.SpeakerUnavailable
 import io.github.seijikohara.femto.data.voice.SpeechEngine
+import io.github.seijikohara.femto.data.voice.SpokenPrompt
+import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import io.github.seijikohara.femto.data.voice.speechEngines
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -148,6 +154,19 @@ internal data class RoutingFacts(
     val activeTurnCount: Int? = null,
     /** The text-to-speech engines spoken turn prompts would need; null when they were not asked. */
     val speechEngines: List<SpeechEngine>? = null,
+    /** The spoken turn prompts; null when the build offers no routing, which never creates the speaker. */
+    val voice: VoiceFacts? = null,
+)
+
+/**
+ * Where the spoken turn prompts stand: whether the settings ask for them ([wanted]: the turn card and its spoken
+ * prompts are both on), the speaker's [status], and the last prompt handed to it. With no emulator sound, the last
+ * prompt is how one is checked there.
+ */
+internal data class VoiceFacts(
+    val wanted: Boolean,
+    val status: SpeakerStatus,
+    val lastPrompt: SpokenPrompt?,
 )
 
 // Of the route, counts, sizes and times only: a tile name says where the owner drives, and a routing engine's message
@@ -211,6 +230,43 @@ private fun routingFacts(
         // device, so it has to be readable before any build speaks. No engine is the normal case on a head unit
         // (Android 13 ships none of its own), so it is a plain value and never a warning.
         facts.speechEngines?.let { add(DiagnosticFact("Text-to-speech", FactValue.Text(it.summary()))) }
+        // The prompt's label names its stage and a rounded distance, never the manoeuvre: where the vehicle is going
+        // stays out of the report, as it does in the route facts.
+        facts.voice?.let { add(DiagnosticFact("Voice", FactValue.Text(it.summary()))) }
+    }
+
+private fun VoiceFacts.summary(): String =
+    when {
+        !wanted -> "off in Settings"
+        else -> status.summary(lastPrompt)
+    }
+
+private fun SpeakerStatus.summary(lastPrompt: SpokenPrompt?): String =
+    when (this) {
+        SpeakerStatus.Closed -> "on, no route followed"
+        SpeakerStatus.Opening -> "opening the engine"
+        is SpeakerStatus.Ready -> "$enginePackage; ${lastPrompt?.words() ?: "no prompt yet"}"
+        is SpeakerStatus.Unavailable -> "cannot speak: ${reason.words()}"
+    }
+
+private fun SpokenPrompt.words(): String = "last prompt: $label, ${outcome.words()}"
+
+private fun SpeakerUnavailable.words(): String =
+    when (this) {
+        SpeakerUnavailable.NO_ENGINE -> "no engine"
+        SpeakerUnavailable.NO_ENGLISH -> "no English voice"
+        SpeakerUnavailable.DID_NOT_START -> "the engine did not start"
+    }
+
+// A prompt still playing has no outcome yet.
+private fun PromptOutcome?.words(): String =
+    when (this) {
+        null -> "playing"
+        PromptOutcome.PLAYED -> "played"
+        PromptOutcome.CUT_SHORT -> "cut short"
+        PromptOutcome.NO_SOUND -> "no sound granted"
+        PromptOutcome.ENGINE_REFUSED -> "refused by the engine"
+        PromptOutcome.NOT_READY -> "engine not ready"
     }
 
 // "com.example.tts (default): English available; com.example.other: no English". An engine is named by its package,
@@ -590,6 +646,18 @@ internal class MapFactsCollector(
             routeActive = activeRoute != null,
             activeTurnCount = activeRoute?.route?.turns?.size,
             speechEngines = speechEngines(PlatformSpeechEnginePort(context)),
+            // Read only in a build with routing, so the others never create the speaker.
+            voice = if (enabled) voiceFacts() else null,
+        )
+    }
+
+    private suspend fun voiceFacts(): VoiceFacts {
+        val navigation = NavigationPreferences(context).settings.first()
+        val speaker = TurnSpeaker.get(context)
+        return VoiceFacts(
+            wanted = navigation.turnCard && navigation.spokenPrompts,
+            status = speaker.status.value,
+            lastPrompt = speaker.lastPrompt.value,
         )
     }
 }

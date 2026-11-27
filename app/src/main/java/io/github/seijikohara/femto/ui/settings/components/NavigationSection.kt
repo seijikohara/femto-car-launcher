@@ -1,18 +1,20 @@
 package io.github.seijikohara.femto.ui.settings.components
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import io.github.seijikohara.femto.R
 import io.github.seijikohara.femto.data.routing.RouteRowTime
+import io.github.seijikohara.femto.data.voice.SpeechAvailability
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
 
 // The Navigation category's rows (issue #389): what the route preview does
 // besides the line on the map, which no switch here turns off, and under
-// Guidance what the turn card shows, its two refinements only while it is on,
-// and how the map draws the vehicle along the route. Settings lists the
+// Guidance what the turn card shows, its two refinements and the spoken prompts
+// only while it is on, and how the map draws the vehicle along the route. Settings lists the
 // category only where routing is offered (visibleSettingsCategories). See
 // AppearanceSection's header comment on why there is no title / reset wiring
 // here.
@@ -93,6 +95,19 @@ internal fun NavigationSection(
                 summary = stringResource(R.string.settings_navigation_turn_card_straight_desc),
             )
         }
+        animatedItem(visible = uiState.navigation.turnCard) { shapes ->
+            // Without a usable voice the switch stays off whatever is stored, so it never promises prompts that
+            // cannot come; the stored value returns when a voice does.
+            val speaks = uiState.navigation.speech.canSpeak
+            SwitchRow(
+                title = stringResource(R.string.settings_navigation_spoken_prompts),
+                checked = uiState.navigation.spokenPrompts && speaks,
+                onCheckedChange = { onAction(SettingsAction.SetSpokenPrompts(it)) },
+                shapes = shapes,
+                summary = stringResource(uiState.navigation.speech.summaryRes),
+                enabled = speaks,
+            )
+        }
         item { shapes ->
             SwitchRow(
                 title = stringResource(R.string.settings_navigation_vehicle_on_line),
@@ -104,3 +119,16 @@ internal fun NavigationSection(
         }
     }
 }
+
+// An engine that has not been asked about yet, or has an English voice, leaves the switch working.
+private val SpeechAvailability?.canSpeak: Boolean
+    get() = this == null || this is SpeechAvailability.Ready
+
+@get:StringRes
+private val SpeechAvailability?.summaryRes: Int
+    get() =
+        when (this) {
+            SpeechAvailability.NoEngine -> R.string.settings_navigation_spoken_prompts_no_engine
+            SpeechAvailability.NoEnglish -> R.string.settings_navigation_spoken_prompts_no_english
+            else -> R.string.settings_navigation_spoken_prompts_desc
+        }

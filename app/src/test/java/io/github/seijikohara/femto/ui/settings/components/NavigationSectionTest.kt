@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.settings.components
 
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import io.github.seijikohara.femto.data.routing.RouteRowTime
+import io.github.seijikohara.femto.data.voice.SpeechAvailability
 import io.github.seijikohara.femto.ui.settings.NavigationSettingsUi
 import io.github.seijikohara.femto.ui.settings.SettingsAction
 import io.github.seijikohara.femto.ui.settings.SettingsUiState
@@ -25,8 +28,9 @@ import kotlin.test.assertEquals
 /**
  * The Navigation category's rows (issue #389): three switches for what the route preview does besides the line on the
  * map, each on by default, the route row's time, the arrival time by default, and under Guidance the turn card's three
- * switches, its two refinements shown only while the card is on, and the switch that draws the vehicle on the line, on
- * by default. Each row reports its own action.
+ * switches, its two refinements and the Spoken prompts switch shown only while the card is on, and the switch that
+ * draws the vehicle on the line, on by default. The Spoken prompts switch is disabled, and reads off, where the device
+ * has no engine or no English voice. Each row reports its own action.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [33], qualifiers = "w853dp-h1600dp-mdpi")
@@ -61,6 +65,7 @@ class NavigationSectionTest {
         rule.onNodeWithText(TURN_CARD).assertIsOn()
         rule.onNodeWithText(NEXT_AFTER).assertIsOn()
         rule.onNodeWithText(STRAIGHT).assertIsOff()
+        rule.onNodeWithText(SPOKEN).assertIsOn()
     }
 
     @Test
@@ -75,6 +80,7 @@ class NavigationSectionTest {
                 turnCard = true,
                 turnCardNextAfter = false,
                 turnCardStraight = true,
+                spokenPrompts = false,
             ),
         )
 
@@ -86,6 +92,7 @@ class NavigationSectionTest {
         rule.onNodeWithText(TURN_CARD).assertIsOn()
         rule.onNodeWithText(NEXT_AFTER).assertIsOff()
         rule.onNodeWithText(STRAIGHT).assertIsOn()
+        rule.onNodeWithText(SPOKEN).assertIsOff()
     }
 
     @Test
@@ -99,6 +106,7 @@ class NavigationSectionTest {
         rule.onNodeWithText(VEHICLE_ON_LINE).performClick()
         rule.onNodeWithText(NEXT_AFTER).performClick()
         rule.onNodeWithText(STRAIGHT).performClick()
+        rule.onNodeWithText(SPOKEN).performClick()
         rule.onNodeWithText(TURN_CARD).performClick()
 
         assertEquals(
@@ -110,6 +118,7 @@ class NavigationSectionTest {
                 SettingsAction.SetVehicleOnRouteLine(false),
                 SettingsAction.SetTurnCardNextAfter(false),
                 SettingsAction.SetTurnCardStraight(true),
+                SettingsAction.SetSpokenPrompts(false),
                 SettingsAction.SetTurnCard(false),
             ),
             actions,
@@ -118,12 +127,13 @@ class NavigationSectionTest {
 
     // The two refine the card, so with it off there is nothing for them to change.
     @Test
-    fun `the turn card's two refinements show only while the card is on`() {
+    fun `the turn card's refinements and the spoken prompts show only while the card is on`() {
         setSection(NavigationSettingsUi.Initial.copy(turnCard = false))
 
         rule.onNodeWithText(TURN_CARD).assertIsOff()
         rule.onAllNodesWithText(NEXT_AFTER).assertCountEquals(0)
         rule.onAllNodesWithText(STRAIGHT).assertCountEquals(0)
+        rule.onAllNodesWithText(SPOKEN).assertCountEquals(0)
     }
 
     @Test
@@ -131,7 +141,7 @@ class NavigationSectionTest {
         setSection()
 
         val tops =
-            listOf("Guidance", TURN_CARD, NEXT_AFTER, STRAIGHT, VEHICLE_ON_LINE).map {
+            listOf("Guidance", TURN_CARD, NEXT_AFTER, STRAIGHT, SPOKEN, VEHICLE_ON_LINE).map {
                 rule.onNodeWithText(it).getUnclippedBoundsInRoot().top
             }
         assertEquals(tops.sorted(), tops)
@@ -147,6 +157,50 @@ class NavigationSectionTest {
             .onNodeWithText(
                 "Draw the vehicle on the route line while it drives along it. Off draws it at the GPS position.",
             ).assertExists()
+    }
+
+    // An engine not asked about yet must not lock the switch: the answer takes seconds on a cold engine.
+    @Test
+    fun `the spoken prompts switch works before the engines have been asked`() {
+        setSection()
+
+        rule.onNodeWithText(SPOKEN).assertIsEnabled()
+        rule.onNodeWithText(SPOKEN_DESC).assertExists()
+    }
+
+    @Test
+    fun `the spoken prompts switch works where an engine speaks English`() {
+        setSection(NavigationSettingsUi.Initial.copy(speech = SpeechAvailability.Ready("com.example.tts")))
+
+        rule.onNodeWithText(SPOKEN).assertIsEnabled()
+        rule.onNodeWithText(SPOKEN_DESC).assertExists()
+    }
+
+    @Test
+    fun `with no engine the spoken prompts switch is disabled, reads off and says why`() {
+        setSection(NavigationSettingsUi.Initial.copy(speech = SpeechAvailability.NoEngine))
+
+        rule.onNodeWithText(SPOKEN).assertIsNotEnabled()
+        rule.onNodeWithText(SPOKEN).assertIsOff()
+        rule.onNodeWithText("This device has no text-to-speech engine.").assertExists()
+    }
+
+    @Test
+    fun `with no English voice the spoken prompts switch is disabled, reads off and says why`() {
+        setSection(NavigationSettingsUi.Initial.copy(speech = SpeechAvailability.NoEnglish))
+
+        rule.onNodeWithText(SPOKEN).assertIsNotEnabled()
+        rule.onNodeWithText(SPOKEN).assertIsOff()
+        rule.onNodeWithText("No text-to-speech engine on this device has an English voice.").assertExists()
+    }
+
+    @Test
+    fun `a disabled spoken prompts switch reports nothing`() {
+        setSection(NavigationSettingsUi.Initial.copy(speech = SpeechAvailability.NoEngine))
+
+        rule.onNodeWithText(SPOKEN).performClick()
+
+        assertEquals(emptyList(), actions)
     }
 
     @Test
@@ -169,5 +223,8 @@ class NavigationSectionTest {
         const val TURN_CARD = "Turn card"
         const val NEXT_AFTER = "Show the turn after next"
         const val STRAIGHT = "Show \"Continue straight\""
+        const val SPOKEN = "Spoken prompts"
+        const val SPOKEN_DESC =
+            "Say each turn before it comes, in English, through this device's text-to-speech engine."
     }
 }

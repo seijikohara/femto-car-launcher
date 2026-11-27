@@ -30,6 +30,7 @@ import io.github.seijikohara.femto.data.routing.RouteRowTime
 import io.github.seijikohara.femto.data.update.UpdateFailure
 import io.github.seijikohara.femto.data.update.UpdateSettings
 import io.github.seijikohara.femto.data.update.UpdateState
+import io.github.seijikohara.femto.data.voice.SpeechAvailability
 import io.github.seijikohara.femto.testfixtures.FakeCalendarPreferencesStore
 import io.github.seijikohara.femto.testfixtures.FakeDisplaySettingsStore
 import io.github.seijikohara.femto.testfixtures.FakeDockSettingsStore
@@ -647,6 +648,52 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `SetSpokenPrompts writes the value to the navigation store`() =
+        runTest(dispatcher) {
+            viewModel().onAction(SettingsAction.SetSpokenPrompts(false))
+            advanceUntilIdle()
+            assertEquals(false, navigationStore.current.spokenPrompts)
+        }
+
+    // Each engine is started for the question, a cold one with its whole process: once per view model, and only for a
+    // screen that offers the Navigation category.
+    @Test
+    fun `the engines are asked once where the Navigation category is offered and the answer reaches its rows`() =
+        runTest(dispatcher) {
+            var asked = 0
+            val summary = RoutingDataSummary(tileCount = 2, totalBytes = 144_000_000L)
+            val vm =
+                viewModel(
+                    routingData = flowOf(summary, summary.copy(tileCount = 3)),
+                    speechAvailability = {
+                        asked++
+                        SpeechAvailability.NoEnglish
+                    },
+                )
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            assertEquals(Pair(1, SpeechAvailability.NoEnglish), Pair(asked, vm.uiState.value.navigation.speech))
+        }
+
+    @Test
+    fun `the engines are not asked where routing is not offered`() =
+        runTest(dispatcher) {
+            var asked = 0
+            val vm =
+                viewModel(
+                    speechAvailability = {
+                        asked++
+                        SpeechAvailability.NoEngine
+                    },
+                )
+            backgroundScope.launch { vm.uiState.collect { } }
+            advanceUntilIdle()
+
+            assertEquals(Pair(0, null), Pair(asked, vm.uiState.value.navigation.speech))
+        }
+
+    @Test
     fun `the navigation rows mirror the navigation store`() =
         runTest(dispatcher) {
             val vm = viewModel()
@@ -660,6 +707,7 @@ class SettingsViewModelTest {
             navigationStore.setTurnCard(false)
             navigationStore.setTurnCardNextAfter(false)
             navigationStore.setTurnCardStraight(true)
+            navigationStore.setSpokenPrompts(false)
             advanceUntilIdle()
 
             assertEquals(
@@ -670,6 +718,7 @@ class SettingsViewModelTest {
                     turnCard = false,
                     turnCardNextAfter = false,
                     turnCardStraight = true,
+                    spokenPrompts = false,
                 ),
                 vm.uiState.value.navigation,
             )
@@ -1840,6 +1889,7 @@ class SettingsViewModelTest {
         updaterPort: UpdaterPort = updater,
         offlineRegionsAvailable: Boolean = false,
         routingData: Flow<RoutingDataSummary?> = flowOf(null),
+        speechAvailability: suspend () -> SpeechAvailability? = { null },
     ) = fakeSettingsViewModel(
         displayPreferences = store,
         fontPreferences = fontStore,
@@ -1854,6 +1904,7 @@ class SettingsViewModelTest {
         offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = dispatcher,
         routingData = routingData,
+        speechAvailability = speechAvailability,
     )
 
     private companion object {

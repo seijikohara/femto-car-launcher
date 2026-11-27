@@ -1,5 +1,6 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
@@ -36,14 +37,53 @@ internal fun turnDistance(
     meters: Double,
     speedUnit: SpeedUnit,
     locale: Locale = Locale.getDefault(),
-): Pair<String, String> {
+): Pair<String, String> =
+    roundedDistance(meters, speedUnit, locale).let { rounded ->
+        rounded.value to if (rounded.long) speedUnit.distanceLabel() else speedUnit.shortDistanceLabel()
+    }
+
+/**
+ * Return the same distance as [turnDistance], rounded the same way, for a spoken sentence: the value with a dot as its
+ * separator whatever the locale, since the sentence is English, and the unit spelled out ("metres", "feet",
+ * "kilometres", "miles"), which an engine reads where it would spell "m" or "ft" letter by letter.
+ */
+internal fun spokenTurnDistance(
+    meters: Double,
+    speedUnit: SpeedUnit,
+    resources: Resources,
+): Pair<String, String> =
+    roundedDistance(meters, speedUnit, Locale.ROOT).let { rounded ->
+        rounded.value to resources.getString(spokenUnitRes(speedUnit, rounded.long))
+    }
+
+// A rounded distance and whether it reads in the long unit (kilometres or miles) rather than the short one.
+private data class RoundedDistance(
+    val value: String,
+    val long: Boolean,
+)
+
+private fun roundedDistance(
+    meters: Double,
+    speedUnit: SpeedUnit,
+    locale: Locale,
+): RoundedDistance {
     val short = speedUnit.shortDistanceFromMeters(meters.coerceAtLeast(0.0))
     val step = if (short < FINE_STEP_BELOW) FINE_STEP else COARSE_STEP
     return ((short / step).roundToLong() * step)
         .takeIf { it < SHORT_DISTANCE_UP_TO }
-        ?.let { rounded -> cardNumber(rounded.toDouble(), decimals = 0, locale) to speedUnit.shortDistanceLabel() }
-        ?: (longDistanceValue(meters, speedUnit, locale) to speedUnit.distanceLabel())
+        ?.let { rounded -> RoundedDistance(cardNumber(rounded.toDouble(), decimals = 0, locale), long = false) }
+        ?: RoundedDistance(longDistanceValue(meters, speedUnit, locale), long = true)
 }
+
+@StringRes
+private fun spokenUnitRes(
+    speedUnit: SpeedUnit,
+    long: Boolean,
+): Int =
+    when (speedUnit) {
+        SpeedUnit.KILOMETERS_PER_HOUR -> if (long) R.string.voice_unit_kilometres else R.string.voice_unit_metres
+        SpeedUnit.MILES_PER_HOUR -> if (long) R.string.voice_unit_miles else R.string.voice_unit_feet
+    }
 
 // A distance from 1,000 m or ft on, in kilometres or miles: tenths below ten units, whole units from there.
 private fun longDistanceValue(
@@ -83,13 +123,32 @@ internal fun cardNumber(
  */
 @Composable
 internal fun turnText(maneuver: TurnManeuver): String =
+    turnTextSpec(maneuver).let { spec -> stringResource(spec.res, *spec.args.toTypedArray()) }
+
+/** Return the same line of text as the composable [turnText], read from [resources], for a sentence that is spoken. */
+internal fun turnText(
+    maneuver: TurnManeuver,
+    resources: Resources,
+): String = turnTextSpec(maneuver).let { spec -> resources.getString(spec.res, *spec.args.toTypedArray()) }
+
+// A line of text as a string resource and the arguments it formats, which the card's composable and the spoken
+// sentence both resolve, each through its own way of reading a resource.
+private class TurnTextSpec(
+    @StringRes val res: Int,
+    val args: List<String>,
+)
+
+private fun turnTextSpec(maneuver: TurnManeuver): TurnTextSpec =
     when {
         maneuver is TurnManeuver.Turn && maneuver.kind.roundabout && maneuver.exitNumber > 0 -> {
-            stringResource(R.string.turn_card_roundabout_exit, cardNumber(maneuver.exitNumber.toDouble(), decimals = 0))
+            TurnTextSpec(
+                R.string.turn_card_roundabout_exit,
+                listOf(cardNumber(maneuver.exitNumber.toDouble(), decimals = 0)),
+            )
         }
 
         else -> {
-            stringResource(turnTextRes(maneuver))
+            TurnTextSpec(turnTextRes(maneuver), emptyList())
         }
     }
 

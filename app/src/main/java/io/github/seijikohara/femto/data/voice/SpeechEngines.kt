@@ -19,7 +19,7 @@ import java.util.Locale
 // A cold engine starts its process and sets itself up before it answers: 3.4 s on the emulator, and a head unit is
 // slower. Past this, the engine counts as silent: the diagnostics section that asks must not wait on a broken engine
 // for good, and a working engine must not read as a silent one.
-private const val ENGINE_ANSWER_TIMEOUT_MS = 10_000L
+internal const val ENGINE_ANSWER_TIMEOUT_MS = 10_000L
 
 /** What one text-to-speech engine said when asked for an English voice. */
 internal enum class EnglishVoice {

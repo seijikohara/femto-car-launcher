@@ -11,6 +11,7 @@ import io.github.seijikohara.femto.data.routing.NavigationSettingsStore
 import io.github.seijikohara.femto.data.update.UpdateSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSettingsStore
 import io.github.seijikohara.femto.data.video.VideoSourceGrants
+import io.github.seijikohara.femto.data.voice.SpeechAvailability
 import io.github.seijikohara.femto.ui.settings.RoutingDataSummary
 import io.github.seijikohara.femto.ui.settings.SettingsViewModel
 import io.github.seijikohara.femto.ui.settings.TrackLogPort
@@ -41,6 +42,7 @@ internal fun fakeSettingsViewModel(
     offlineRegionsAvailable: Boolean = false,
     ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     routingData: Flow<RoutingDataSummary?> = flowOf(null),
+    speechAvailability: suspend () -> SpeechAvailability? = { null },
 ): SettingsViewModel =
     SettingsViewModel(
         displayPreferences = displayPreferences,
@@ -59,4 +61,5 @@ internal fun fakeSettingsViewModel(
         offlineRegionsAvailable = offlineRegionsAvailable,
         ioDispatcher = ioDispatcher,
         routingData = routingData,
+        speechAvailability = speechAvailability,
     )

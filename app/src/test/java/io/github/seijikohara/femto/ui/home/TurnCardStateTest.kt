@@ -13,8 +13,19 @@ class TurnCardStateTest {
     @Test
     fun `the first turn ahead is the manoeuvre, at its distance`() {
         assertEquals(
-            TurnCardState(maneuver = TurnManeuver.Turn(TurnKind.LEFT), distanceMeters = 300.0),
+            TurnCardState(maneuver = TurnManeuver.Turn(TurnKind.LEFT), distanceMeters = 300.0, pointIndex = 0),
             stateOrNull(listOf(upcoming(TurnKind.LEFT, 300.0), upcoming(TurnKind.RIGHT, 900.0))),
+        )
+    }
+
+    @Test
+    fun `the card carries the announced turn's point index, and none for the destination`() {
+        assertEquals(
+            listOf<Int?>(42, null),
+            listOf(
+                stateOrNull(listOf(upcoming(TurnKind.LEFT, 300.0, pointIndex = 42)))?.pointIndex,
+                stateOrNull(emptyList())?.pointIndex,
+            ),
         )
     }
 
@@ -141,6 +152,7 @@ class TurnCardStateTest {
                 maneuver = TurnManeuver.Turn(TurnKind.LEFT),
                 distanceMeters = 180.0,
                 then = TurnManeuver.Turn(TurnKind.RIGHT),
+                pointIndex = 0,
             ),
             stateOrNull(listOf(upcoming(TurnKind.LEFT, 180.0), upcoming(TurnKind.RIGHT, 200.0))),
         )
@@ -206,8 +218,9 @@ class TurnCardStateTest {
         distanceMeters: Double,
         exitNumber: Int = 0,
         angleDegrees: Int = 0,
+        pointIndex: Int = 0,
     ) = UpcomingTurn(
-        turn = RouteTurn(pointIndex = 0, kind = kind, exitNumber = exitNumber, angleDegrees = angleDegrees),
+        turn = RouteTurn(pointIndex = pointIndex, kind = kind, exitNumber = exitNumber, angleDegrees = angleDegrees),
         distanceMeters = distanceMeters,
     )
 }

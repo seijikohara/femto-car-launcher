@@ -155,6 +155,7 @@ internal fun navigationSettingsFacts(navigation: NavigationSettings): List<Diagn
         entry("Turn card", "${navigation.turnCard}"),
         entry("Turn card next after", "${navigation.turnCardNextAfter}"),
         entry("Turn card straight", "${navigation.turnCardStraight}"),
+        entry("Spoken prompts", "${navigation.spokenPrompts}"),
     )
 
 private fun entry(
