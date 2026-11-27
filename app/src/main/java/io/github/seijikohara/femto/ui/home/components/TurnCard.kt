@@ -57,6 +57,7 @@ import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.unitLabel
+import kotlin.math.roundToInt
 
 /**
  * The turn card (issue #389 phase 4): the next turn over the map while a route is followed. The turn's arrow, then its
@@ -80,7 +81,7 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  *
  * The tap target is the card at least [FemtoDimens.MinTouchTarget] tall, and the card's own size is not changed for
  * it: the compact form without the turn after next is 56 dp tall, and the switch is a node that measures 64 dp tall,
- * with the card centred in it, while it reports the card's own height to its parent ([touchHeightAtLeast]). A touch up
+ * with the card centred in it, while it reports the card's own height to its parent ([TouchHeightAtLeastFloor]). A touch up
  * to 4 dp beyond the card's top or bottom edge is then a direct hit on the switch. The full form (88 dp or more) and
  * the compact form with the turn after next (64 dp) reach the floor themselves, and a card without the control is
  * drawn as before, with no switch and no growth.
@@ -128,7 +129,7 @@ internal fun TurnCard(
                 modifier
                     // Before the growth, so the node's bounds for the semantics tree are the card's own.
                     .withSemantics()
-                    .touchHeightAtLeast(FemtoDimens.MinTouchTarget)
+                    .then(TouchHeightAtLeastFloor)
                     .toggleable(
                         value = spoken,
                         interactionSource = interactionSource,
@@ -163,18 +164,23 @@ internal fun TurnCard(
     }
 }
 
-// Measure the node at least [min] tall, centre what it wraps in that, and report the height it would have had without
-// it, coerced into the incoming constraints: the node reaches as far above and below its reported bounds as the
-// card is short, which makes a touch just beyond them a direct hit, while the parent lays the card out as ever.
+// Measure the node at least [FemtoDimens.MinTouchTarget] tall, centre what it wraps in that, and report the height it
+// would have had without it, coerced into the incoming constraints: the node reaches as far above and below its
+// reported bounds as the card is short, which makes a touch just beyond them a direct hit, while the parent lays the
+// card out as ever. One instance for the file, so that a recomposition of the card does not make a new layout modifier
+// and measure again.
 //
 // A card measured taller than the floor was not grown, so its measured height is its own. Only a card at the floor
 // needs its natural height asked for, the wrapped content's minimum intrinsic height at the width given: that is the
 // compact forms, whose lines are pinned to their line boxes, so the intrinsic height is the measured one
 // (TurnCardTest). The full form never takes this path, and a difference between the two could not misplace it.
-private fun Modifier.touchHeightAtLeast(min: Dp): Modifier =
-    layout { measurable, constraints ->
-        val floor = min.roundToPx()
-        val natural = measurable.minIntrinsicHeight(constraints.maxWidth)
+//
+// The wrapped Box centres the card (`own` tall) in what it was measured at, rounding a half pixel up; the content is
+// placed back by that much and then centred in the reported height the same way, so that the card lands where it
+// would without the growth, to the pixel.
+private val TouchHeightAtLeastFloor: Modifier =
+    Modifier.layout { measurable, constraints ->
+        val floor = FemtoDimens.MinTouchTarget.roundToPx()
         val placeable =
             measurable.measure(
                 constraints.copy(
@@ -182,9 +188,16 @@ private fun Modifier.touchHeightAtLeast(min: Dp): Modifier =
                     maxHeight = maxOf(constraints.maxHeight, floor),
                 ),
             )
-        val own = if (placeable.height > floor) placeable.height else minOf(natural, placeable.height)
+        val own =
+            if (placeable.height > floor) {
+                placeable.height
+            } else {
+                minOf(measurable.minIntrinsicHeight(constraints.maxWidth), placeable.height)
+            }
         val reported = own.coerceIn(constraints.minHeight, constraints.maxHeight)
-        layout(placeable.width, reported) { placeable.place(0, (reported - placeable.height) / 2) }
+        val insideMeasured = ((placeable.height - own) / 2f).roundToInt()
+        val insideReported = ((reported - own) / 2f).roundToInt()
+        layout(placeable.width, reported) { placeable.place(0, insideReported - insideMeasured) }
     }
 
 /** The turn card's forms, in the order the card tries them. */
@@ -465,8 +478,8 @@ private fun ThenColumn(
 }
 
 /**
- * The speaker's size and its inset from the card's end edge. Every form pads its content [CardPaddingHorizontal] (16 dp)
- * from the end edge, so the strip between the content and the edge is free in all three forms, at every geometry and
+ * The speaker's size and its inset from the card's end edge. Every form pads its content [CardPaddingHorizontal]
+ * (16 dp) from the end edge, so the strip between the content and the edge is free in all three forms, at every geometry and
  * Display size (the padding is a dp, scaled with everything else, and no font touches it). The speaker's box takes
  * 1 dp + 14 dp of it from the edge, leaving 1 dp between the box and the content, and more to the ink, which a Lucide
  * icon draws 2/24 of its size in from the box. It sits at the card's vertical centre, where the card's rounded corners

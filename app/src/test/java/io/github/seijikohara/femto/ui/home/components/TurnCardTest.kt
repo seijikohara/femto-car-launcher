@@ -1,12 +1,20 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -252,6 +260,131 @@ class TurnCardTest {
         card.touchAt(card.getUnclippedBoundsInRoot().height / 2)
 
         assertEquals(0, taps)
+    }
+
+    // The inner box is centred by the Box's alignment, which rounds a half pixel up, and the node places it back by the
+    // same amount: at a density where the floor and the card differ by an odd number of pixels the card must not sit a
+    // pixel low.
+    @Test
+    fun `the card's top edge is where it is without the control at every density, odd differences included`() {
+        var density by mutableFloatStateOf(1f)
+        var voice by mutableStateOf(false)
+        rule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density)) {
+                FemtoTheme {
+                    Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                        CompactCard(voice, Modifier.fillMaxWidth().testTag(CARD))
+                    }
+                }
+            }
+        }
+
+        val tops =
+            listOf(1f, 1.1f, 1.25f, 1.3f, 1.5f, 1.75f, 2f).map { next ->
+                density = next
+                voice = false
+                rule.waitForIdle()
+                val without = rule
+                    .onNodeWithText("300", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .positionInRoot.y
+                voice = true
+                rule.waitForIdle()
+                val with = rule
+                    .onNodeWithText("300", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .positionInRoot.y
+                val cardPx = rule
+                    .onNodeWithTag(CARD)
+                    .fetchSemanticsNode()
+                    .size.height
+                Triple(without, with, (Math.round(64 * next) - cardPx) % 2 != 0)
+            }
+
+        assertEquals(
+            tops.map { it.first },
+            tops.map { it.second },
+            "the top of the card's text with and without the control",
+        )
+        assertEquals(true, tops.any { it.third }, "at least one density gives an odd difference")
+    }
+
+    // --- Unusual constraints -----------------------------------------------------------------------------------
+
+    @Test
+    fun `a fixed height equal to the card's own leaves it as it is`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    CompactCard(voice = true, modifier = Modifier.fillMaxWidth().height(56.dp).testTag(CARD))
+                }
+            }
+        }
+
+        assertEquals(56.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    @Test
+    fun `a maximum height under the floor and over the card's own leaves it as it is`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    CompactCard(voice = true, modifier = Modifier.fillMaxWidth().heightIn(max = 60.dp).testTag(CARD))
+                }
+            }
+        }
+
+        assertEquals(56.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    @Test
+    fun `an unbounded height gives the card's own`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    CompactCard(
+                        voice = true,
+                        modifier = Modifier.fillMaxWidth().wrapContentHeight(unbounded = true).testTag(CARD),
+                    )
+                }
+            }
+        }
+
+        assertEquals(56.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    // A parent that sizes itself by this node's intrinsic height gets the card's own, not the grown one.
+    @Test
+    fun `a parent asking for the intrinsic height gets the card's own`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min).testTag(ROW)) {
+                        CompactCard(voice = true, modifier = Modifier.weight(1f).testTag(CARD))
+                        Box(modifier = Modifier.width(8.dp).fillMaxHeight())
+                    }
+                }
+            }
+        }
+
+        assertEquals(
+            Pair(56.dp, 56.dp),
+            rule.onNodeWithTag(ROW).getUnclippedBoundsInRoot().height to
+                rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height,
+        )
+    }
+
+    // The compact card for the turn without the one after it, with or without the control.
+    @Composable
+    private fun CompactCard(
+        voice: Boolean,
+        modifier: Modifier = Modifier,
+    ) {
+        val state = if (voice) TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true) else TurnCardFixtures.turn
+        val sizes = rememberTurnCardSizes(state, SpeedUnit.KILOMETERS_PER_HOUR)
+        sizes.formOrNull(TurnCardMinWidth, BELOW_FULL)?.let { form ->
+            TurnCard(state = state, speedUnit = SpeedUnit.KILOMETERS_PER_HOUR, form = form, modifier = modifier)
+        }
     }
 
     // The speaker is drawn over the box, so no form may measure larger for it.
@@ -629,6 +762,7 @@ class TurnCardTest {
 
     private companion object {
         const val CARD = "turn-card"
+        const val ROW = "turn-card-row"
         const val VOICE = DashboardTags.TURN_CARD_VOICE
 
         // The end padding every form keeps beside its content (CardPaddingHorizontal).
