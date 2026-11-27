@@ -119,9 +119,9 @@ class TurnPromptsTest {
 
     @Test
     fun `the same point index under another follow resets the memory`() {
-        val first = TurnPromptMemory().step(followId = 1, card = turn(pointIndex = 5, meters = 60.0), speedMetersPerSecond = 13.9)
-        val sameFollow = first.memory.step(followId = 1, card = turn(pointIndex = 5, meters = 50.0), speedMetersPerSecond = 13.9)
-        val newFollow = first.memory.step(followId = 2, card = turn(pointIndex = 5, meters = 50.0), speedMetersPerSecond = 13.9)
+        val first = TurnPromptMemory().at(turn(pointIndex = 5, meters = 60.0))
+        val sameFollow = first.memory.at(turn(pointIndex = 5, meters = 50.0))
+        val newFollow = first.memory.at(turn(pointIndex = 5, meters = 50.0), followId = 2)
         assertEquals(
             listOf(null, TurnPromptStage.FINAL),
             listOf(sameFollow.prompt?.stage, newFollow.prompt?.stage),
@@ -130,9 +130,9 @@ class TurnPromptsTest {
 
     @Test
     fun `a null card says nothing and keeps the memory`() {
-        val spoken = TurnPromptMemory().step(followId = 1, card = turn(meters = 60.0), speedMetersPerSecond = 13.9)
-        val hidden = spoken.memory.step(followId = 1, card = null, speedMetersPerSecond = 13.9)
-        val shownAgain = hidden.memory.step(followId = 1, card = turn(meters = 50.0), speedMetersPerSecond = 13.9)
+        val spoken = TurnPromptMemory().at(turn(meters = 60.0))
+        val hidden = spoken.memory.at(card = null)
+        val shownAgain = hidden.memory.at(turn(meters = 50.0))
         assertEquals(
             Triple(null, spoken.memory, null),
             Triple(hidden.prompt, hidden.memory, shownAgain.prompt),
@@ -149,10 +149,10 @@ class TurnPromptsTest {
 
     @Test
     fun `the destination is a turn of its own`() {
-        val atTurn = TurnPromptMemory().step(followId = 1, card = turn(pointIndex = 5, meters = 60.0), speedMetersPerSecond = 13.9)
+        val atTurn = TurnPromptMemory().at(turn(pointIndex = 5, meters = 60.0))
         assertEquals(
             TurnPromptStage.FINAL,
-            atTurn.memory.step(followId = 1, card = arrive(meters = 40.0), speedMetersPerSecond = 13.9).prompt?.stage,
+            atTurn.memory.at(arrive(meters = 40.0)).prompt?.stage,
         )
     }
 
@@ -166,13 +166,13 @@ class TurnPromptsTest {
                 distanceMeters = 60.0,
                 then = TurnManeuver.Turn(TurnKind.RIGHT),
             ),
-            TurnPromptMemory().step(followId = 1, card = card, speedMetersPerSecond = 13.9).prompt,
+            TurnPromptMemory().at(card).prompt,
         )
     }
 
     @Test
     fun `no prompt is due while the turn is out of range`() {
-        assertNull(TurnPromptMemory().step(followId = 1, card = turn(meters = 5_000.0), speedMetersPerSecond = 13.9).prompt)
+        assertNull(TurnPromptMemory().at(turn(meters = 5_000.0)).prompt)
     }
 
     // A turn whose advance prompt is behind it, so that only the final lead is under test.
@@ -182,7 +182,14 @@ class TurnPromptsTest {
         meters: Double,
         speed: Double?,
         seen: TurnPromptMemory = TurnPromptMemory(),
-    ): TurnPromptStage? = seen.step(followId = 1, card = turn(meters = meters), speedMetersPerSecond = speed).prompt?.stage
+    ): TurnPromptStage? =
+        seen.step(followId = 1, card = turn(meters = meters), speedMetersPerSecond = speed).prompt?.stage
+
+    // One fix at 50 km/h.
+    private fun TurnPromptMemory.at(
+        card: TurnCardState?,
+        followId: Int = 1,
+    ) = step(followId, card, speedMetersPerSecond = 13.9)
 
     private fun stagesOf(
         vararg meters: Double,
