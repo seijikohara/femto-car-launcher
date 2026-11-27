@@ -31,6 +31,8 @@ internal data class TurnCardState(
     val distanceMeters: Double,
     /** The turn right after [maneuver], when it follows within [THEN_WITHIN_METERS]. */
     val then: TurnManeuver.Turn? = null,
+    /** The announced turn's [RouteTurn.pointIndex], which tells one turn from the next; null for the destination. */
+    val pointIndex: Int? = null,
 )
 
 /** The three Settings → Navigation switches the turn card follows. */
@@ -75,6 +77,7 @@ internal fun turnCardStateOrNull(
                                     it.distanceMeters - first.distanceMeters <= THEN_WITHIN_METERS
                             }?.turn
                             ?.maneuver(),
+                    pointIndex = first.turn.pointIndex,
                 )
             } ?: TurnCardState(maneuver = TurnManeuver.Arrive, distanceMeters = remainingMeters)
         }
