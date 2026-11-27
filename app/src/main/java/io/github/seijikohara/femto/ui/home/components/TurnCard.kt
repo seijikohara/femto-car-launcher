@@ -165,16 +165,16 @@ internal fun TurnCard(
 
 // Measure the node at least [min] tall, centre what it wraps in that, and report the height it would have had without
 // it, coerced into the incoming constraints: the node reaches as far above and below its reported bounds as the
-// card is short, which makes a touch just beyond them a direct hit, while the parent lays the card out as ever. The
-// natural height is the wrapped content's minimum intrinsic height at the width given, which equals the measured height
-// of each of the three forms (TurnCardTest).
+// card is short, which makes a touch just beyond them a direct hit, while the parent lays the card out as ever.
+//
+// A card measured taller than the floor was not grown, so its measured height is its own. Only a card at the floor
+// needs its natural height asked for, the wrapped content's minimum intrinsic height at the width given: that is the
+// compact forms, whose lines are pinned to their line boxes, so the intrinsic height is the measured one
+// (TurnCardTest). The full form never takes this path, and a difference between the two could not misplace it.
 private fun Modifier.touchHeightAtLeast(min: Dp): Modifier =
     layout { measurable, constraints ->
         val floor = min.roundToPx()
-        val natural =
-            measurable
-                .minIntrinsicHeight(constraints.maxWidth)
-                .coerceIn(constraints.minHeight, constraints.maxHeight)
+        val natural = measurable.minIntrinsicHeight(constraints.maxWidth)
         val placeable =
             measurable.measure(
                 constraints.copy(
@@ -182,7 +182,9 @@ private fun Modifier.touchHeightAtLeast(min: Dp): Modifier =
                     maxHeight = maxOf(constraints.maxHeight, floor),
                 ),
             )
-        layout(placeable.width, natural) { placeable.place(0, (natural - placeable.height) / 2) }
+        val own = if (placeable.height > floor) placeable.height else minOf(natural, placeable.height)
+        val reported = own.coerceIn(constraints.minHeight, constraints.maxHeight)
+        layout(placeable.width, reported) { placeable.place(0, (reported - placeable.height) / 2) }
     }
 
 /** The turn card's forms, in the order the card tries them. */
