@@ -8,8 +8,8 @@ This page goes through the Settings screen row by row, in the order the app show
 Open Settings with the **Settings** button on the dock. Settings slides up as a sheet over the dashboard. Swipe it down, tap outside it or tap the back arrow to close it.
 
 - **Layout.** On a wide screen the categories form a column beside the rows. On a narrow screen Settings shows the list of categories first, and a tap opens one, with a back arrow to return.
-- **Choices.** A row with up to three choices shows them as buttons. A row with more choices shows the current choice and opens a list when you tap it. Switches, sliders and buttons apply at once; only the dialogs that take typed text have a **Save** button.
-- **Reset.** Every category except System has a **Reset this section** icon in its header. It restores that category's rows to the values on this page, after asking, and keeps the keys and addresses you entered. [System](#system) describes the full reset.
+- **Choices.** A row with up to three choices shows them as buttons. A row with more choices shows the current choice and opens a list when you tap it. The exceptions are **Display size**, a slider with five steps, and **Accent color**, a row of swatches. Switches, sliders and buttons apply at once; only the dialogs that take typed text have a **Save** button.
+- **Reset.** Every category except System has a **Reset this section** icon in its header. It restores that category's rows to the values on this page, after asking. It keeps the keys and addresses you entered, the **Status icons** switch (the dock has its own **Reset dock**) and the video file you picked. [System](#system) describes the full reset.
 - **Nightly builds.** Rows and categories marked "nightly builds only" exist only in the nightly channel. The [install guide](/install/) explains the two channels.
 
 ## Appearance
@@ -56,7 +56,7 @@ The glass settings shape the floating cards over the map.
 | **Font weight** | Makes all text lighter or heavier. The row shows the weight of regular text as a number. Each step changes the weights by 100. | Five steps, from 200 to 600 for regular text | 400 |
 | **Letter spacing** | Sets the space between letters. | -0.02 to 0.10 em | 0.00 em |
 
-The font picker lists **System default**, the fonts installed on the device and the Google Fonts families, with a search field and a **Most popular first** order. Families that cover Chinese, Japanese or Korean are marked "CJK". Choosing a Google Fonts family downloads its file once and keeps it on the device. The font list comes from Google Fonts when you open the picker. [Privacy and data](/features/privacy/) says what each request carries.
+The font picker lists **System default**, the fonts installed on the device and the Google Fonts families, with a search field and a **Most popular first** order. Families that cover Chinese, Japanese or Korean are marked "CJK". Choosing a Google Fonts family downloads its file once and keeps it on the device. Opening the picker asks Google Fonts for the current list of families, and the app saves the list on the device so it shows without a connection. [Privacy and data](/features/privacy/) says what each request carries.
 
 ## Screen
 
@@ -64,12 +64,12 @@ The font picker lists **System default**, the fonts installed on the device and 
 | --- | --- | --- | --- |
 | **Display size** | Scales the whole interface: text, icons and spacing. **Medium** keeps the minimum text and touch-target sizes that [Automotive defaults and adjustments](/features/made-for-the-car/) describes. **Small** and **Compact** fit more on screen below those minimums; **Comfortable** and **Large** make everything bigger. | Small, Compact, Medium, Comfortable, Large | Medium |
 | **Orientation** | **Auto** follows the unit's own orientation. **Landscape** or **Portrait** fixes it, for a unit that reports the wrong one. | Auto, Landscape, Portrait | Auto |
-| **Driver side** | Puts the cards, the clock, the space reserved for the speed readout and the map controls on the driver's side of the screen, within reach. | Right, Left | Right |
+| **Driver side** | Puts the cards, the clock and the space reserved for the speed readout on the driver's side of the screen, within reach. The compass and the locate and zoom buttons move to the opposite side. | Right, Left | Right |
 | **Fullscreen** | Hides Android's status bar and navigation bar. | On or off | On |
 | **Keep screen on** | Keeps the screen awake while the launcher is in front. | On or off | On |
 | **Dock position** | Sets the screen edge that holds the dock. At the bottom or the top the dock is a bar; at the left or the right it is a vertical rail. | Bottom, Top, Left, Right | Bottom |
 | **Dock width** | **Compact** draws a centered pill around the buttons; a bar too narrow for the pill draws extended instead. **Extended** draws a full-width bar. The row is shown only while the dock is at the bottom or the top; a rail has a fixed width. | Compact, Extended | Compact |
-| **Status icons** | Shows or hides the whole group of status icons (signal, Bluetooth, GPS and battery) beside the dock buttons, where the dock has room for them. A long-press on one icon reorders or hides just that icon. This switch is also the way back once every icon is hidden. | On or off | On |
+| **Status icons** | Shows or hides the whole group of status icons (cellular signal, Wi-Fi, Bluetooth, GPS and battery) beside the dock buttons, where the dock has room for them. A long-press on one icon reorders or hides just that icon. This switch is also the way back once every icon is hidden. | On or off | On |
 | **Reset dock** | Restores the default order and visibility of the dock buttons and of the status icons, after asking. This row is an action, not a setting. | None | Not applicable |
 | **Assistant** | Sets what the dock's microphone button opens. **System** hands off to the device's own assistant; if the device has none, the launcher's voice sheet opens instead. **Built-in** opens the launcher's own voice sheet. | System, Built-in | System |
 | **Motion** | Sets how much the interface animates. **Standard** fades and scales a little. **Reduced** fades without scaling. **Off** makes every change instant, for the weakest graphics chips. | Standard, Reduced, Off | Standard |
@@ -101,11 +101,11 @@ These rows are shown only while the map provider is Google Maps. Below them the 
 
 | Setting | What it does | Choices | Default |
 | --- | --- | --- | --- |
-| **Rendering** | Chooses how the Google map is drawn. **Vector** adds heading-up rotation and tilt; on a device without WebGL it shows a notice instead of a map. **Raster** is flat and north-up. **Automatic** follows the cloud configuration of the Map ID, and draws raster when no Map ID is set. | Automatic, Raster, Vector | Automatic |
+| **Rendering** | Chooses how the Google map is drawn. **Vector** adds heading-up rotation and tilt; on a device without WebGL it shows a notice instead of a map. **Raster** is flat and north-up. **Automatic** tells Google nothing about it, so the cloud configuration of the Map ID, and in the end Google, decides. | Automatic, Raster, Vector | Automatic |
 | **Map type** | Sets the kind of map Google draws. | Roadmap, Satellite, Hybrid, Terrain | Roadmap |
 | **Traffic overlay** | Draws live traffic on the Google map. | On or off | Off |
 | **Google Maps API key** | Your own Google Maps Platform key. The dialog says what the key needs: a Google Cloud project with billing and the Maps JavaScript API enabled, and a referrer restriction that allows `https://appassets.androidplatform.net/*`. The row shows only the last four characters. **Save** also selects the Google Maps provider; **Clear** removes the key. | A key, with **Save** and **Clear** | Not set |
-| **Map ID (optional)** | A Map ID from your Google Cloud console, for cloud styling and advanced markers. It does not decide raster or vector, except under **Automatic**. | An ID, with **Save** and **Clear** | Not set |
+| **Map ID (optional)** | A Map ID from your Google Cloud console, for cloud styling and advanced markers. The **Rendering** choice, not the Map ID, picks raster or vector; only under **Automatic** can the Map ID's cloud configuration decide. | An ID, with **Save** and **Clear** | Not set |
 | **Google Maps Platform terms** | Opens Google's own terms in a browser. They cover the key you use, including the restrictions on in-vehicle use. | None | Not applicable |
 
 ### Rendering (OpenStreetMap)
@@ -174,7 +174,7 @@ This category exists only in nightly builds, and only while the map provider is 
 | **Accuracy** | Sets the quality of the position requests. The lower choices suit hardware that cannot keep up with high accuracy. | High accuracy, Balanced, Low power | High accuracy |
 | **Update interval** | Sets how often the launcher asks for a new position. A shorter interval moves the map more smoothly; a longer one lightens the load on slow head units. Many GPS chips deliver at most one position per second regardless. | 250 to 2000 ms, in steps of 250 ms | 250 ms |
 | **Minimum distance** | Skips a position closer than this to the previous one. 0 delivers every position. | 0 to 25 m | 0 m |
-| **Background ranging** | Keeps measuring the trip distance and the average speed while you use another app, such as a navigation app. It runs the GPS continuously and shows an ongoing notification, so it uses more power. | On or off | Off |
+| **Background ranging** | Keeps measuring the trip distance and the average speed while you use another app, such as a navigation app. It runs the GPS continuously and shows an ongoing notification, so it uses more power. When you switch it on while the app has location access, Android asks for permission to show notifications if the app does not have it yet; [Driving data and trips](/features/driving-data/) has the details. | On or off | Off |
 | **Start a new trip automatically** | Ends the current trip after the vehicle has been parked this long, so the next drive starts a fresh trip. **Never (tap Reset only)** keeps one trip until you tap reset on the speed readout. | Never (tap Reset only), After 30 min parked, After 1 h parked, After 2 h parked, After 4 h parked, After 12 h parked | After 2 h parked |
 | **Track recording** | Records position, speed, bearing and altitude while you drive, for the trip replay. The history stays on the device. | On or off | On |
 | **Keep track history** | Sets how long recorded points are kept before they are pruned. | 30 days, 90 days, 1 year, Until I delete it | 90 days |
@@ -197,11 +197,11 @@ This category exists only in nightly builds, and only while the map provider is 
 | **Cover art** | Shows the album artwork on the music card and in the full-screen player. | On or off | On |
 | **Video window** | Plays a video file from the device in a small window over the map. | On or off | Off |
 | **Video file** | Picks the file the video window plays, with the system file picker. The row shows the file's name or "No file picked". The row is shown only while **Video window** is on. | A file | No file picked |
-| **Hide the picture while driving** | Hides the picture except a few seconds after GPS reads the vehicle as stopped. The audio keeps playing. Turning it off asks first, with a warning about the rules where you drive. The row is shown only while **Video window** is on. | On or off | On |
+| **Hide the picture while driving** | With the switch on, the picture shows only once GPS has read the vehicle as stopped for a few seconds. It stays hidden while the vehicle moves and while there is no live GPS reading. The audio keeps playing. With the switch off, the picture always shows. Turning it off asks first, with a warning about the rules where you drive. The row is shown only while **Video window** is on. | On or off | On |
 
 ## Updates
 
-[Install](/install/) walks through updating, including what happens while the vehicle moves. Opening this category starts nothing by itself. Some rows appear only when they apply.
+[Install](/install/) walks through updating, including what happens while the vehicle moves. Opening this category starts nothing by itself. While an update is on offer, the category carries a dot in the list of categories. Some rows appear only when they apply.
 
 | Row | What it shows or does | Shown |
 | --- | --- | --- |
@@ -213,7 +213,7 @@ This category exists only in nightly builds, and only while the map provider is 
 | **Show the install dialog again** | Shows Android's install confirmation once more, after one was closed without an answer or held back while the vehicle moved. | After an install was handed to Android |
 | **Retry** | Tries a failed update again and shows its size first. | After a failure that still has an update on offer |
 | **Discard download** | Deletes the downloaded file. The update stays on offer. | While a verified download waits |
-| **Skip this version** | Stops the reminders about this version. A newer version is offered again. | While an update is on offer and not yet skipped |
+| **Skip this version** | Stops the reminders about this version. A newer version is offered again. | While an update is on offer and not yet skipped, but not while it downloads or installs |
 | **Check automatically** | Looks for a new version once a day. Nothing downloads until you ask. On by default. | Not shown in a build that never checks |
 | **Open release page** | Opens the channel's release page in a browser, to download the update by hand. | Always |
 
@@ -227,8 +227,8 @@ The rows here open other screens or Android settings. This category has no **Res
 | **System settings** | Opens Android's Settings app. |
 | **Diagnostics** | Opens a report of device and runtime facts for troubleshooting, in sections such as Device, Display, Permissions, Network and Settings. **Refresh** collects it again, **Copy report** copies it, and **Problems only** shows only the sections that have a problem. The report masks keys. |
 | **Open source licenses** | Opens the list of bundled third-party components, in the sections Libraries, Map & data and Fonts. |
-| **Privacy policy** | Opens the [privacy policy](/privacy/) in a browser. |
-| **Terms** | Opens the [terms](/terms/) in a browser. |
+| **Privacy policy** | Opens `PRIVACY.md` on GitHub in a browser. It is the same text as the [privacy policy](/privacy/) on this site. |
+| **Terms** | Opens `TERMS.md` on GitHub in a browser. It is the same text as the [terms of service](/terms/) on this site. |
 | **Reset to defaults** | Opens the reset dialog described below. |
 
 ### Reset to defaults
