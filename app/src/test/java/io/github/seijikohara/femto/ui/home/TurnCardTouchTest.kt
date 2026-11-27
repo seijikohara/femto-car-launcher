@@ -53,7 +53,7 @@ class TurnCardTouchTest {
     @Test
     fun `a tap on the card reaches the view model as one toggle`() {
         val actions = mutableListOf<HomeAction>()
-        setDashboard(actions, "head-unit-853x512", UiScale.LARGE)
+        setDashboard(actions, "head-unit-853x512", UiScale.COMFORTABLE)
 
         rule.onNodeWithTag(DashboardTags.TURN_CARD, useUnmergedTree = true).performClick()
         rule.waitForIdle()
