@@ -2204,6 +2204,110 @@ class HomeViewModelTest {
             provider = TEST_PROVIDER,
         )
 
+    // --- The turn card's control for the spoken prompts -----------------------------
+
+    @Test
+    fun `the card's spoken state follows the setting`() =
+        runTest {
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val shown = mutableListOf<Boolean?>()
+
+            shown += viewModel.uiState.value.activeRoute?.turnCard?.spoken
+            settings.value = settings.value.copy(spokenPrompts = false)
+            shown += viewModel.uiState.value.activeRoute?.turnCard?.spoken
+
+            assertEquals(listOf<Boolean?>(true, false), shown)
+        }
+
+    @Test
+    fun `the card offers no control while the speaker is unavailable`() =
+        runTest {
+            val unavailable = MutableStateFlow(true)
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    voiceUnavailableFlow = unavailable,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val whileUnavailable = viewModel.uiState.value.activeRoute?.turnCard
+
+            unavailable.value = false
+
+            assertEquals(
+                Pair(null, true),
+                Pair(whileUnavailable?.spoken, viewModel.uiState.value.activeRoute?.turnCard?.spoken),
+            )
+        }
+
+    @Test
+    fun `a tap on the card writes the opposite of the value it shows`() =
+        runTest {
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val written = mutableListOf<Boolean>()
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                    setSpokenPrompts = { value ->
+                        written += value
+                        settings.value = settings.value.copy(spokenPrompts = value)
+                    },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.onAction(HomeAction.ToggleSpokenPrompts)
+            advanceUntilIdle()
+            viewModel.onAction(HomeAction.ToggleSpokenPrompts)
+            advanceUntilIdle()
+
+            assertEquals(listOf(false, true), written)
+        }
+
+    @Test
+    fun `a tap does nothing where the card offers no control`() =
+        runTest {
+            val written = mutableListOf<Boolean>()
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    voiceUnavailableFlow = flowOf(true),
+                    setSpokenPrompts = { written += it },
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.onAction(HomeAction.ToggleSpokenPrompts)
+            advanceUntilIdle()
+
+            assertEquals(emptyList(), written)
+        }
+
+    @Test
+    fun `a tap does nothing with no card on the map`() =
+        runTest {
+            val written = mutableListOf<Boolean>()
+            val viewModel = routeViewModel(available = true, route = EQUATOR_ROUTE, setSpokenPrompts = { written += it })
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            viewModel.onAction(HomeAction.ToggleSpokenPrompts)
+            advanceUntilIdle()
+
+            assertEquals(emptyList(), written)
+        }
+
     // --- The route kept across a restart ---------------------------------------
 
     // The keeper's first-fix decision must run with nothing on the map too.
@@ -2493,6 +2597,8 @@ class HomeViewModelTest {
         navigationSettingsFlow: Flow<NavigationSettings> = flowOf(NavigationSettings.Default),
         voice: RecordedVoice = RecordedVoice(),
         speedUnitFlow: Flow<SpeedUnit> = flowOf(SpeedUnit.KILOMETERS_PER_HOUR),
+        voiceUnavailableFlow: Flow<Boolean> = flowOf(false),
+        setSpokenPrompts: suspend (Boolean) -> Unit = {},
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -2514,6 +2620,8 @@ class HomeViewModelTest {
             nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
             navigationSettingsFlow = navigationSettingsFlow,
             speedUnitFlow = speedUnitFlow,
+            voiceUnavailableFlow = voiceUnavailableFlow,
+            setSpokenPrompts = setSpokenPrompts,
             // The stage names the prompt: the sentences are the text tests' business.
             turnPromptText = { prompt, _ -> prompt.stage.name },
             openTurnVoice = { voice.opens++ },

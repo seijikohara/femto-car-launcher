@@ -71,6 +71,7 @@ import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offersUpdate
 import io.github.seijikohara.femto.data.update.promptedFor
 import io.github.seijikohara.femto.data.update.skipped
+import io.github.seijikohara.femto.data.voice.SpeakerStatus
 import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
@@ -193,6 +194,12 @@ internal class HomeViewModel(
     private val openTurnVoice: () -> Unit = {},
     private val speakTurnPrompt: (text: String, label: String) -> Unit = { _, _ -> },
     private val closeTurnVoice: () -> Unit = {},
+    // True while the speaker cannot speak (TurnSpeaker's status is Unavailable), which takes the control for the
+    // spoken prompts off the turn card; the default speaks. Where routing is off the factory passes the default, so
+    // the speaker is never created there.
+    voiceUnavailableFlow: Flow<Boolean> = flowOf(false),
+    // The write behind the turn card's control: the Spoken prompts setting.
+    private val setSpokenPrompts: suspend (Boolean) -> Unit = {},
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -398,12 +405,15 @@ internal class HomeViewModel(
     // keys: switching a setting never restarts the follow, which would put
     // the progress back to the start of the line. A store that fails reads as
     // the defaults.
-    private val navigationSettings: Flow<NavigationSettings?> =
-        navigationSettingsFlow
-            .map<NavigationSettings, NavigationSettings?> { it }
+    private val navigationSettings: Flow<NavigationInput?> =
+        combine(
+            navigationSettingsFlow,
+            voiceUnavailableFlow.onStart { emit(false) }.distinctUntilChanged(),
+            ::NavigationInput,
+        ).map<NavigationInput, NavigationInput?> { it }
             .onStart { emit(null) }
             .distinctUntilChanged()
-            .catchAsDefault(TAG, "navigation settings", NavigationSettings.Default)
+            .catchAsDefault(TAG, "navigation settings", NavigationInput(NavigationSettings.Default, false))
 
     // Seeded with null, "not read yet", like the settings: a prompt never speaks in a unit that was a guess.
     private val speedUnit: Flow<SpeedUnit?> =
@@ -432,9 +442,10 @@ internal class HomeViewModel(
     private fun stepTurnVoice(
         route: FollowedRoute?,
         card: TurnCardState?,
-        stored: NavigationSettings?,
+        input: NavigationInput?,
         unit: SpeedUnit?,
     ) {
+        val stored = input?.settings
         if (route != null && stored != null && unit != null && stored.turnCard && stored.spokenPrompts) {
             if (!voiceOpen || openedFollow != route.followId) {
                 voiceOpen = true
@@ -464,9 +475,9 @@ internal class HomeViewModel(
                 routeChoiceAutoClose,
                 navigationSettings,
                 speedUnit,
-            ) { route, offered, _, settings, unit ->
-                val shown = route?.withSettings(settings)
-                stepTurnVoice(route, shown?.turnCard, settings, unit)
+            ) { route, offered, _, input, unit ->
+                val shown = route?.withSettings(input)
+                stepTurnVoice(route, shown?.turnCard, input, unit)
                 shown to offered
             }
                 // The dashboard leaving ends the collection, and the engine goes with it.
@@ -705,6 +716,14 @@ internal class HomeViewModel(
                 clearRoute()
             }
 
+            // The opposite of what the card shows now, and nothing where it shows no control.
+            HomeAction.ToggleSpokenPrompts -> {
+                uiState.value.activeRoute
+                    ?.turnCard
+                    ?.spoken
+                    ?.let { shown -> viewModelScope.launch { setSpokenPrompts(!shown) } }
+            }
+
             // The card on screen names its session, so a tap that lands after a
             // new route has started changes nothing of it.
             is HomeAction.SelectRouteCandidate -> {
@@ -839,13 +858,21 @@ private data class FollowedRoute(
     val speedMetersPerSecond: Double?,
 )
 
+// The stored Navigation settings with whether the speaker is out: what shapes the route's card, joined in one
+// value so the route's typed combine stays at five flows.
+private data class NavigationInput(
+    val settings: NavigationSettings,
+    val voiceUnavailable: Boolean,
+)
+
 // The route row's time, the vehicle on the line only with its setting on, and
 // the turn card as its three settings shape it, which hides while the choice
-// card is open. Until the [stored] settings are read the row and the line take
-// the defaults, and the card stays hidden, so a driver who switched it off
-// never sees it flash.
-private fun FollowedRoute.withSettings(stored: NavigationSettings?): ActiveRouteState =
-    (stored ?: NavigationSettings.Default).let { settings ->
+// card is open. Until the [input] (the stored settings) is read the row and the
+// line take the defaults, and the card stays hidden, so a driver who switched
+// it off never sees it flash. The card's spoken-prompts control follows the
+// setting, and is absent where the speaker cannot speak.
+private fun FollowedRoute.withSettings(input: NavigationInput?): ActiveRouteState =
+    (input?.settings ?: NavigationSettings.Default).let { settings ->
         state.copy(
             rowTime = settings.routeRowTime,
             vehicleOnLine = state.vehicleOnLine?.takeIf { settings.vehicleOnRouteLine },
@@ -859,9 +886,10 @@ private fun FollowedRoute.withSettings(stored: NavigationSettings?): ActiveRoute
                     choosing = state.choice != null,
                     settings =
                         TurnCardSettings(
-                            show = stored != null && settings.turnCard,
+                            show = input != null && settings.turnCard,
                             showNextAfter = settings.turnCardNextAfter,
                             showStraight = settings.turnCardStraight,
+                            spoken = settings.spokenPrompts.takeUnless { input?.voiceUnavailable == true },
                         ),
                 ),
         )
@@ -1014,7 +1042,8 @@ internal class HomeViewModelFactory(
         // off the main thread while the dashboard opens. A build without
         // routing only deletes what an earlier build left.
         val routeKeeper = RoutePersistence.get(application).apply { start(enabled = routingEnabled) }
-        val navigationSettings = NavigationPreferences(application).settings
+        val navigationPreferences = NavigationPreferences(application)
+        val navigationSettings = navigationPreferences.settings
 
         @Suppress("UNCHECKED_CAST")
         return HomeViewModel(
@@ -1067,6 +1096,14 @@ internal class HomeViewModelFactory(
             openTurnVoice = { TurnSpeaker.get(application).open() },
             speakTurnPrompt = { text, label -> TurnSpeaker.get(application).say(text, label) },
             closeTurnVoice = { TurnSpeaker.get(application).close() },
+            // Only in a build with routing, so any other never creates the speaker.
+            voiceUnavailableFlow =
+                if (routingEnabled) {
+                    TurnSpeaker.get(application).status.map { it is SpeakerStatus.Unavailable }
+                } else {
+                    flowOf(false)
+                },
+            setSpokenPrompts = navigationPreferences::setSpokenPrompts,
         ) as T
     }
 }

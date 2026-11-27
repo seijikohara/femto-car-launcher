@@ -33,13 +33,20 @@ internal data class TurnCardState(
     val then: TurnManeuver.Turn? = null,
     /** The announced turn's [RouteTurn.pointIndex], which tells one turn from the next; null for the destination. */
     val pointIndex: Int? = null,
+    /**
+     * Whether the spoken prompts are on, which a tap on the card switches; null where the card offers no control for
+     * them, because the device cannot speak.
+     */
+    val spoken: Boolean? = null,
 )
 
-/** The three Settings → Navigation switches the turn card follows. */
+/** The three Settings → Navigation switches the turn card follows, and what its spoken-prompts control shows. */
 internal data class TurnCardSettings(
     val show: Boolean = true,
     val showNextAfter: Boolean = true,
     val showStraight: Boolean = false,
+    /** Whether the spoken prompts are on; null where the card offers no control for them. */
+    val spoken: Boolean? = null,
 )
 
 /**
@@ -78,8 +85,9 @@ internal fun turnCardStateOrNull(
                             }?.turn
                             ?.maneuver(),
                     pointIndex = first.turn.pointIndex,
+                    spoken = settings.spoken,
                 )
-            } ?: TurnCardState(maneuver = TurnManeuver.Arrive, distanceMeters = remainingMeters)
+            } ?: TurnCardState(maneuver = TurnManeuver.Arrive, distanceMeters = remainingMeters, spoken = settings.spoken)
         }
 
 private fun TurnKind.announced(showStraight: Boolean): Boolean =

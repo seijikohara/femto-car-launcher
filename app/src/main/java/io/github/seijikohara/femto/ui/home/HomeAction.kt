@@ -123,6 +123,12 @@ internal sealed interface HomeAction {
     /** The speed readout's clear button on the route row: the active route goes, from the map too. */
     data object ClearRoute : HomeAction
 
+    /**
+     * A tap on the turn card: switch the spoken prompts on or off, writing the opposite of what the card shows. A
+     * no-op where the card offers no control (no card, or a device that cannot speak).
+     */
+    data object ToggleSpokenPrompts : HomeAction
+
     /** A row of the route choice card: candidate [index] becomes the route followed. */
     data class SelectRouteCandidate(
         val index: Int,
