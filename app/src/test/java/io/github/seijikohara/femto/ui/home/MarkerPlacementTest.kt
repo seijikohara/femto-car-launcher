@@ -37,10 +37,14 @@ import kotlin.test.assertEquals
 
 /**
  * Where the vehicle's chevron sits across the dashboard geometry matrix ([DashboardGeometries]), at every Display size,
- * on both driver sides and with the dock on each edge: above the speed readout's top edge and clear of the cards, also
- * where the bottom overlays reach past the middle of the map and the map raises the marker to their top edge. The map
- * raises it no higher than [SelfMarkerAnchor.maxMarkerRise], so where the overlays reach past that the chevron stays
- * under them; those arrangements are pinned in [RISE_CAPPED]. Laid out as in [SpeedReadoutPlacementTest].
+ * on both driver sides and with the dock on each edge, without a route and with one (the route row makes the speed
+ * readout, and the bottom reserve with it, taller; the turn card is an overlay of its own and leaves the readout as
+ * it is): above the speed readout's top edge and clear of the cards, also where the bottom overlays reach past the
+ * middle of the map and the map raises the marker to their top edge. The map raises it no higher than
+ * [SelfMarkerAnchor.maxMarkerRise], so where the overlays reach past that the chevron stays under them; those
+ * arrangements are pinned in [RISE_CAPPED]. The cap is there to keep it from the clock and the compass; where the
+ * chevron still meets one of them, the arrangement is pinned in [UNDER_TOP_OVERLAY]. Laid out as in
+ * [SpeedReadoutPlacementTest].
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -53,34 +57,45 @@ class MarkerPlacementTest {
     private var height by mutableStateOf(480.dp)
     private var driverSide by mutableStateOf(DriverSide.RIGHT)
     private var dockPosition by mutableStateOf(DockPosition.BOTTOM)
+    private var uiState by mutableStateOf(DashboardFixtures.state)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
 
-    // One pass for both results: laying out the 480 arrangements is the cost, not the checks.
+    // One pass per state for both results: laying out the 480 arrangements is the cost, not the checks.
     @Test
     fun `the chevron sits above the speed readout and clear of the cards, except where the rise is capped`() {
         setDashboard()
         val capped = mutableListOf<String>()
+        val underTop = mutableListOf<String>()
         val failures =
-            eachArrangement { case ->
-                if (mapConfig.bottomSafeFraction > 0.5f + SelfMarkerAnchor.maxMarkerRise) {
-                    capped += case
-                    emptyList()
-                } else {
-                    coverFailures(case)
+            STATES.flatMap { (name, state) ->
+                uiState = state
+                eachArrangement { arrangement ->
+                    val case = "$name $arrangement"
+                    underTop += topOverlays().filter { chevron().overlaps(bounds(it)) }.map { "$case $it" }
+                    if (mapConfig.bottomSafeFraction > 0.5f + SelfMarkerAnchor.maxMarkerRise) {
+                        capped += case
+                        emptyList()
+                    } else {
+                        coverFailures(case)
+                    }
                 }
             }
         assertEquals(emptyList(), failures)
         assertEquals(RISE_CAPPED, capped.toList())
+        assertEquals(UNDER_TOP_OVERLAY, underTop.toList())
     }
+
+    // What the rise cap keeps the chevron away from at the top of the map.
+    private fun topOverlays() = listOf(DashboardTags.CLOCK, DashboardTags.COMPASS)
 
     private fun setDashboard() =
         rule.setContent {
             FemtoTheme {
                 Box(modifier = Modifier.size(width, height)) {
                     DashboardScaffold(
-                        uiState = DashboardFixtures.state,
+                        uiState = uiState,
                         is24Hour = true,
                         showClockSeconds = true,
                         speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
@@ -120,16 +135,17 @@ class MarkerPlacementTest {
 
     private fun bounds(tag: String): DpRect = rule.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
 
+    private fun chevron(): DpRect = selfMarkerChevronBounds(mapConfig, width, height)
+
     private fun coverFailures(case: String): List<String> {
-        val chevron = selfMarkerChevronBounds(mapConfig, width, height)
+        val chevron = chevron()
         val speed = bounds(DashboardTags.SPEED)
-        val cards = bounds(DashboardTags.CARDS)
         return listOfNotNull(
             "$case: chevron $chevron reaches below the speed readout's top ${speed.top}".takeIf {
                 chevron.bottom > speed.top
             },
-            "$case: chevron $chevron is under the cards $cards".takeIf { chevron.overlaps(cards) },
             "$case: chevron $chevron leaves the top of the screen".takeIf { chevron.top < 0.dp },
+            "$case: chevron $chevron is under the cards".takeIf { chevron.overlaps(bounds(DashboardTags.CARDS)) },
         )
     }
 
@@ -137,7 +153,23 @@ class MarkerPlacementTest {
         left < other.right && other.left < right && top < other.bottom && other.top < bottom
 
     private companion object {
-        // The arrangements whose bottom overlays reach past the rise cap, so the chevron stays under them.
+        val STATES =
+            listOf(
+                "no route" to DashboardFixtures.state,
+                "route" to DashboardFixtures.routeState,
+            )
+
+        // The arrangements whose bottom overlays reach past the rise cap, so the chevron stays under them: none,
+        // without a route or with one, so the marker sits just above the speed readout everywhere.
         val RISE_CAPPED: List<String> = emptyList()
+
+        // The arrangements that put the chevron under the clock or the compass. A phone in landscape at the largest
+        // Display size with a route: the route row lifts the readout's top to about a quarter of the map's height,
+        // inside the rise cap, and the marker raised to it meets the bottom corner of the clock beside the card
+        // column (the chevron's box overlaps it by about 2 dp across and 1 dp down).
+        val UNDER_TOP_OVERLAY: List<String> =
+            listOf("RIGHT BOTTOM", "RIGHT TOP", "LEFT BOTTOM", "LEFT TOP").map {
+                "route phone-landscape-915x412 LARGE $it ${DashboardTags.CLOCK}"
+            }
     }
 }
