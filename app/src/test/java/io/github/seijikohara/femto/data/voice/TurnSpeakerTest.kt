@@ -106,7 +106,7 @@ class TurnSpeakerTest {
             speaker.say("Turn left.", label = "final at 80 m")
             runCurrent()
 
-            assertEquals(
+            assertEquals<Any>(
                 Pair(SpokenPrompt("final at 80 m", PromptOutcome.NO_SOUND), emptyList<String>()),
                 Pair(speaker.lastPrompt.value, session.spoken),
             )
@@ -160,7 +160,7 @@ class TurnSpeakerTest {
             speaker.say("Turn left.", label = "final at 80 m")
             runCurrent()
 
-            assertEquals(
+            assertEquals<Any>(
                 Pair(SpokenPrompt("final at 80 m", outcome = null), listOf("Turn left.")),
                 Pair(speaker.lastPrompt.value, session.spoken),
             )
@@ -309,7 +309,7 @@ class TurnSpeakerTest {
             val sessions = FakeSpeechSessions()
             val speaker = speaker(sessions = sessions)
 
-            assertEquals(
+            assertEquals<Any>(
                 Pair(SpeechAvailability.Ready(ENGINE), emptyList<String>()),
                 Pair(speaker.availability(), sessions.opened),
             )

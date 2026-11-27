@@ -72,6 +72,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -1915,7 +1916,7 @@ class HomeViewModelTest {
                 )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
-            assertEquals(Triple(emptyList(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
+            assertEquals<Any>(Triple(emptyList<Any>(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
         }
 
     @Test
@@ -1932,7 +1933,7 @@ class HomeViewModelTest {
                 )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
-            assertEquals(Triple(emptyList(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
+            assertEquals<Any>(Triple(emptyList<Any>(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
         }
 
     @Test
@@ -2033,7 +2034,7 @@ class HomeViewModelTest {
             collection.cancel()
             advanceUntilIdle()
 
-            assertEquals(Triple(0, 0, emptyList()), Triple(voice.opens, voice.closes, voice.spoken))
+            assertEquals<Any>(Triple(0, 0, emptyList<Any>()), Triple(voice.opens, voice.closes, voice.spoken))
         }
 
     // --- The route kept across a restart ---------------------------------------
