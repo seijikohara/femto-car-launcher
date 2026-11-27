@@ -499,7 +499,7 @@ internal sealed interface SettingsAction {
     data object ClearMapTileHost : SettingsAction
 
     // The hosted style the CUSTOM colour scheme loads (Settings → Appearance →
-    // Map color → Style URL); blank leaves CUSTOM rendering as ACCENT.
+    // Map color → Style URL); blank leaves CUSTOM rendering as STANDARD.
     data class SetMapCustomStyleUrl(
         val value: String,
     ) : SettingsAction
