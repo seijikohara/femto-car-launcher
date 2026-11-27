@@ -1,5 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,15 +17,13 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalViewConfiguration
-import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -33,7 +34,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Volume2
@@ -78,13 +78,12 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  * reader. With it null the card has no control, no click and no speaker. The speaker is drawn over the card's box,
  * inside the end padding (see [VoiceGlyphSize]), so it moves no form's measured size and no content.
  *
- * The tap target is the card, and its size is not changed for the control. A card shorter than
- * [FemtoDimens.MinTouchTarget] (the compact form without the turn after next is 56 dp tall) gets a tap area grown to
- * the floor around it: a touch up to 4 dp beyond its top or bottom edge counts ([MinTouchTargetViewConfiguration]).
- * Compose measures that floor in the window's density, not the Display size's, so a card the Display size has made
- * larger needs none. The full form (88 dp or more) and the compact form with the turn after next (64 dp) reach the
- * floor themselves. Checked on the card alone; on the dashboard the same touch beyond the edge did not reach the card in
- * a test (TurnCardTouchTest), for a cause not found.
+ * The tap target is the card at least [FemtoDimens.MinTouchTarget] tall, and the card's own size is not changed for
+ * it: the compact form without the turn after next is 56 dp tall, and the switch is a node that measures 64 dp tall,
+ * with the card centred in it, while it reports the card's own height to its parent ([touchHeightAtLeast]). A touch up
+ * to 4 dp beyond the card's top or bottom edge is then a direct hit on the switch. The full form (88 dp or more) and
+ * the compact form with the turn after next (64 dp) reach the floor themselves, and a card without the control is
+ * drawn as before, with no switch and no growth.
  */
 @Composable
 internal fun TurnCard(
@@ -107,34 +106,49 @@ internal fun TurnCard(
         spoken?.let { on ->
             stringResource(if (on) R.string.turn_card_voice_on else R.string.turn_card_voice_off)
         }
-    // The tap area grows to the floor around a card shorter than it, for the card with the control only: Compose
-    // widens the hit area of a node smaller than the view configuration's minimum touch target size, and the layout
-    // stays as it is. Without the control the card has no tap area and keeps the platform's configuration.
-    val viewConfiguration = LocalViewConfiguration.current
-    val touchTarget = remember(viewConfiguration) { MinTouchTargetViewConfiguration(viewConfiguration) }
-    CompositionLocalProvider(LocalViewConfiguration provides if (spoken != null) touchTarget else viewConfiguration) {
+    val withSemantics: Modifier.() -> Modifier = {
+        semantics(mergeDescendants = true) {
+            contentDescription = description
+            voiceState?.let { stateDescription = it }
+        }
+    }
+    val content = TurnCardContent(state = state, value = value, unit = unit, text = text)
+    if (spoken == null) {
+        Box(modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig).withSemantics()) {
+            TurnCardBody(content, form)
+        }
+    } else {
+        // The switch is the outer node: it measures at least the touch floor tall and reports the card's own height,
+        // so a touch just beyond the card is a direct hit on it, and the layout around the card is as without it. The
+        // card is the inner box at its own height, clipped to its shape so the press ripple stays inside it; the
+        // ripple is drawn there from the switch's interactions.
+        val interactionSource = remember { MutableInteractionSource() }
         Box(
             modifier =
                 modifier
-                    .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-                    // After the chrome, so the press ripple is clipped to the card's shape, as the video window's is.
-                    .then(
-                        if (spoken != null) {
-                            Modifier
-                                .clip(MaterialTheme.shapes.large)
-                                .toggleable(value = spoken, role = Role.Switch, onValueChange = { onToggleVoice() })
-                        } else {
-                            Modifier
-                        },
-                    ).semantics(mergeDescendants = true) {
-                        contentDescription = description
-                        voiceState?.let { stateDescription = it }
-                    },
+                    // Before the growth, so the node's bounds for the semantics tree are the card's own.
+                    .withSemantics()
+                    .touchHeightAtLeast(FemtoDimens.MinTouchTarget)
+                    .toggleable(
+                        value = spoken,
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Switch,
+                        onValueChange = { onToggleVoice() },
+                    ),
+            contentAlignment = Alignment.Center,
         ) {
-            TurnCardBody(TurnCardContent(state = state, value = value, unit = unit, text = text), form)
-            spoken?.let { on ->
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                        .clip(MaterialTheme.shapes.large)
+                        .indication(interactionSource, LocalIndication.current),
+            ) {
+                TurnCardBody(content, form)
                 FemtoIcon(
-                    imageVector = if (on) Lucide.Volume2 else Lucide.VolumeX,
+                    imageVector = if (spoken) Lucide.Volume2 else Lucide.VolumeX,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier =
@@ -148,6 +162,28 @@ internal fun TurnCard(
         }
     }
 }
+
+// Measure the node at least [min] tall, centre what it wraps in that, and report the height it would have had without
+// it, coerced into the incoming constraints: the node reaches as far above and below its reported bounds as the
+// card is short, which makes a touch just beyond them a direct hit, while the parent lays the card out as ever. The
+// natural height is the wrapped content's minimum intrinsic height at the width given, which equals the measured height
+// of each of the three forms (TurnCardTest).
+private fun Modifier.touchHeightAtLeast(min: Dp): Modifier =
+    layout { measurable, constraints ->
+        val floor = min.roundToPx()
+        val natural =
+            measurable
+                .minIntrinsicHeight(constraints.maxWidth)
+                .coerceIn(constraints.minHeight, constraints.maxHeight)
+        val placeable =
+            measurable.measure(
+                constraints.copy(
+                    minHeight = maxOf(constraints.minHeight, floor),
+                    maxHeight = maxOf(constraints.maxHeight, floor),
+                ),
+            )
+        layout(placeable.width, natural) { placeable.place(0, (natural - placeable.height) / 2) }
+    }
 
 /** The turn card's forms, in the order the card tries them. */
 internal enum class TurnCardForm(
@@ -477,15 +513,6 @@ internal val TurnCardMaxWidth = 420.dp
  * wider face. The form is measured besides, so a longer text that would not fit leaves the card out rather than cut.
  */
 internal val TurnCardCompactMinWidth = 200.dp
-
-// The platform's configuration with the automotive floor as its minimum touch target: Compose widens the hit area of
-// a pointer input node smaller than this to it, around the node and without a larger layout.
-private class MinTouchTargetViewConfiguration(
-    base: ViewConfiguration,
-) : ViewConfiguration by base {
-    override val minimumTouchTargetSize: DpSize =
-        DpSize(FemtoDimens.MinTouchTarget, FemtoDimens.MinTouchTarget)
-}
 
 @PreviewLightDark
 @PreviewTextStress

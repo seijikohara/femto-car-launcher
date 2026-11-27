@@ -4,9 +4,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import io.github.seijikohara.femto.data.display.DriverSide
 import io.github.seijikohara.femto.data.display.UiScale
@@ -32,12 +37,11 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.test.assertEquals
 
 /**
- * A tap on the turn card on the dashboard reaches the view model as the one action that switches the spoken prompts.
- *
- * Not covered here, and not working as far as this test could tell: the compact card's grown tap area. On the card alone
- * ([TurnCardTest]) a touch up to 4 dp beyond its edge toggles; on the dashboard (the phone in portrait with the video
- * window at the compact Display size, where the card is 47 px tall) a touch 1 px beyond its edge did nothing, and
- * touches inside it all toggled. No clip or pointer handler in DashboardScaffold explains it; the cause is not found.
+ * A tap on the turn card on the dashboard reaches the view model as the one action that switches the spoken prompts,
+ * and so does a touch just beyond the compact card's top or bottom edge: the card is shorter than the touch floor
+ * there, and its switch is a node that measures the floor tall around it. The phone in portrait with the video window
+ * at the compact Display size takes the compact card (47 px tall in the window), the touch floor is 64 dp of that
+ * Display size, and a touch farther out than the floor's reach is no hit.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -55,6 +59,38 @@ class TurnCardTouchTest {
         rule.waitForIdle()
 
         assertEquals<List<HomeAction>>(listOf(HomeAction.ToggleSpokenPrompts), actions)
+    }
+
+    @Test
+    fun `a touch just beyond the short compact card toggles, one beyond the floor does not`() {
+        val actions = mutableListOf<HomeAction>()
+        setDashboard(actions, "phone-portrait-412x915", UiScale.COMPACT, video = true)
+        val card = rule.onNodeWithTag(DashboardTags.TURN_CARD, useUnmergedTree = true)
+        val height = card.fetchSemanticsNode().size.height
+
+        card.touchAt(-1)
+        card.touchAt(-2)
+        card.touchAt(height + 1)
+        card.touchAt(height + 2)
+        val near = actions.size
+        card.touchAt(-FAR)
+        card.touchAt(height + FAR)
+
+        assertEquals(
+            Triple(true, 0, Pair(4, 4)),
+            Triple(
+                height < FLOOR_PX,
+                rule.onAllNodesWithText("Then", useUnmergedTree = true).fetchSemanticsNodes().size,
+                near to actions.size,
+            ),
+            "card $height px in the window",
+        )
+    }
+
+    // A touch [y] px below the card's top edge, in its own coordinates: negative above it.
+    private fun SemanticsNodeInteraction.touchAt(y: Int) {
+        performTouchInput { click(Offset(centerX, y.toFloat())) }
+        rule.waitForIdle()
     }
 
     private fun setDashboard(
@@ -95,5 +131,13 @@ class TurnCardTouchTest {
                 }
             }
         }
+    }
+
+    private companion object {
+        // 64 dp of the compact Display size (5/6 of the window's density), rounded.
+        const val FLOOR_PX = 54
+
+        // Farther out than half the floor's excess over the card.
+        const val FAR = 8
     }
 }
