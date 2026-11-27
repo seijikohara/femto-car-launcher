@@ -7,7 +7,7 @@
     "id": "europe",
     "name": "Europe",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/europe-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/europe",
@@ -50,7 +50,7 @@
     "id": "asia",
     "name": "Asia",
     "urls": {
-     "pbf": "https://download.geofabrik.de/asia-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/asia/asia-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/asia-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/asia-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/asia",
@@ -117,7 +117,7 @@
     "id": "north-america",
     "name": "North America",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/north-america-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/north-america",
@@ -188,7 +188,7 @@
     ],
     "name": "Monaco",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/monaco-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/monaco/monaco-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/europe/monaco-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/monaco-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/monaco-internal.osh.pbf",
@@ -236,7 +236,7 @@
     ],
     "name": "Cyprus",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/cyprus-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/cyprus/cyprus-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/europe/cyprus-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/cyprus-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/cyprus-internal.osh.pbf",
@@ -284,7 +284,7 @@
     ],
     "name": "Germany",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/germany-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/germany/germany-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/germany-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/europe:germany",
@@ -328,7 +328,7 @@
     "parent": "germany",
     "name": "Bayern",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/germany/bayern-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/germany/bayern/bayern-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/europe/germany/bayern-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/bayern-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/germany/bayern-internal.osh.pbf",
@@ -373,7 +373,7 @@
     "parent": "bayern",
     "name": "Oberbayern",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/germany/bayern/oberbayern-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/germany/bayern/oberbayern/oberbayern-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/europe/germany/bayern/oberbayern-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/bayern/oberbayern-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/germany/bayern/oberbayern-internal.osh.pbf",
@@ -418,7 +418,7 @@
     "parent": "germany",
     "name": "Berlin",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/germany/berlin-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/germany/berlin/berlin-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/europe/germany/berlin-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/germany/berlin-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/germany/berlin-internal.osh.pbf",
@@ -466,7 +466,7 @@
     ],
     "name": "Poland",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/poland-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/poland/poland-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/poland-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/poland-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/europe:poland",
@@ -510,7 +510,7 @@
     "parent": "poland",
     "name": "Województwo dolnośląskie<br />(Lower Silesian Voivodeship)",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/poland/dolnoslaskie-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/poland/dolnoslaskie/dolnoslaskie-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/europe/poland/dolnoslaskie-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/poland/dolnoslaskie-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/poland/dolnoslaskie-internal.osh.pbf",
@@ -555,7 +555,7 @@
     "parent": "europe",
     "name": "Germany, Austria, Switzerland",
     "urls": {
-     "pbf": "https://download.geofabrik.de/europe/dach-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/europe/dach/dach-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/europe/dach-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/europe/dach-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/europe:dach",
@@ -602,7 +602,7 @@
     ],
     "name": "Japan",
     "urls": {
-     "pbf": "https://download.geofabrik.de/asia/japan-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/asia/japan/japan-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/asia/japan-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/asia/japan-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/asia:japan",
@@ -646,7 +646,7 @@
     "parent": "japan",
     "name": "Kantō region",
     "urls": {
-     "pbf": "https://download.geofabrik.de/asia/japan/kanto-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/asia/japan/kanto/kanto-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/asia/japan/kanto-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/asia/japan/kanto-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/asia/japan/kanto-internal.osh.pbf",
@@ -739,7 +739,7 @@
     "parent": "japan",
     "name": "Shikoku",
     "urls": {
-     "pbf": "https://download.geofabrik.de/asia/japan/shikoku-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/asia/japan/shikoku/shikoku-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/asia/japan/shikoku-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/asia/japan/shikoku-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/asia/japan/shikoku-internal.osh.pbf",
@@ -787,7 +787,7 @@
     ],
     "name": "United States of America",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/us-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/us/us-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/us-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/north-america:us",
@@ -858,7 +858,7 @@
     ],
     "name": "us/california",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/us/california-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/us/california/california-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/california-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/us/california-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/north-america:us:california",
@@ -902,7 +902,7 @@
     "parent": "us/california",
     "name": "Northern California",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/us/california/norcal-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/us/california/norcal/norcal-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/north-america/us/california/norcal-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/california/norcal-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/us/california/norcal-internal.osh.pbf",
@@ -947,7 +947,7 @@
     "parent": "us/california",
     "name": "Southern California",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/us/california/socal-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/us/california/socal/socal-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/north-america/us/california/socal-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/california/socal-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/us/california/socal-internal.osh.pbf",
@@ -995,7 +995,7 @@
     ],
     "name": "us/nevada",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/us/nevada-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/us/nevada/nevada-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/north-america/us/nevada-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/us/nevada-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/us/nevada-internal.osh.pbf",
@@ -1043,7 +1043,7 @@
     ],
     "name": "Canada",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/canada-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/canada/canada-latest.osm.pbf",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/canada-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/canada-internal.osh.pbf",
      "taginfo": "https://taginfo.geofabrik.de/north-america:canada",
@@ -1090,7 +1090,7 @@
     ],
     "name": "Alberta",
     "urls": {
-     "pbf": "https://download.geofabrik.de/north-america/canada/alberta-latest.osm.pbf",
+     "pbf": "https://download.geofabrik.de/north-america/canada/alberta/alberta-latest.osm.pbf",
      "shp": "https://download.geofabrik.de/north-america/canada/alberta-latest-free.shp.zip",
      "pbf-internal": "https://osm-internal.download.geofabrik.de/north-america/canada/alberta-latest-internal.osm.pbf",
      "history": "https://osm-internal.download.geofabrik.de/north-america/canada/alberta-internal.osh.pbf",

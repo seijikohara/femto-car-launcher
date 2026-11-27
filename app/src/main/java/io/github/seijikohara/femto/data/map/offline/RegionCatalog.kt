@@ -46,10 +46,17 @@ internal data class CatalogRegion(
     val id: String,
     val parentId: String?,
     val name: String,
+    /** Where the index implies the region's file is: beside its extract. */
     val fileUrl: String,
     /** Null when the snapshot lists no Shortbread file for this region. */
     val approxBytes: Long?,
     val polygon: RegionPolygon,
+    /**
+     * The other place the file can be, for a region whose extract sits in a directory named after it: beside that
+     * directory. The host moved every extract into such a directory in November 2026 and left the files where they
+     * were, and the index names the extract only, so neither place can be ruled out without asking.
+     */
+    val alternateFileUrl: String? = null,
 )
 
 internal class RegionCatalog(
@@ -169,6 +176,7 @@ private class Candidate(
     val statedParent: String?,
     val name: String,
     val fileUrl: String,
+    val alternateFileUrl: String?,
     val polygon: RegionPolygon,
 )
 
@@ -188,15 +196,26 @@ private fun candidateOrNull(feature: IndexFeature): Candidate? {
     return if (id == null || extract == null) {
         null
     } else {
+        val stem = extract.removeSuffix(EXTRACT_SUFFIX)
         Candidate(
             id = id,
             statedParent = properties.parent,
             name = displayName(properties.name, id),
-            fileUrl = extract.removeSuffix(EXTRACT_SUFFIX) + SHORTBREAD_SUFFIX,
+            fileUrl = stem + SHORTBREAD_SUFFIX,
+            alternateFileUrl = besideOwnDirectoryOrNull(stem)?.let { it + SHORTBREAD_SUFFIX },
             polygon = feature.geometry,
         )
     }
 }
+
+// "…/japan/kanto/kanto" is a region in a directory named after it, and "…/japan/kanto" is the same name beside that
+// directory. Any other shape has no such place, and neither has a name at the host's root, whose "directory" is the
+// host itself.
+private fun besideOwnDirectoryOrNull(stem: String): String? =
+    stem
+        .substringBeforeLast('/')
+        .takeIf { directory -> directory.length > REGION_HOST_PREFIX.length }
+        ?.takeIf { directory -> directory.substringAfterLast('/') == stem.substringAfterLast('/') }
 
 private fun displayName(
     raw: String?,
@@ -240,6 +259,7 @@ private fun catalogOf(
                 fileUrl = candidate.fileUrl,
                 approxBytes = sizes[candidate.id],
                 polygon = candidate.polygon,
+                alternateFileUrl = candidate.alternateFileUrl,
             )
         }.let(::RegionCatalog)
 }
