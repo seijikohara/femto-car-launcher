@@ -19,6 +19,21 @@ class TurnCardStateTest {
     }
 
     @Test
+    fun `the card carries the spoken-prompts control's state from the settings, and none by default`() {
+        assertEquals(
+            listOf(null, true, false),
+            listOf(TurnCardSettings(), TurnCardSettings(spoken = true), TurnCardSettings(spoken = false)).map {
+                stateOrNull(settings = it)?.spoken
+            },
+        )
+    }
+
+    @Test
+    fun `the destination card carries the control too`() {
+        assertEquals(true, stateOrNull(emptyList(), settings = TurnCardSettings(spoken = true))?.spoken)
+    }
+
+    @Test
     fun `the card carries the announced turn's point index, and none for the destination`() {
         assertEquals(
             listOf<Int?>(42, null),

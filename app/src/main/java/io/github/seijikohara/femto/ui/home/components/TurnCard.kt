@@ -1,5 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,22 +13,31 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Volume2
+import com.composables.icons.lucide.VolumeX
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.rememberHazeState
 import io.github.seijikohara.femto.R
@@ -36,6 +48,7 @@ import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import io.github.seijikohara.femto.ui.locale.distanceLabel
 import io.github.seijikohara.femto.ui.locale.shortDistanceLabel
 import io.github.seijikohara.femto.ui.theme.FemtoDimens
+import io.github.seijikohara.femto.ui.theme.FemtoIcon
 import io.github.seijikohara.femto.ui.theme.FemtoTheme
 import io.github.seijikohara.femto.ui.theme.FitText
 import io.github.seijikohara.femto.ui.theme.PreviewLightDark
@@ -44,6 +57,7 @@ import io.github.seijikohara.femto.ui.theme.glanceCaption
 import io.github.seijikohara.femto.ui.theme.heroNumeral
 import io.github.seijikohara.femto.ui.theme.singleLineBox
 import io.github.seijikohara.femto.ui.theme.unitLabel
+import kotlin.math.roundToInt
 
 /**
  * The turn card (issue #389 phase 4): the next turn over the map while a route is followed. The turn's arrow, then its
@@ -56,9 +70,21 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  * decision from rounded constraints could disagree with the first by a fraction of a pixel. The caller gives the
  * width, up to [TurnCardMaxWidth].
  *
- * The card carries no control. In every form it reads as one sentence to a screen reader ("Turn left in 300 m. Then:
- * Turn right."), so its parts are merged into one node. The full form is at least [TurnCardHeight] tall, more where a
- * larger font needs it; its line of text shrinks to fit rather than wrap, never below the 16 sp floor.
+ * In every form the card reads as one sentence to a screen reader ("Turn left in 300 m. Then: Turn right."), so its
+ * parts are merged into one node. The full form is at least [TurnCardHeight] tall, more where a larger font needs it;
+ * its line of text shrinks to fit rather than wrap, never below the 16 sp floor.
+ *
+ * Where [TurnCardState.spoken] is set, the whole card is one switch for the spoken prompts ([onToggleVoice]) and a
+ * small speaker shows the state, sounding when they are on and crossed out when off; the state also reads to a screen
+ * reader. With it null the card has no control, no click and no speaker. The speaker is drawn over the card's box,
+ * inside the end padding (see [VoiceGlyphSize]), so it moves no form's measured size and no content.
+ *
+ * The tap target is the card at least [FemtoDimens.MinTouchTarget] tall, and the card's own size is not changed for
+ * it: the compact form without the turn after next is 56 dp tall, and the switch is a node that measures 64 dp tall,
+ * with the card centred in it, while it reports the card's own height to its parent ([TouchHeightAtLeastFloor]). A touch up
+ * to 4 dp beyond the card's top or bottom edge is then a direct hit on the switch. The full form (88 dp or more) and
+ * the compact form with the turn after next (64 dp) reach the floor themselves, and a card without the control is
+ * drawn as before, with no switch and no growth.
  */
 @Composable
 internal fun TurnCard(
@@ -68,6 +94,7 @@ internal fun TurnCard(
     modifier: Modifier = Modifier,
     hazeState: HazeState = rememberHazeState(),
     glassConfig: GlassConfig = GlassConfig(),
+    onToggleVoice: () -> Unit = {},
 ) {
     val (value, unit) = turnDistance(state.distanceMeters, speedUnit)
     val text = turnText(state.maneuver)
@@ -75,15 +102,103 @@ internal fun TurnCard(
         state.then?.let { then ->
             stringResource(R.string.turn_card_description_then, text, value, unit, turnText(then))
         } ?: stringResource(R.string.turn_card_description, text, value, unit)
-    Box(
-        modifier =
-            modifier
-                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-                .semantics(mergeDescendants = true) { contentDescription = description },
-    ) {
-        TurnCardBody(TurnCardContent(state = state, value = value, unit = unit, text = text), form)
+    val spoken = state.spoken
+    val voiceState =
+        spoken?.let { on ->
+            stringResource(if (on) R.string.turn_card_voice_on else R.string.turn_card_voice_off)
+        }
+    val withSemantics: Modifier.() -> Modifier = {
+        semantics(mergeDescendants = true) {
+            contentDescription = description
+            voiceState?.let { stateDescription = it }
+        }
+    }
+    val content = TurnCardContent(state = state, value = value, unit = unit, text = text)
+    if (spoken == null) {
+        Box(modifier = modifier.glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig).withSemantics()) {
+            TurnCardBody(content, form)
+        }
+    } else {
+        // The switch is the outer node: it measures at least the touch floor tall and reports the card's own height,
+        // so a touch just beyond the card is a direct hit on it, and the layout around the card is as without it. The
+        // card is the inner box at its own height, clipped to its shape so the press ripple stays inside it; the
+        // ripple is drawn there from the switch's interactions.
+        val interactionSource = remember { MutableInteractionSource() }
+        Box(
+            modifier =
+                modifier
+                    // Before the growth, so the node's bounds for the semantics tree are the card's own.
+                    .withSemantics()
+                    .then(TouchHeightAtLeastFloor)
+                    .toggleable(
+                        value = spoken,
+                        interactionSource = interactionSource,
+                        indication = null,
+                        role = Role.Switch,
+                        onValueChange = { onToggleVoice() },
+                    ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                        .clip(MaterialTheme.shapes.large)
+                        .indication(interactionSource, LocalIndication.current),
+            ) {
+                TurnCardBody(content, form)
+                FemtoIcon(
+                    imageVector = if (spoken) Lucide.Volume2 else Lucide.VolumeX,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier =
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = VoiceGlyphEndInset)
+                            .size(VoiceGlyphSize)
+                            .testTag(DashboardTags.TURN_CARD_VOICE),
+                )
+            }
+        }
     }
 }
+
+// Measure the node at least [FemtoDimens.MinTouchTarget] tall, centre what it wraps in that, and report the height it
+// would have had without it, coerced into the incoming constraints: the node reaches as far above and below its
+// reported bounds as the card is short, which makes a touch just beyond them a direct hit, while the parent lays the
+// card out as ever. One instance for the file, so that a recomposition of the card does not make a new layout modifier
+// and measure again.
+//
+// A card measured taller than the floor was not grown, so its measured height is its own. Only a card at the floor
+// needs its natural height asked for, the wrapped content's minimum intrinsic height at the width given: that is the
+// compact forms, whose lines are pinned to their line boxes, so the intrinsic height is the measured one
+// (TurnCardTest). The full form never takes this path, and a difference between the two could not misplace it.
+//
+// The wrapped Box centres the card (`own` tall) in what it was measured at, rounding a half pixel up; the content is
+// placed back by that much and then centred in the reported height the same way, so that the card lands where it
+// would without the growth, to the pixel.
+private val TouchHeightAtLeastFloor: Modifier =
+    Modifier.layout { measurable, constraints ->
+        val floor = FemtoDimens.MinTouchTarget.roundToPx()
+        val placeable =
+            measurable.measure(
+                constraints.copy(
+                    minHeight = maxOf(constraints.minHeight, floor),
+                    maxHeight = maxOf(constraints.maxHeight, floor),
+                ),
+            )
+        val own =
+            if (placeable.height > floor) {
+                placeable.height
+            } else {
+                minOf(measurable.minIntrinsicHeight(constraints.maxWidth), placeable.height)
+            }
+        val reported = own.coerceIn(constraints.minHeight, constraints.maxHeight)
+        val insideMeasured = ((placeable.height - own) / 2f).roundToInt()
+        val insideReported = ((reported - own) / 2f).roundToInt()
+        layout(placeable.width, reported) { placeable.place(0, insideReported - insideMeasured) }
+    }
 
 /** The turn card's forms, in the order the card tries them. */
 internal enum class TurnCardForm(
@@ -361,6 +476,18 @@ private fun ThenColumn(
     )
     TurnArrow(maneuver = then, modifier = Modifier.size(ThenArrowSize), color = color, showExitNumber = false)
 }
+
+/**
+ * The speaker's size and its inset from the card's end edge. Every form pads its content [CardPaddingHorizontal]
+ * (16 dp) from the end edge, so the strip between the content and the edge is free in all three forms, at every geometry and
+ * Display size (the padding is a dp, scaled with everything else, and no font touches it). The speaker's box takes
+ * 1 dp + 14 dp of it from the edge, leaving 1 dp between the box and the content, and more to the ink, which a Lucide
+ * icon draws 2/24 of its size in from the box. It sits at the card's vertical centre, where the card's rounded corners
+ * (16 dp, so only the 16 dp at the top and bottom edges) do not reach: the compact forms are 56 dp tall, so the box
+ * spans 21 to 35 dp. A larger glyph would need more than the padding, and the content would have to give way.
+ */
+private val VoiceGlyphSize = 14.dp
+private val VoiceGlyphEndInset = 1.dp
 
 /** The turn's arrow, at the size of a tap target so it reads at a glance; the arrows' golden grid draws it too. */
 internal val TurnArrowSize = FemtoDimens.MinTouchTarget

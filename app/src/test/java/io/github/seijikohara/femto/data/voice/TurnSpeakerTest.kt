@@ -389,6 +389,92 @@ class TurnSpeakerTest {
             )
         }
 
+    // --- Whether the device can speak: a lasting record, which a close does not reset ---
+
+    @Test
+    fun `a device with no engine installed is known to be unable to speak at once, with nothing started`() =
+        runTest {
+            val port = FakeSpeechEnginePort(answers = emptyMap())
+            val sessions = FakeSpeechSessions()
+            val speaker = speaker(port = port, sessions = sessions)
+
+            runCurrent()
+
+            assertEquals<Any>(
+                Triple(true, emptyList<String>(), emptyList<String>()),
+                Triple(speaker.cannotSpeak.value, sessions.opened, port.asked),
+            )
+        }
+
+    @Test
+    fun `a device with an engine is not known to be unable to speak before anything is asked`() =
+        runTest {
+            val speaker = speaker()
+
+            runCurrent()
+
+            assertEquals(false, speaker.cannotSpeak.value)
+        }
+
+    @Test
+    fun `an opening that ends without English records that the device cannot speak, and a close keeps it`() =
+        runTest {
+            val speaker = speaker(port = FakeSpeechEnginePort(mapOf(ENGINE to EnglishVoice.NOT_SUPPORTED)))
+            speaker.open()
+            runCurrent()
+            val afterTheOpening = speaker.cannotSpeak.value
+
+            speaker.close()
+            runCurrent()
+
+            assertEquals(Pair(true, true), afterTheOpening to speaker.cannotSpeak.value)
+        }
+
+    @Test
+    fun `an opening that ends unavailable for any other reason records it too`() =
+        runTest {
+            val speaker = speaker(sessions = FakeSpeechSessions(session = null))
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals(true, speaker.cannotSpeak.value)
+        }
+
+    @Test
+    fun `a later opening that ends ready records that the device can speak`() =
+        runTest {
+            val sessions = FakeSpeechSessions().apply { throwing = true }
+            val speaker = speaker(sessions = sessions)
+            speaker.open()
+            runCurrent()
+            val afterTheFailure = speaker.cannotSpeak.value
+            sessions.throwing = false
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals(Pair(true, false), afterTheFailure to speaker.cannotSpeak.value)
+        }
+
+    @Test
+    fun `the availability the settings ask for sets it too`() =
+        runTest {
+            val without = speaker(port = FakeSpeechEnginePort(mapOf(ENGINE to EnglishVoice.NOT_SUPPORTED)))
+            val withEnglish = speaker(sessions = FakeSpeechSessions().apply { throwing = true })
+            withEnglish.open()
+            runCurrent()
+            val beforeTheAsk = withEnglish.cannotSpeak.value
+
+            without.availability()
+            withEnglish.availability()
+
+            assertEquals(
+                Triple(true, true, false),
+                Triple(without.cannotSpeak.value, beforeTheAsk, withEnglish.cannotSpeak.value),
+            )
+        }
+
     // --- Opening: the default engine first, the probe only when it gives no session ---
 
     @Test

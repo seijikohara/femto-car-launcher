@@ -1077,6 +1077,7 @@ private fun DashboardOverlays(
                     form = form,
                     hazeState = hazeState,
                     glassConfig = glassConfig,
+                    onToggleVoice = { onAction(HomeAction.ToggleSpokenPrompts) },
                     modifier =
                         Modifier
                             .align(if (mirror) Alignment.TopEnd else Alignment.TopStart)
@@ -1310,6 +1311,7 @@ internal object DashboardTags {
     const val VIDEO_PANEL = "dashboard-video-panel"
     const val ROUTE_CHOICE = "dashboard-route-choice"
     const val TURN_CARD = "dashboard-turn-card"
+    const val TURN_CARD_VOICE = "dashboard-turn-card-voice"
 }
 
 // Where the video window sits, as insets from the top corner on the side

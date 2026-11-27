@@ -1,26 +1,47 @@
 package io.github.seijikohara.femto.ui.home.components
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -94,6 +115,362 @@ class TurnCardTest {
         setCard(TurnCardFixtures.turnThen)
 
         rule.onNodeWithContentDescription("Turn left in 300 m. Then: Turn right.").assertHasNoClickAction()
+    }
+
+    // --- The control for the spoken prompts ---------------------------------------------------------------------
+
+    @Test
+    fun `a tap on the card calls the toggle once in each form`() {
+        val taps = mutableListOf<String>()
+        val forms =
+            listOf(
+                Triple("full", TurnCardFixtures.withVoice(TurnCardFixtures.turnThen, on = true), Dp.Infinity),
+                Triple(
+                    "compact with then",
+                    TurnCardFixtures.withVoice(TurnCardFixtures.turnThen, on = true),
+                    BELOW_FULL,
+                ),
+                Triple("compact", TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true), BELOW_FULL),
+            )
+        var form by mutableStateOf(forms.first())
+        setCard(
+            { form.second },
+            width = TurnCardMinWidth,
+            maxHeight = { form.third },
+            onToggleVoice = { taps += form.first },
+        )
+
+        forms.forEach { next ->
+            form = next
+            rule.waitForIdle()
+            rule.onNode(hasContentDescription("Turn left in 300 m", substring = true)).performClick()
+            rule.waitForIdle()
+        }
+
+        assertEquals(forms.map { it.first }, taps)
+    }
+
+    @Test
+    fun `without the control the card has no click action and a tap calls nothing`() {
+        var taps = 0
+        setCard({ TurnCardFixtures.turnThen }, onToggleVoice = { taps++ })
+
+        val card = rule.onNodeWithContentDescription("Turn left in 300 m. Then: Turn right.")
+        card.assertHasNoClickAction()
+        card.performClick()
+        rule.waitForIdle()
+
+        assertEquals(0, taps)
+    }
+
+    @Test
+    fun `the card is a switch that reads on with the spoken prompts on`() {
+        setCard({ TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true) })
+
+        rule
+            .onNodeWithContentDescription("Turn left in 300 m.")
+            .assertHasClickAction()
+            .assertIsOn()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Spoken prompts on"))
+    }
+
+    @Test
+    fun `the card is a switch that reads off with the spoken prompts off`() {
+        setCard({ TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = false) })
+
+        rule
+            .onNodeWithContentDescription("Turn left in 300 m.")
+            .assertHasClickAction()
+            .assertIsOff()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Spoken prompts off"))
+    }
+
+    @Test
+    fun `the speaker shows only where the card has the control`() {
+        var state by mutableStateOf(TurnCardFixtures.turn)
+        setCard({ state })
+        val without = rule.onAllNodesWithTag(VOICE, useUnmergedTree = true).fetchSemanticsNodes().size
+
+        state = TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = false)
+        rule.waitForIdle()
+
+        assertEquals(
+            0 to 1,
+            without to rule.onAllNodesWithTag(VOICE, useUnmergedTree = true).fetchSemanticsNodes().size,
+        )
+    }
+
+    // --- The tap area ------------------------------------------------------------------------------------------
+
+    // The compact form is 56 dp tall, 8 dp under the 64 dp floor: the tap area grows to the floor around the card
+    // without the card's size changing, so a touch 4 dp or less beyond its top or bottom edge counts.
+    @Test
+    fun `in the compact form a touch within the floor's reach above or below the card toggles, one beyond does not`() {
+        val taps = mutableListOf<String>()
+        setCardWithRoom(TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true), onToggleVoice = { taps += "tap" })
+        val card = rule.onNodeWithTag(CARD)
+        val height = card.getUnclippedBoundsInRoot().height
+
+        card.touchAt(-3.dp)
+        card.touchAt(height + 3.dp)
+        val afterTheNear = taps.size
+        card.touchAt(-6.dp)
+        card.touchAt(height + 6.dp)
+
+        assertEquals(Pair(56.dp, Pair(2, 2)), Pair(height, afterTheNear to taps.size))
+    }
+
+    @Test
+    fun `in the compact form with the turn after next, already 64 dp tall, a touch outside the card does not toggle`() {
+        var taps = 0
+        setCardWithRoom(
+            TurnCardFixtures.withVoice(TurnCardFixtures.turnThen, on = true),
+            onToggleVoice = { taps++ },
+        )
+        val card = rule.onNodeWithTag(CARD)
+
+        card.touchAt(-3.dp)
+
+        assertEquals(Pair(64.dp, 0), card.getUnclippedBoundsInRoot().height to taps)
+    }
+
+    @Test
+    fun `in the full form a touch outside the card does not toggle`() {
+        var taps = 0
+        setCardWithRoom(
+            TurnCardFixtures.withVoice(TurnCardFixtures.turnThen, on = true),
+            maxHeight = Dp.Infinity,
+            onToggleVoice = { taps++ },
+        )
+        val card = rule.onNodeWithTag(CARD)
+
+        card.touchAt(-3.dp)
+        card.touchAt(card.getUnclippedBoundsInRoot().height + 3.dp)
+
+        assertEquals(Pair(TurnCardHeight, 0), card.getUnclippedBoundsInRoot().height to taps)
+    }
+
+    @Test
+    fun `without the control a touch above the compact card calls nothing`() {
+        var taps = 0
+        setCardWithRoom(TurnCardFixtures.turn, onToggleVoice = { taps++ })
+        val card = rule.onNodeWithTag(CARD)
+
+        card.touchAt(-3.dp)
+        card.touchAt(card.getUnclippedBoundsInRoot().height / 2)
+
+        assertEquals(0, taps)
+    }
+
+    // The inner box is centred by the Box's alignment, which rounds a half pixel up, and the node places it back by the
+    // same amount: at a density where the floor and the card differ by an odd number of pixels the card must not sit a
+    // pixel low.
+    @Test
+    fun `the card's top edge is where it is without the control at every density, odd differences included`() {
+        var density by mutableFloatStateOf(1f)
+        var voice by mutableStateOf(false)
+        rule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density)) {
+                FemtoTheme {
+                    Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                        CompactCard(voice, Modifier.fillMaxWidth().testTag(CARD))
+                    }
+                }
+            }
+        }
+
+        val tops =
+            listOf(1f, 1.1f, 1.25f, 1.3f, 1.5f, 1.75f, 2f).map { next ->
+                density = next
+                voice = false
+                rule.waitForIdle()
+                val without = rule
+                    .onNodeWithText("300", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .positionInRoot.y
+                voice = true
+                rule.waitForIdle()
+                val with = rule
+                    .onNodeWithText("300", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                    .positionInRoot.y
+                val cardPx = rule
+                    .onNodeWithTag(CARD)
+                    .fetchSemanticsNode()
+                    .size.height
+                Triple(without, with, (Math.round(64 * next) - cardPx) % 2 != 0)
+            }
+
+        assertEquals(
+            tops.map { it.first },
+            tops.map { it.second },
+            "the top of the card's text with and without the control",
+        )
+        assertEquals(true, tops.any { it.third }, "at least one density gives an odd difference")
+    }
+
+    // --- Unusual constraints -----------------------------------------------------------------------------------
+
+    @Test
+    fun `a fixed height equal to the card's own leaves it as it is`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    CompactCard(voice = true, modifier = Modifier.fillMaxWidth().height(56.dp).testTag(CARD))
+                }
+            }
+        }
+
+        assertEquals(56.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    @Test
+    fun `a maximum height under the floor and over the card's own leaves it as it is`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    CompactCard(voice = true, modifier = Modifier.fillMaxWidth().heightIn(max = 60.dp).testTag(CARD))
+                }
+            }
+        }
+
+        assertEquals(56.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    @Test
+    fun `an unbounded height gives the card's own`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    CompactCard(
+                        voice = true,
+                        modifier = Modifier.fillMaxWidth().wrapContentHeight(unbounded = true).testTag(CARD),
+                    )
+                }
+            }
+        }
+
+        assertEquals(56.dp, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+    }
+
+    // A parent that sizes itself by this node's intrinsic height gets the card's own, not the grown one.
+    @Test
+    fun `a parent asking for the intrinsic height gets the card's own`() {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    Row(modifier = Modifier.height(IntrinsicSize.Min).testTag(ROW)) {
+                        CompactCard(voice = true, modifier = Modifier.weight(1f).testTag(CARD))
+                        Box(modifier = Modifier.width(8.dp).fillMaxHeight())
+                    }
+                }
+            }
+        }
+
+        assertEquals(
+            Pair(56.dp, 56.dp),
+            rule.onNodeWithTag(ROW).getUnclippedBoundsInRoot().height to
+                rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height,
+        )
+    }
+
+    // The compact card for the turn without the one after it, with or without the control.
+    @Composable
+    private fun CompactCard(
+        voice: Boolean,
+        modifier: Modifier = Modifier,
+    ) {
+        val state = if (voice) TurnCardFixtures.withVoice(TurnCardFixtures.turn, on = true) else TurnCardFixtures.turn
+        val sizes = rememberTurnCardSizes(state, SpeedUnit.KILOMETERS_PER_HOUR)
+        sizes.formOrNull(TurnCardMinWidth, BELOW_FULL)?.let { form ->
+            TurnCard(state = state, speedUnit = SpeedUnit.KILOMETERS_PER_HOUR, form = form, modifier = modifier)
+        }
+    }
+
+    // The speaker is drawn over the box, so no form may measure larger for it.
+    @Test
+    fun `the speaker changes no form's height`() {
+        val cases =
+            listOf(
+                Triple(TurnCardFixtures.turnThen, Dp.Infinity, TurnCardHeight),
+                Triple(TurnCardFixtures.turn, BELOW_FULL, 56.dp),
+                Triple(TurnCardFixtures.turnThen, BELOW_FULL, 64.dp),
+            )
+        var case by mutableStateOf(cases.first())
+        var voice by mutableStateOf(false)
+        setCard(
+            { if (voice) TurnCardFixtures.withVoice(case.first, on = true) else case.first },
+            width = TurnCardMinWidth,
+            maxHeight = { case.second },
+        )
+
+        val heights =
+            cases.map { next ->
+                case = next
+                voice = false
+                rule.waitForIdle()
+                val without = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height
+                voice = true
+                rule.waitForIdle()
+                Triple(next.third, without, rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot().height)
+            }
+
+        assertEquals(cases.map { Triple(it.third, it.third, it.third) }, heights)
+    }
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the full form`() =
+        assertSpeakerClear(TurnCardFixtures.turnThen, maxHeight = Dp.Infinity, width = TurnCardMinWidth)
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the full form at a larger font`() =
+        assertSpeakerClear(
+            TurnCardFixtures.turnThen,
+            maxHeight = Dp.Infinity,
+            width = TurnCardMaxWidth,
+            fontScale = LARGE_FONT_SCALE,
+        )
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the compact form with the turn after next`() =
+        assertSpeakerClear(TurnCardFixtures.turnThen, maxHeight = BELOW_FULL, width = TurnCardMinWidth)
+
+    @Test
+    fun `the speaker lies in the end padding clear of every text in the compact form`() =
+        assertSpeakerClear(TurnCardFixtures.turn, maxHeight = BELOW_FULL, width = TurnCardMinWidth)
+
+    // The speaker sits in the end padding, past every text of the form: it touches none, and stays inside the card.
+    private fun assertSpeakerClear(
+        state: TurnCardState,
+        maxHeight: Dp,
+        width: Dp,
+        fontScale: Float = 1f,
+    ) {
+        setCard(
+            { TurnCardFixtures.withVoice(state, on = true) },
+            width = width,
+            maxHeight = maxHeight,
+            fontScale = fontScale,
+        )
+        val card = rule.onNodeWithTag(CARD).getUnclippedBoundsInRoot()
+        val glyph = rule.onNodeWithTag(VOICE, useUnmergedTree = true).getUnclippedBoundsInRoot()
+        val textRights =
+            listOf("300", "m", "Turn left", "Then").mapNotNull { text ->
+                rule
+                    .onAllNodesWithText(text, useUnmergedTree = true)
+                    .fetchSemanticsNodes()
+                    .firstOrNull()
+                    ?.let { rule.onNodeWithText(text, useUnmergedTree = true).getUnclippedBoundsInRoot().right }
+            }
+
+        assertEquals(
+            Triple(true, true, true),
+            Triple(
+                glyph.left >= card.right - END_PADDING && glyph.right <= card.right,
+                glyph.top >= card.top && glyph.bottom <= card.bottom,
+                textRights.isNotEmpty() && textRights.all { it <= glyph.left },
+            ),
+        )
     }
 
     // The narrowest card with the turn after next leaves its text the least room: every text still fits on its line,
@@ -287,6 +664,38 @@ class TurnCardTest {
         fontScale: Float = 1f,
     ) = setCard({ state }, fontScale = fontScale)
 
+    // A touch [offset] below the card's top edge, in its own coordinates: negative above it.
+    private fun SemanticsNodeInteraction.touchAt(offset: Dp) {
+        performTouchInput { click(Offset(centerX, offset.toPx())) }
+        rule.waitForIdle()
+    }
+
+    // The card in the compact form (under the full card's height), alone in a window with room all round, so that a
+    // touch just beyond its edge lands in its parent's bounds, as it does on the dashboard.
+    private fun setCardWithRoom(
+        state: TurnCardState,
+        maxHeight: Dp = BELOW_FULL,
+        onToggleVoice: () -> Unit,
+    ) {
+        rule.setContent {
+            FemtoTheme {
+                Box(modifier = Modifier.width(TurnCardMinWidth + 48.dp).padding(24.dp)) {
+                    rememberTurnCardSizes(state, SpeedUnit.KILOMETERS_PER_HOUR)
+                        .formOrNull(TurnCardMinWidth, maxHeight)
+                        ?.let { form ->
+                            TurnCard(
+                                state = state,
+                                speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
+                                form = form,
+                                modifier = Modifier.fillMaxWidth().testTag(CARD),
+                                onToggleVoice = onToggleVoice,
+                            )
+                        }
+                }
+            }
+        }
+    }
+
     private fun countOf(text: String): Int =
         rule.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().size
 
@@ -296,6 +705,16 @@ class TurnCardTest {
         maxHeight: Dp = Dp.Infinity,
         fontScale: Float = 1f,
         speedUnit: () -> SpeedUnit = { SpeedUnit.KILOMETERS_PER_HOUR },
+        onToggleVoice: () -> Unit = {},
+    ) = setCard(state, width, { maxHeight }, fontScale, speedUnit, onToggleVoice)
+
+    private fun setCard(
+        state: () -> TurnCardState,
+        width: Dp,
+        maxHeight: () -> Dp,
+        fontScale: Float = 1f,
+        speedUnit: () -> SpeedUnit = { SpeedUnit.KILOMETERS_PER_HOUR },
+        onToggleVoice: () -> Unit = {},
     ) {
         // The card in the form the one decision picks for [width] by [maxHeight], as the dashboard draws it; nothing
         // where no form fits, which leaves the slot [width] wide and no height.
@@ -305,8 +724,14 @@ class TurnCardTest {
                     val shown = state()
                     val unit = speedUnit()
                     Box(modifier = Modifier.width(width).testTag(CARD)) {
-                        rememberTurnCardSizes(shown, unit).formOrNull(width, maxHeight)?.let { form ->
-                            TurnCard(state = shown, speedUnit = unit, form = form, modifier = Modifier.fillMaxWidth())
+                        rememberTurnCardSizes(shown, unit).formOrNull(width, maxHeight())?.let { form ->
+                            TurnCard(
+                                state = shown,
+                                speedUnit = unit,
+                                form = form,
+                                modifier = Modifier.fillMaxWidth(),
+                                onToggleVoice = onToggleVoice,
+                            )
                         }
                     }
                 }
@@ -337,6 +762,11 @@ class TurnCardTest {
 
     private companion object {
         const val CARD = "turn-card"
+        const val ROW = "turn-card-row"
+        const val VOICE = DashboardTags.TURN_CARD_VOICE
+
+        // The end padding every form keeps beside its content (CardPaddingHorizontal).
+        val END_PADDING = 16.dp
 
         // The largest step Android's own font-size setting offers on many devices.
         const val LARGE_FONT_SCALE = 1.5f

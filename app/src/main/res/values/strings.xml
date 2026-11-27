@@ -101,6 +101,9 @@
     <!-- What a screen reader says for the whole card: %1$s = the line of text ("Turn left"), %2$s = the distance's
          value ("300") and %3$s its unit ("m"), as the card shows them. -->
     <string name="turn_card_description">%1$s in %2$s %3$s.</string>
+    <!-- What a screen reader says of the card's switch for the spoken prompts: a tap on the card switches them. -->
+    <string name="turn_card_voice_on">Spoken prompts on</string>
+    <string name="turn_card_voice_off">Spoken prompts off</string>
     <!-- The same, when the card shows the turn after next: %4$s = that turn's line of text ("Turn right"). -->
     <string name="turn_card_description_then">%1$s in %2$s %3$s. Then: %4$s.</string>
     <!-- The voice_* strings are spoken by the text-to-speech engine and never shown. In the advance sentences %1$s is
