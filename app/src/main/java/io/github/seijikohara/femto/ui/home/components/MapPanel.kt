@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
@@ -119,13 +120,12 @@ internal fun MapPanel(
 }
 
 /**
- * Centre [content] in the exposed map region — clear of the side cards (left
- * OR right, whichever the driver-side reserve occupies) and above the bottom
- * overlays (the same safe fractions the self-marker honours) — instead of the
- * full screen, so the content does not slide under the floating cards and
- * read as off-centre. Only one horizontal reserve is ever non-zero; a left
- * reserve pins the exposed region to the end side. Shared by the no-location
- * placeholder here and the live-map failure notice (WebMapView).
+ * Centre [content] in the exposed map region — clear of what covers the map
+ * from the left and the right edge (the side cards, a side dock) and above the
+ * bottom overlays (the same safe fractions the self-marker honours) — instead
+ * of the full screen, so the content does not slide under the floating cards
+ * and read as off-centre. Shared by the no-location placeholder here and the
+ * live-map failure notice (WebMapView).
  */
 @Composable
 internal fun BoxScope.ExposedMapRegion(
@@ -135,8 +135,12 @@ internal fun BoxScope.ExposedMapRegion(
 ) = Box(
     modifier =
         modifier
-            .align(if (mapConfig.leftSafeFraction > 0f) Alignment.TopEnd else Alignment.TopStart)
-            .fillMaxWidth(1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction)
+            .align(
+                BiasAlignment(
+                    horizontalBias = exposedRegionBias(mapConfig.leftSafeFraction, mapConfig.rightSafeFraction),
+                    verticalBias = -1f,
+                ),
+            ).fillMaxWidth((1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction).coerceIn(0f, 1f))
             .fillMaxHeight(1f - mapConfig.bottomSafeFraction)
             // The safe fractions cover the floating cards and bottom overlays,
             // but the map controls (locate / zoom pill, compass) ride the
@@ -150,6 +154,17 @@ internal fun BoxScope.ExposedMapRegion(
     Box(modifier = Modifier.widthIn(max = ExposedContentMaxWidth)) {
         content()
     }
+}
+
+// The horizontal bias that puts a box as wide as the exposed region at its place between
+// the two side reserves: -1 with a right reserve only, 1 with a left one only, and in
+// between by their shares.
+private fun exposedRegionBias(
+    leftSafeFraction: Float,
+    rightSafeFraction: Float,
+): Float {
+    val covered = leftSafeFraction + rightSafeFraction
+    return if (covered > 0f) 2f * leftSafeFraction / covered - 1f else -1f
 }
 
 // Controls strip plus its screen-edge padding and an equal breathing gap

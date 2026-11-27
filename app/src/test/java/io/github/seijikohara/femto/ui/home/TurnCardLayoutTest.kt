@@ -470,7 +470,7 @@ class TurnCardLayoutTest {
                 "premium-2000x1200" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "phone-landscape-915x412" to listOf("full top", "full top", "full below", "none", "none"),
                 "phone-portrait-412x915" to
-                    listOf("full below", "full below", "full below", "compact+then below", "none"),
+                    listOf("full below", "full below", "full below", "compact+then below", "compact below"),
                 "tablet-800x1280" to listOf("full top", "full top", "full top", "full top", "full below"),
                 "car-portrait-1024x1365" to listOf("full top", "full top", "full top", "full top", "full top"),
                 "car-portrait-tall-1200x1920" to listOf("full top", "full top", "full top", "full top", "full top"),
@@ -485,7 +485,13 @@ class TurnCardLayoutTest {
                     "head-unit-853x512" to
                         listOf("full top", "full top", "compact+then top +window", "full below", "compact below"),
                     "phone-portrait-412x915" to
-                        listOf("full below", "compact top +window", "full below", "compact+then below", "none +window"),
+                        listOf(
+                            "full below",
+                            "compact top +window",
+                            "full below",
+                            "compact+then below",
+                            "compact below",
+                        ),
                 )
 
         // The same turn at 94 m and at 104 m, with and without the turn after next.
