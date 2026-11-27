@@ -1881,6 +1881,10 @@ class HomeViewModelTest {
 
     // The prompts lead by the fix's speed: at 10 m/s the final one is due within 60 m, and the left turn at the halfway
     // point of the route lies about 40 m ahead of this fix.
+    // Settings that never complete, as the stored ones never do: a finished flow would end the dashboard's collection
+    // and close the voice with it, which the tests below that watch the voice stay open would read as a close.
+    private val stillOpenSettings = MutableStateFlow(NavigationSettings.Default)
+
     private fun insideTheFinalLead(): Location = fakeLocation(latitude = 0.0, longitude = 0.0996403, speedMps = 10f)
 
     @Test
@@ -1892,6 +1896,7 @@ class HomeViewModelTest {
                     location = insideTheFinalLead(),
                     available = true,
                     route = TURNING_ROUTE,
+                    navigationSettingsFlow = stillOpenSettings,
                     voice = voice,
                 )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
@@ -2004,6 +2009,7 @@ class HomeViewModelTest {
                     location = insideTheFinalLead(),
                     available = true,
                     route = TURNING_ROUTE,
+                    navigationSettingsFlow = stillOpenSettings,
                     voice = voice,
                 )
             val collection =
