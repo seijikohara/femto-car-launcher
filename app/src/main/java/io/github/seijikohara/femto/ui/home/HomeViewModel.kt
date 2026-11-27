@@ -415,7 +415,7 @@ internal class HomeViewModel(
     // stored settings are read (with the speed unit), and both the turn card and its spoken prompts are on; then the
     // engine is opened once for the follow, and a prompt that has come due is spoken. Otherwise the engine is closed,
     // and the planner's memory stays, so a turn that shows again after a hide is not announced a second time.
-    // A close is sent only once the settings are read and a route is followed, or when the engine was opened, so a
+    // A close is sent only once the settings and the unit are read and a route is followed, or when the engine was opened, so a
     // build without routing, which never has a route, never creates the speaker.
     private fun stepTurnVoice(
         route: FollowedRoute?,
@@ -434,7 +434,7 @@ internal class HomeViewModel(
                 .also { promptMemory = it.memory }
                 .prompt
                 ?.let { prompt -> speakTurnPrompt(turnPromptText(prompt, unit), prompt.label()) }
-        } else if (voiceOpen || (route != null && stored != null)) {
+        } else if (voiceOpen || (route != null && stored != null && unit != null)) {
             voiceOpen = false
             closeTurnVoice()
         }

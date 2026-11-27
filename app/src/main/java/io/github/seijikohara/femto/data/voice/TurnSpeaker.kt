@@ -175,9 +175,14 @@ internal class TurnSpeaker(
     private fun handle(command: Command) =
         when (command) {
             Command.Open -> startOpening()
+
             is Command.Say -> speak(command.text, command.label)
-            Command.Close -> shutDown()
+
+            // Sent at every fix while a route is followed with voice off, so a closed speaker has nothing to do.
+            Command.Close -> shutDownUnlessClosed()
+
             is Command.Opened -> finishOpening(command)
+
             is Command.Ended -> finishPrompt(command.sequence, command.played)
         }
 
@@ -281,6 +286,10 @@ internal class TurnSpeaker(
                 it?.copy(outcome = if (played) PromptOutcome.PLAYED else PromptOutcome.CUT_SHORT)
             }
         }
+    }
+
+    private fun shutDownUnlessClosed() {
+        if (mutableStatus.value != SpeakerStatus.Closed) shutDown()
     }
 
     private fun shutDown() {
