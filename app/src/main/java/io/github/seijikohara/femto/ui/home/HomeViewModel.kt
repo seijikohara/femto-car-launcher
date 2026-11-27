@@ -72,8 +72,11 @@ import io.github.seijikohara.femto.data.update.promptedFor
 import io.github.seijikohara.femto.data.update.skipped
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
+import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
+import io.github.seijikohara.femto.ui.locale.SpeedUnit
+import io.github.seijikohara.femto.ui.locale.resolved
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -92,6 +95,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -174,6 +178,20 @@ internal class HomeViewModel(
     // the vehicle on the route line while it drives along it, and what the
     // turn card shows. Defaults to the settings' defaults.
     navigationSettingsFlow: Flow<NavigationSettings> = flowOf(NavigationSettings.Default),
+    // The speed unit the spoken distances use, resolved from the display
+    // settings the way the dashboard resolves it.
+    speedUnitFlow: Flow<SpeedUnit> = flowOf(SpeedUnit.KILOMETERS_PER_HOUR),
+    // The sentence a turn prompt speaks, in the unit it is spoken in; the
+    // factory reads the app's string resources. The default speaks nothing
+    // the tests could not do without.
+    private val turnPromptText: (TurnPrompt, SpeedUnit) -> String = { _, _ -> "" },
+    // The spoken turn prompts (TurnSpeaker): open the engine for the route
+    // now followed, speak a prompt (with the label diagnostics keep of it),
+    // and close it again. Default to nothing, so previews and tests that do
+    // not exercise voice never reach an engine.
+    private val openTurnVoice: () -> Unit = {},
+    private val speakTurnPrompt: (text: String, label: String) -> Unit = { _, _ -> },
+    private val closeTurnVoice: () -> Unit = {},
 ) : ViewModel() {
     // The builds the update prompt has been answered about in this process. The
     // prompt closes on the answer itself, not on the store's write: a slow disk
@@ -251,6 +269,9 @@ internal class HomeViewModel(
             CoreSignals(location, address, weather, music, badge)
         }
 
+    // The follows started so far; read and written only where flatMapLatest starts one, one after another.
+    private var followCount = 0
+
     // The active route while routing is offered here, else none: a switch to
     // the Google backend hides it, and a switch back shows it again. Its
     // progress follows each fix along the line (Route.followFlow), a pass
@@ -286,6 +307,9 @@ internal class HomeViewModel(
             .distinctUntilChangedBy { it?.session to it?.route }
             .flatMapLatest { active ->
                 active?.let { shown ->
+                    // Counts the follows, so the prompt planner tells a turn of this one from the same point of
+                    // another (a reroute's line, a new route): a point index alone repeats between them.
+                    val followId = ++followCount
                     combine(
                         shown.route
                             .followFlow(routeFixes)
@@ -311,6 +335,8 @@ internal class HomeViewModel(
                             upcomingTurns = follow.upcomingTurns,
                             offRoute = follow.offRoute,
                             fixPlaced = follow.fixPlaced,
+                            followId = followId,
+                            speedMetersPerSecond = follow.speedMetersPerSecond,
                         )
                     }
                 } ?: flowOf(null)
@@ -367,6 +393,53 @@ internal class HomeViewModel(
             .distinctUntilChanged()
             .catchAsDefault(TAG, "navigation settings", NavigationSettings.Default)
 
+    // Seeded with null, "not read yet", like the settings: a prompt never speaks in a unit that was a guess.
+    private val speedUnit: Flow<SpeedUnit?> =
+        speedUnitFlow
+            .map<SpeedUnit, SpeedUnit?> { it }
+            .onStart { emit(null) }
+            .distinctUntilChanged()
+            .catchAsDefault(TAG, "speed unit", SpeedUnit.KILOMETERS_PER_HOUR)
+
+    // Voice rides on the one collection of the route follow below, the one uiState makes: a second collection of
+    // activeRoute would run the follow twice and report every off-route event twice. These two are touched only from
+    // that collection, one emission after another.
+    private var promptMemory = TurnPromptMemory()
+    private var voiceOpen = false
+
+    // The follow the engine was last opened for: one opening per follow, since a device that cannot speak would
+    // otherwise be asked again at every fix.
+    private var openedFollow = -1
+
+    // Run for each emission of the route as the dashboard shows it. Voice is wanted while a route is followed, the
+    // stored settings are read (with the speed unit), and both the turn card and its spoken prompts are on; then the
+    // engine is opened once for the follow, and a prompt that has come due is spoken. Otherwise the engine is closed,
+    // and the planner's memory stays, so a turn that shows again after a hide is not announced a second time.
+    // A close is sent only once the settings are read and a route is followed, or when the engine was opened, so a
+    // build without routing, which never has a route, never creates the speaker.
+    private fun stepTurnVoice(
+        route: FollowedRoute?,
+        card: TurnCardState?,
+        stored: NavigationSettings?,
+        unit: SpeedUnit?,
+    ) {
+        if (route != null && stored != null && unit != null && stored.turnCard && stored.spokenPrompts) {
+            if (!voiceOpen || openedFollow != route.followId) {
+                voiceOpen = true
+                openedFollow = route.followId
+                openTurnVoice()
+            }
+            promptMemory
+                .step(route.followId, card, route.speedMetersPerSecond)
+                .also { promptMemory = it.memory }
+                .prompt
+                ?.let { prompt -> speakTurnPrompt(turnPromptText(prompt, unit), prompt.label()) }
+        } else if (voiceOpen || (route != null && stored != null)) {
+            voiceOpen = false
+            closeTurnVoice()
+        }
+    }
+
     val uiState: StateFlow<HomeUiState> =
         combine(
             coreSignals,
@@ -378,7 +451,19 @@ internal class HomeViewModel(
                 routingOffered,
                 routeChoiceAutoClose,
                 navigationSettings,
-            ) { route, offered, _, settings -> route?.withSettings(settings) to offered },
+                speedUnit,
+            ) { route, offered, _, settings, unit ->
+                val shown = route?.withSettings(settings)
+                stepTurnVoice(route, shown?.turnCard, settings, unit)
+                shown to offered
+            }
+                // The dashboard leaving ends the collection, and the engine goes with it.
+                .onCompletion {
+                    if (voiceOpen) {
+                        voiceOpen = false
+                        closeTurnVoice()
+                    }
+                },
         ) { core, calendar, systemStatus, tripState, (route, offered) ->
             HomeUiState(
                 location = core.location,
@@ -736,6 +821,10 @@ private data class FollowedRoute(
     val upcomingTurns: List<UpcomingTurn>?,
     val offRoute: Boolean,
     val fixPlaced: Boolean,
+    // Which follow of the view model's this route is, and how fast the fix it was worked out from moved: what the
+    // spoken prompts read.
+    val followId: Int,
+    val speedMetersPerSecond: Double?,
 )
 
 // The route row's time, the vehicle on the line only with its setting on, and
@@ -959,6 +1048,13 @@ internal class HomeViewModelFactory(
             onGpsFix = routeKeeper::onGpsFix,
             receivedPlaces = ReceivedPlaceInbox.shared,
             navigationSettingsFlow = navigationSettings,
+            speedUnitFlow = displayPreferences.settings.map { it.speedUnit.resolved() }.distinctUntilChanged(),
+            turnPromptText = { prompt, unit -> prompt.text(application.resources, unit) },
+            // Resolved at the first call, which only a followed route with voice on can make, so a build without
+            // routing never creates the speaker.
+            openTurnVoice = { TurnSpeaker.get(application).open() },
+            speakTurnPrompt = { text, label -> TurnSpeaker.get(application).say(text, label) },
+            closeTurnVoice = { TurnSpeaker.get(application).close() },
         ) as T
     }
 }

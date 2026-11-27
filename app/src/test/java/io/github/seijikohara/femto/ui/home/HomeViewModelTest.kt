@@ -1876,6 +1876,167 @@ class HomeViewModelTest {
             )
         }
 
+    // --- The spoken turn prompts -------------------------------------------------
+
+    // The prompts lead by the fix's speed: at 10 m/s the final one is due within 60 m, and the left turn at the halfway
+    // point of the route lies about 40 m ahead of this fix.
+    private fun insideTheFinalLead(): Location =
+        fakeLocation(latitude = 0.0, longitude = 0.0996403, speedMps = 10f)
+
+    @Test
+    fun `a fix inside the final lead speaks the final prompt once and opens the engine`() =
+        runTest {
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(
+                Triple(listOf("FINAL" to "final at 40 m"), 1, 0),
+                Triple(voice.spoken, voice.opens, voice.closes),
+            )
+        }
+
+    @Test
+    fun `with spoken prompts off nothing is spoken and the engine is closed`() =
+        runTest {
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = flowOf(NavigationSettings.Default.copy(spokenPrompts = false)),
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(Triple(emptyList(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
+        }
+
+    @Test
+    fun `with the turn card off nothing is spoken`() =
+        runTest {
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = flowOf(NavigationSettings.Default.copy(turnCard = false)),
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(Triple(emptyList(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
+        }
+
+    @Test
+    fun `nothing is spoken before the stored settings are read`() =
+        runTest {
+            val settings = MutableSharedFlow<NavigationSettings>()
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val beforeTheRead = Pair(voice.spoken.toList(), voice.opens)
+
+            settings.emit(NavigationSettings.Default)
+
+            assertEquals(
+                Pair(Pair(emptyList<Pair<String, String>>(), 0), listOf("FINAL" to "final at 40 m")),
+                Pair(beforeTheRead, voice.spoken),
+            )
+        }
+
+    @Test
+    fun `the same fix delivered twice speaks once`() =
+        runTest {
+            val location = MutableSharedFlow<Location?>()
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(locationFlow = location, available = true, route = TURNING_ROUTE, voice = voice)
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            location.emit(insideTheFinalLead())
+            location.emit(insideTheFinalLead())
+
+            assertEquals(1, voice.spoken.size)
+        }
+
+    @Test
+    fun `nothing is spoken while the route choice card is open, and the prompt comes once it closes`() =
+        runTest {
+            val active = MutableStateFlow<ActiveRoute?>(choosingRoute().copy(route = TURNING_ROUTE))
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    activeRouteFlow = active,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val whileChoosing = voice.spoken.toList()
+
+            active.value = active.value?.copy(choosing = false, finding = false)
+
+            assertEquals(emptyList<Pair<String, String>>() to 1, whileChoosing to voice.spoken.size)
+        }
+
+    @Test
+    fun `leaving the dashboard closes the engine`() =
+        runTest {
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    voice = voice,
+                )
+            val collection =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val whileShown = voice.closes
+
+            collection.cancel()
+            advanceUntilIdle()
+
+            assertEquals(0 to 1, whileShown to voice.closes)
+        }
+
+    // A build without routing has no route to follow: its voice callbacks are never called, so the speaker is never
+    // created.
+    @Test
+    fun `where routing is not offered the engine is neither opened nor closed`() =
+        runTest {
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = false,
+                    route = TURNING_ROUTE,
+                    voice = voice,
+                )
+            val collection =
+                backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            collection.cancel()
+            advanceUntilIdle()
+
+            assertEquals(Triple(0, 0, emptyList()), Triple(voice.opens, voice.closes, voice.spoken))
+        }
+
     // --- The route kept across a restart ---------------------------------------
 
     // The keeper's first-fix decision must run with nothing on the map too.
@@ -2163,6 +2324,7 @@ class HomeViewModelTest {
         onGpsFix: (Long) -> Unit = {},
         nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
         navigationSettingsFlow: Flow<NavigationSettings> = flowOf(NavigationSettings.Default),
+        voice: RecordedVoice = RecordedVoice(),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -2183,7 +2345,19 @@ class HomeViewModelTest {
             onGpsFix = onGpsFix,
             nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
             navigationSettingsFlow = navigationSettingsFlow,
+            // The stage names the prompt: the sentences are the text tests' business.
+            turnPromptText = { prompt, _ -> prompt.stage.name },
+            openTurnVoice = { voice.opens++ },
+            speakTurnPrompt = { text, label -> voice.spoken += text to label },
+            closeTurnVoice = { voice.closes++ },
         )
+
+    // What the dashboard asked of the voice: the engine openings and closings, and each prompt with its label.
+    private class RecordedVoice {
+        var opens = 0
+        var closes = 0
+        val spoken = mutableListOf<Pair<String, String>>()
+    }
 
     private fun stubViewModel(
         sendMusicCommand: (MusicCommand) -> Unit = {},

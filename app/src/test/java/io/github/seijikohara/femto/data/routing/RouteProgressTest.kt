@@ -384,6 +384,23 @@ class RouteProgressTest {
             )
         }
 
+    // The turn prompts lead by the speed of the fix the turns were worked out from.
+    @Test
+    fun `each follow carries the speed of its fix, none before the first and for a fix without one`() =
+        runTest {
+            assertEquals(
+                listOf(null, 12.5, null),
+                route
+                    .followFlow(
+                        flowOf(
+                            fakeRouteFix(RoutePoint(0.0, 0.03), elapsedMs = 0L, speedMetersPerSecond = 12.5f),
+                            fakeRouteFix(RoutePoint(0.0, 0.04), elapsedMs = 1_000L, speedMetersPerSecond = null),
+                        ),
+                    ).toList()
+                    .map { it.speedMetersPerSecond },
+            )
+        }
+
     @Test
     fun `a fix 10 m beside the line is drawn at the point of the line it was matched to`() =
         runTest {

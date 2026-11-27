@@ -277,6 +277,8 @@ internal data class RouteFollow(
      * of the line: a route restored after a restart can lie far behind the vehicle until the first fix comes.
      */
     val fixPlaced: Boolean = false,
+    /** The speed of the fix this follow was worked out from; null before the first fix and for a fix without one. */
+    val speedMetersPerSecond: Double? = null,
 )
 
 /**
@@ -303,6 +305,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                         onLine = null,
                         passed = LinePosition.Start,
                         fixPlaced = false,
+                        speedMetersPerSecond = null,
                     ),
                 ) { step, fix ->
                     val position = line.follow(fix.point, step.position)
@@ -324,6 +327,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                                 LinePosition(max(step.passed.travelledMeters, position.travelledMeters))
                             },
                         fixPlaced = true,
+                        speedMetersPerSecond = fix.speedMetersPerSecond?.toDouble(),
                     )
                 }.map { step ->
                     RouteFollow(
@@ -333,6 +337,7 @@ internal fun Route.followFlow(fixes: Flow<RouteFix?>): Flow<RouteFollow> =
                         upcomingTurns = turnsAlong?.let { line.turnsAhead(it, step.passed, step.progress) },
                         offRoute = step.watch.left,
                         fixPlaced = step.fixPlaced,
+                        speedMetersPerSecond = step.speedMetersPerSecond,
                     )
                 }.distinctUntilChanged(),
         )
@@ -386,6 +391,7 @@ private data class FollowStep(
     // and the mark starts again there, so the turns ahead are worked out afresh.
     val passed: LinePosition,
     val fixPlaced: Boolean,
+    val speedMetersPerSecond: Double?,
 )
 
 // A segment's point nearest a fix: the squared distance to it, and the length of line behind it.
