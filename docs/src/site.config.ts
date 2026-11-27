@@ -59,6 +59,7 @@ const siteConfig: SiteConfig = {
                 section: "/features/",
             },
             { name: "Catalog", href: "/catalog/" },
+            { name: "Settings", href: "/settings/" },
             { name: "Install", href: "/install/" },
         ],
     },

@@ -1,0 +1,243 @@
+---
+title: Settings reference
+description: What every row under Settings does, which choices it offers and the value it starts with, category by category in the order the app shows them.
+---
+
+This page goes through the Settings screen row by row, in the order the app shows them. Each row has what it does, the choices it offers and the value a fresh install starts with. Find the category you opened, then the row.
+
+Open Settings with the **Settings** button on the dock. Settings slides up as a sheet over the dashboard. Swipe it down, tap outside it or tap the back arrow to close it.
+
+- **Layout.** On a wide screen the categories form a column beside the rows. On a narrow screen Settings shows the list of categories first, and a tap opens one, with a back arrow to return.
+- **Choices.** A row with up to three choices shows them as buttons. A row with more choices shows the current choice and opens a list when you tap it. The exceptions are **Display size**, a slider with five steps, and **Accent color**, a row of swatches. Switches, sliders and buttons apply at once; only the dialogs that take typed text have a **Save** button.
+- **Reset.** Every category except System has a **Reset this section** icon in its header. It restores that category's rows to the values on this page, after asking. It keeps the keys and addresses you entered, the **Status icons** switch (the dock has its own **Reset dock**) and the video file you picked. [System](#system) describes the full reset.
+- **Nightly builds.** Rows and categories marked "nightly builds only" exist only in the nightly channel. The [install guide](/install/) explains the two channels.
+
+## Appearance
+
+### Theme and accent
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Theme** | Sets the light or dark look of the app. **Auto** follows the device's own light or dark setting. | Auto, Light, Dark | Auto |
+| **Accent color** | Sets the accent color of the whole app. **Dynamic** keeps the colors Android takes from your wallpaper (Material You). Every other swatch uses a fixed color. | Dynamic, Blue, Teal, Green, Amber, Orange, Red, Violet, Pink | Dynamic |
+
+### Map color
+
+These rows set the colors of the map. [Live map](/features/live-map/) describes the schemes.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Match app theme** | Gives the map the light or dark look of the app's theme. Turn it off to choose the map's look on its own. | On or off | On |
+| **Map style** | Sets the map to light or dark on its own. The row is shown only while **Match app theme** is off. Turning that switch off starts from the look the app has at that moment. | Light, Dark | Shown only after **Match app theme** is turned off |
+| **Light scheme** | Sets the color scheme of the map in light mode. The row is shown only with the OpenStreetMap map provider, and not while **Map style** is Dark. | Standard, Accent (app color), Positron, Bright, Liberty, Custom style URL | Standard |
+| **Dark scheme** | Sets the color scheme of the map in dark mode. The row is shown only with the OpenStreetMap map provider, and not while **Map style** is Light. | Standard, Accent (app color), Dark Matter, Dark, Fiord, Custom style URL | Standard |
+| **Style URL** | The address of a hosted MapLibre style, which the **Custom style URL** scheme loads. The address must start with `https://` and may carry a provider key. The row shows only the host, never the full address. The map shows that style's own credits. If the style cannot be loaded, the map shows a notice; **Clear** returns to the Standard scheme. Without an address, the Standard scheme shows. The row is shown only while a scheme row you can see is set to **Custom style URL**. | An address, with **Save** and **Clear** | Not set |
+
+### Glass
+
+The glass settings shape the floating cards over the map.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Blur radius** | Sets how strongly a card blurs the map behind it. | 0 to 40 dp | 16 dp |
+| **Glass opacity** | Sets how solid a card is. 0 % is clear glass and 100 % is an opaque card. | 0 to 100 % | 50 % |
+| **Panel border** | Draws an outline around each card. | On or off | Off |
+| **Panel shadow** | Draws a soft shadow under each card. | On or off | On |
+| **Shadow intensity** | Sets how strong the shadow is. The row is shown only while **Panel shadow** is on. | 0 to 100 % | 40 % |
+| **Shadow size** | Sets how far the shadow spreads. The row is shown only while **Panel shadow** is on. | 0 to 24 dp | 8 dp |
+
+### Fonts
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Latin font** | Sets the typeface for letters and numbers. Opens the font picker. | System default, a Google Fonts family, or a font installed on the device | System default |
+| **CJK fallback** | Sets the typeface for Chinese, Japanese and Korean characters, and for any character the Latin font does not have. Opens the font picker. | System default, a Google Fonts family, or a font installed on the device | System default |
+| **Font size** | Sets the base text size. Every other text size scales from it. | 14 to 20 sp | 16 sp |
+| **Font weight** | Makes all text lighter or heavier. The row shows the weight of regular text as a number. Each step changes the weights by 100. | Five steps, from 200 to 600 for regular text | 400 |
+| **Letter spacing** | Sets the space between letters. | -0.02 to 0.10 em | 0.00 em |
+
+The font picker lists **System default**, the fonts installed on the device and the Google Fonts families, with a search field and a **Most popular first** order. Families that cover Chinese, Japanese or Korean are marked "CJK". Choosing a Google Fonts family downloads its file once and keeps it on the device. Opening the picker asks Google Fonts for the current list of families, and the app saves the list on the device so it shows without a connection. [Privacy and data](/features/privacy/) says what each request carries.
+
+## Screen
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Display size** | Scales the whole interface: text, icons and spacing. **Medium** keeps the minimum text and touch-target sizes that [Automotive defaults and adjustments](/features/made-for-the-car/) describes. **Small** and **Compact** fit more on screen below those minimums; **Comfortable** and **Large** make everything bigger. | Small, Compact, Medium, Comfortable, Large | Medium |
+| **Orientation** | **Auto** follows the unit's own orientation. **Landscape** or **Portrait** fixes it, for a unit that reports the wrong one. | Auto, Landscape, Portrait | Auto |
+| **Driver side** | Puts the cards and the clock on the driver's side of the screen, within reach. The compass and the locate and zoom buttons move to the opposite side, and the speed readout stays centred on the part of the map the cards leave free. | Right, Left | Right |
+| **Fullscreen** | Hides Android's status bar and navigation bar. | On or off | On |
+| **Keep screen on** | Keeps the screen awake while the launcher is in front. | On or off | On |
+| **Dock position** | Sets the screen edge that holds the dock. At the bottom or the top the dock is a bar; at the left or the right it is a vertical rail. | Bottom, Top, Left, Right | Bottom |
+| **Dock width** | **Compact** draws a centered pill around the buttons; a bar too narrow for the pill draws extended instead. **Extended** draws a full-width bar. The row is shown only while the dock is at the bottom or the top; a rail has a fixed width. | Compact, Extended | Compact |
+| **Status icons** | Shows or hides the whole group of status icons (cellular signal, Wi-Fi, Bluetooth, GPS and battery) beside the dock buttons, where the dock has room for them. A long-press on one icon reorders or hides just that icon. This switch is also the way back once every icon is hidden. | On or off | On |
+| **Reset dock** | Restores the default order and visibility of the dock buttons and of the status icons, after asking. This row is an action, not a setting. | None | Not applicable |
+| **Assistant** | Sets what the dock's microphone button opens. **System** hands off to the device's own assistant; if the device has none, the launcher's voice sheet opens instead. **Built-in** opens the launcher's own voice sheet. | System, Built-in | System |
+| **Motion** | Sets how much the interface animates. **Standard** fades and scales a little. **Reduced** fades without scaling. **Off** makes every change instant, for the weakest graphics chips. | Standard, Reduced, Off | Standard |
+
+[Apps and voice](/features/apps-and-voice/) describes the dock and the voice sheet, including how to edit the dock with a long-press.
+
+## Units
+
+The **Auto** choices follow the device.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Speed & distance** | Sets the unit of the speed readout and the distances. **Auto** follows the device's region. | Auto, km/h, mph | Auto |
+| **Temperature** | Sets the temperature unit. **Auto** follows the device's region. | Auto, °C, °F | Auto |
+| **Clock** | Sets the clock format. **Auto** follows the device's 12-hour or 24-hour setting. | Auto, 12-hour, 24-hour | Auto |
+| **Show seconds** | Adds seconds to the clock. Off shows hours and minutes. | On or off | Off |
+
+## Map
+
+### Provider
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Map provider** | Chooses which map the dashboard draws. **OpenStreetMap** needs no account or key. **Google Maps (requires API key)** uses your own Google Maps Platform key. Choosing Google Maps while no key is set opens the key dialog at once. | OpenStreetMap, Google Maps (requires API key) | OpenStreetMap |
+
+### Google Maps rows
+
+These rows are shown only while the map provider is Google Maps. Below them the app notes that map color schemes apply to OpenStreetMap only. [Live map](/features/live-map/) and the [install guide](/install/) cover the provider and the key.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Rendering** | Chooses how the Google map is drawn. **Vector** adds heading-up rotation and tilt; on a device without WebGL it shows a notice instead of a map. **Raster** is flat and north-up. **Automatic** tells Google nothing about it, so the cloud configuration of the Map ID, and in the end Google, decides. | Automatic, Raster, Vector | Automatic |
+| **Map type** | Sets the kind of map Google draws. | Roadmap, Satellite, Hybrid, Terrain | Roadmap |
+| **Traffic overlay** | Draws live traffic on the Google map. | On or off | Off |
+| **Google Maps API key** | Your own Google Maps Platform key. The dialog says what the key needs: a Google Cloud project with billing and the Maps JavaScript API enabled, and a referrer restriction that allows `https://appassets.androidplatform.net/*`. The row shows only the last four characters. **Save** also selects the Google Maps provider; **Clear** removes the key. | A key, with **Save** and **Clear** | Not set |
+| **Map ID (optional)** | A Map ID from your Google Cloud console, for cloud styling and advanced markers. The **Rendering** choice, not the Map ID, picks raster or vector; only under **Automatic** can the Map ID's cloud configuration decide. | An ID, with **Save** and **Clear** | Not set |
+| **Google Maps Platform terms** | Opens Google's own terms in a browser. They cover the key you use, including the restrictions on in-vehicle use. | None | Not applicable |
+
+### Rendering (OpenStreetMap)
+
+These rows are shown only while the map provider is OpenStreetMap.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **3D buildings** | Draws buildings as raised blocks. | On or off | On |
+| **Terrain** | Adds 3D elevation relief from Mapterhorn. It downloads extra map tiles and is heavier on low-end graphics chips. | On or off | Off |
+| **Tile host (advanced)** | The server that supplies the map's tiles, styles, sprites and glyphs, in the OpenFreeMap layout. Enter your own `https://` address to use your own server. If that server cannot be reached, the map returns to the default host on its next retry. The row shows the default host while none is set. | An address, with **Save** and **Use default** | The built-in host |
+| **Saved map regions** | Opens the saved-regions screen. Nightly builds only. | Opens a screen | Not applicable |
+| **Routing data** | Opens the list of routing data on the device. Nightly builds only. | Opens a screen | Not applicable |
+
+### Camera
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Map tilt** | Sets how far the camera tilts from straight down toward the horizon. | 0 to 60° | 55° |
+| **Map zoom** | Sets the zoom level. The zoom buttons on the map change the same value. | 12 to 19 | 16 |
+| **North up** | Keeps north at the top of the map instead of turning the map with the direction of travel. The compass on the map toggles it too. | On or off | Off |
+| **Marker position** | Sets how far below the center of the map the vehicle marker sits. 0 % is the center, and 100 % is the lowest place the marker takes: about a third of the map's height below the center, or just above the speed readout where that comes first. Where the cards and the speed readout take more than half of the screen, as on most portrait screens, the marker sits just above the speed readout whatever this value. | 0 to 100 % | 70 % |
+
+### Saved map regions (nightly builds only)
+
+The **Saved map regions** row appears only in nightly builds, and only with the OpenStreetMap provider. It opens a screen that saves regions of the map on the device. The map does not draw saved regions yet.
+
+- **Add region** lists the regions Geofabrik publishes and suggests one for the current location. A region shows its download size before you save it. One region downloads at a time.
+- An interrupted download pauses. **Resume** continues it, and **Cancel** discards the part already downloaded.
+- **Storage limit** caps the total size of the saved regions. Lowering it deletes nothing. The choices are No limit, 1, 2, 5, 10, 20 and 50 GB, and the default is No limit.
+- Each saved region shows its size and the date of its data. **Delete** removes it after asking.
+
+### Routing data (nightly builds only)
+
+The **Routing data** row appears only in nightly builds, and only with the OpenStreetMap provider. Its summary reads "None on this device yet" or the number of areas and their total size. It opens a screen that lists each 5° × 5° area with its size and the date of its last check. Each area has **Delete**, and **Delete all routing data** removes every area. Both ask first. A route that needs a deleted area downloads it again, after asking. [Live map](/features/live-map/) describes how routes use the data.
+
+## Navigation (nightly builds only)
+
+This category exists only in nightly builds, and only while the map provider is OpenStreetMap. It sets what the route preview does. [Live map](/features/live-map/) describes route preview, the turn card and the spoken prompts.
+
+### Route
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Reroute automatically** | Computes a new route when the vehicle leaves the one on the map. | On or off | On |
+| **Suggest other routes** | Looks for up to two more routes to choose from after the first one. | On or off | On |
+| **Bring the route back after a restart** | Keeps the route on the device so it returns when the launcher starts again. Turning it off deletes the kept route. | On or off | On |
+| **Time shown for a route** | Sets which time the route row beside the distance left shows in the speed readout. | Arrival time, Time remaining | Arrival time |
+
+### Guidance
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Turn card** | Shows the next turn in a card over the map while a route is on. | On or off | On |
+| **Show the turn after next** | Adds a small second arrow when two turns follow closely. The row is shown only while **Turn card** is on. | On or off | On |
+| **Show "Continue straight"** | Also shows where the route goes straight on across a bigger road. The row is shown only while **Turn card** is on. | On or off | Off |
+| **Spoken prompts** | Says each turn before it comes, in English, through the device's text-to-speech engine. The row is shown only while **Turn card** is on. If the device has no text-to-speech engine, or none with an English voice, the switch is off and cannot be changed, and the row says why. | On or off | On |
+| **Keep the vehicle on the route** | Draws the vehicle on the route line while it drives along it. Off draws it at the GPS position. | On or off | On |
+
+## Location
+
+[Driving data and trips](/features/driving-data/) describes the trip meter and the track history.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Accuracy** | Sets the quality of the position requests. The lower choices suit hardware that cannot keep up with high accuracy. | High accuracy, Balanced, Low power | High accuracy |
+| **Update interval** | Sets how often the launcher asks for a new position. A shorter interval moves the map more smoothly; a longer one lightens the load on slow head units. Many GPS chips deliver at most one position per second regardless. | 250 to 2000 ms, in steps of 250 ms | 250 ms |
+| **Minimum distance** | Skips a position closer than this to the previous one. 0 delivers every position. | 0 to 25 m | 0 m |
+| **Background ranging** | Keeps measuring the trip distance and the average speed while you use another app, such as a navigation app. It runs the GPS continuously and shows an ongoing notification, so it uses more power. When you switch it on while the app has location access, Android asks for permission to show notifications if the app does not have it yet; [Driving data and trips](/features/driving-data/) has the details. | On or off | Off |
+| **Start a new trip automatically** | Ends the current trip after the vehicle has been parked this long, so the next drive starts a fresh trip. **Never (tap Reset only)** keeps one trip until you tap reset on the speed readout. | Never (tap Reset only), After 30 min parked, After 1 h parked, After 2 h parked, After 4 h parked, After 12 h parked | After 2 h parked |
+| **Track recording** | Records position, speed, bearing and altitude while you drive, for the trip replay. The history stays on the device. | On or off | On |
+| **Keep track history** | Sets how long recorded points are kept before they are pruned. | 30 days, 90 days, 1 year, Until I delete it | 90 days |
+| **Export track history** | Saves the recorded history as a GPX file. Android's file picker lets you choose where it goes. The row then reports how many points it exported, or that the export failed and nothing was written. | None | Not applicable |
+| **Delete track history** | Removes every recorded point from the device, after asking. This cannot be undone. | None | Not applicable |
+
+## Panels
+
+[Glanceable panels](/features/panels/) describes each card.
+
+| Setting | What it does | Choices | Default |
+| --- | --- | --- | --- |
+| **Calendar panel** | Shows the calendar card. | On or off | On |
+| **Date only** | Shows only the date, weekday and month on the calendar card, without the agenda. The row is shown only while **Calendar panel** is on. | On or off | Off |
+| **Visible calendars** | Opens a list of the device's calendars with a checkbox each, to choose which ones show. Without calendar access the list says so and offers a button to Android's settings. The summary reads "All calendars" or the count shown, such as "2 of 3 shown". The row is shown only while **Calendar panel** is on. | A checkbox per calendar | All calendars |
+| **Weather panel** | Shows the weather card. | On or off | On |
+| **Music panel** | Shows the music card. | On or off | On |
+| **Music spectrum** | Shows a spectrum of the playing audio behind the playback controls. It uses the microphone permission: switching it on asks Android for that permission first. | On or off | Off |
+| **Album name** | Shows the album name on the music card and in the full-screen player. | On or off | On |
+| **Cover art** | Shows the album artwork on the music card and in the full-screen player. | On or off | On |
+| **Video window** | Plays a video file from the device in a small window over the map. | On or off | Off |
+| **Video file** | Picks the file the video window plays, with the system file picker. The row shows the file's name or "No file picked". The row is shown only while **Video window** is on. | A file | No file picked |
+| **Hide the picture while driving** | With the switch on, the picture shows only once GPS has read the vehicle as stopped for a few seconds. It stays hidden while the vehicle moves and while there is no live GPS reading. The audio keeps playing. With the switch off, the picture always shows. Turning it off asks first, with a warning about the rules where you drive. The row is shown only while **Video window** is on. | On or off | On |
+
+## Updates
+
+[Install](/install/) walks through updating, including what happens while the vehicle moves. Opening this category starts nothing by itself. While an update is on offer, the category carries a dot in the list of categories. Some rows appear only when they apply.
+
+| Row | What it shows or does | Shown |
+| --- | --- | --- |
+| **Updated to …** | Confirms that the new version is installed and running. | After an update, until you leave **Updates** |
+| **Installed version** | The running version and its channel, Stable channel or Nightly channel. | Always |
+| **Available version** | The newer version and its download size, marked "Skipped" if you skipped it, or "Up to date". | After a check has found a newer version or found none |
+| **Check for updates** | Checks the channel's release feed now. The summary says when the last check ran, that none has run, or why the last one failed. | Always; a tap works while no check or update is under way |
+| **Update to …** | Downloads the update and checks it, then Android asks you to confirm the install. The row changes with the stage: it shows the download size, then the progress, then the verified update ready to install. | While an update is on offer |
+| **Show the install dialog again** | Shows Android's install confirmation once more, after one was closed without an answer or held back while the vehicle moved. | After an install was handed to Android |
+| **Retry** | Tries a failed update again and shows its size first. | After a failure that still has an update on offer |
+| **Discard download** | Deletes the downloaded file. The update stays on offer. | While a verified download waits |
+| **Skip this version** | Stops the reminders about this version. A newer version is offered again. | While an update is on offer and not yet skipped, but not while it downloads or installs |
+| **Check automatically** | Looks for a new version once a day. Nothing downloads until you ask. On by default. | Not shown in a build that never checks |
+| **Open release page** | Opens the channel's release page in a browser, to download the update by hand. | Always |
+
+## System
+
+The rows here open other screens or Android settings. This category has no **Reset this section** icon.
+
+| Row | What it does |
+| --- | --- |
+| **Notification access** | Opens Android's notification access settings, where the music card gets its access. |
+| **System settings** | Opens Android's Settings app. |
+| **Diagnostics** | Opens a report of device and runtime facts for troubleshooting, in sections such as Device, Display, Permissions, Network and Settings. **Refresh** collects it again, **Copy report** copies it, and **Problems only** shows only the sections that have a problem. The report masks keys. |
+| **Open source licenses** | Opens the list of bundled third-party components, in the sections Libraries, Map & data and Fonts. |
+| **Privacy policy** | Opens `PRIVACY.md` on GitHub in a browser. It is the same text as the [privacy policy](/privacy/) on this site. |
+| **Terms** | Opens `TERMS.md` on GitHub in a browser. It is the same text as the [terms of service](/terms/) on this site. |
+| **Reset to defaults** | Opens the reset dialog described below. |
+
+### Reset to defaults
+
+The reset dialog, **Reset settings**, is a checklist. It has one checkbox per category that has settings of its own, labeled with the category's name, and every box starts ticked. Below them is **Keys and addresses you entered**, which starts unticked. It covers the Google Maps key, the Map ID, the custom style URL and the tile host.
+
+- **Reset** restores the ticked categories to the defaults on this page. It stays disabled while nothing is ticked.
+- Ticking **Keys and addresses you entered** also deletes those values and puts the map provider back to OpenStreetMap.
+- With every category ticked, the reset also covers a category that this build does not list.
+- The reset leaves alone the dock and its status icons, the pinned and hidden apps, saved places and the track history. It also keeps the video file you picked.
+
+The **Reset this section** icon in a category's header does the same for that one category, after asking.

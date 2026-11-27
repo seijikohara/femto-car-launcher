@@ -47,9 +47,9 @@ internal fun ScreenSection(
             shapes = shapes,
         )
     }
-    // The whole dashboard layout (floating cards, clock, speed reserve, map
-    // controls, self-marker) anchors to the driver's side, so the row sits with
-    // the other whole-screen layout choices.
+    // The whole dashboard layout (floating cards, clock, speed reserve, self-marker)
+    // anchors to the driver's side, and the map controls go opposite the cards, so
+    // the row sits with the other whole-screen layout choices.
     item { shapes ->
         ChoiceRow(
             title = stringResource(R.string.settings_group_driver_side),

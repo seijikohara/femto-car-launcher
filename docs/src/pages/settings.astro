@@ -1,0 +1,12 @@
+---
+import ArticleLayout from "@/layouts/ArticleLayout.astro";
+import Settings, { frontmatter } from "@/content/pages/settings.mdx";
+---
+
+<ArticleLayout
+    title={frontmatter.title}
+    description={frontmatter.description}
+    eyebrow="Reference"
+>
+    <Settings />
+</ArticleLayout>

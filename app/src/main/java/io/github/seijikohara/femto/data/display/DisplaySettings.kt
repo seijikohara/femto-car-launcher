@@ -94,9 +94,10 @@ internal enum class DockWidth { COMPACT, EXTENDED }
 
 /**
  * Which side the driver sits on. The dashboard anchors its info-dense
- * layout (floating cards, clock, speed reserve, map controls, self-marker) to
- * this side so it stays within the driver's reach/glance instead of behind the
- * wheel. [RIGHT] is the default — today's layout, unchanged for a fresh install.
+ * layout (floating cards, clock, speed reserve, self-marker) to this side so it
+ * stays within the driver's reach/glance instead of behind the wheel; the map
+ * controls (compass, locate and zoom buttons) sit on the opposite side, clear of
+ * the cards. [RIGHT] is the default — today's layout, unchanged for a fresh install.
  */
 internal enum class DriverSide { RIGHT, LEFT }
 
@@ -297,7 +298,7 @@ internal data class DisplaySettings(
     /**
      * The hosted MapLibre style the CUSTOM scheme loads, as an `https://` URL
      * (which may carry a provider key in its query — treat it as a secret).
-     * Blank means no custom style: a CUSTOM scheme renders as ACCENT until one
+     * Blank means no custom style: a CUSTOM scheme renders as STANDARD until one
      * is set. The style document names its own tile, sprite and glyph hosts, so
      * nothing about it is rewritten — see MapScheme.mapStyleRefFor.
      */
