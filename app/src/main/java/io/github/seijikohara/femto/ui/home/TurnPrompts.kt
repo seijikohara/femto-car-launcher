@@ -64,6 +64,7 @@ internal fun TurnPromptMemory.step(
         val speed = (speedMetersPerSecond ?: 0.0).coerceAtLeast(0.0)
         val finalLead = (speed * FINAL_LEAD_SECONDS).coerceIn(FINAL_LEAD_MIN_METERS, FINAL_LEAD_MAX_METERS)
         val advanceLead = (speed * ADVANCE_LEAD_SECONDS).coerceIn(ADVANCE_LEAD_MIN_METERS, ADVANCE_LEAD_MAX_METERS)
+
         fun promptOf(stage: TurnPromptStage) =
             TurnPrompt(
                 stage = stage,

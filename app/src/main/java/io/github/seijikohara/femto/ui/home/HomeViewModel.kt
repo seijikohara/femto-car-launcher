@@ -70,9 +70,9 @@ import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offersUpdate
 import io.github.seijikohara.femto.data.update.promptedFor
 import io.github.seijikohara.femto.data.update.skipped
+import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
-import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import io.github.seijikohara.femto.data.weather.WeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
 import io.github.seijikohara.femto.ui.locale.SpeedUnit

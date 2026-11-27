@@ -338,18 +338,18 @@ internal class SettingsViewModel(
             speech,
         ) { settings, speechAnswer ->
             NavigationSettingsUi(
-                    rerouteAutomatically = settings.rerouteAutomatically,
-                    suggestOtherRoutes = settings.suggestOtherRoutes,
-                    restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
-                    routeRowTime = settings.routeRowTime,
-                    vehicleOnRouteLine = settings.vehicleOnRouteLine,
-                    turnCard = settings.turnCard,
-                    turnCardNextAfter = settings.turnCardNextAfter,
-                    turnCardStraight = settings.turnCardStraight,
-                    spokenPrompts = settings.spokenPrompts,
-                    speech = speechAnswer,
-                )
-            }.distinctUntilChanged()
+                rerouteAutomatically = settings.rerouteAutomatically,
+                suggestOtherRoutes = settings.suggestOtherRoutes,
+                restoreRouteAfterRestart = settings.restoreRouteAfterRestart,
+                routeRowTime = settings.routeRowTime,
+                vehicleOnRouteLine = settings.vehicleOnRouteLine,
+                turnCard = settings.turnCard,
+                turnCardNextAfter = settings.turnCardNextAfter,
+                turnCardStraight = settings.turnCardStraight,
+                spokenPrompts = settings.spokenPrompts,
+                speech = speechAnswer,
+            )
+        }.distinctUntilChanged()
 
     // Folded in here rather than into the store combine above, which already holds
     // kotlinx's five-flow typed overload.

@@ -216,9 +216,18 @@ internal class TurnSpeaker(
             opening = null
             mutableStatus.value =
                 when (answer.availability) {
-                    null -> SpeakerStatus.Unavailable(SpeakerUnavailable.DID_NOT_START)
-                    SpeechAvailability.NoEngine -> SpeakerStatus.Unavailable(SpeakerUnavailable.NO_ENGINE)
-                    SpeechAvailability.NoEnglish -> SpeakerStatus.Unavailable(SpeakerUnavailable.NO_ENGLISH)
+                    null -> {
+                        SpeakerStatus.Unavailable(SpeakerUnavailable.DID_NOT_START)
+                    }
+
+                    SpeechAvailability.NoEngine -> {
+                        SpeakerStatus.Unavailable(SpeakerUnavailable.NO_ENGINE)
+                    }
+
+                    SpeechAvailability.NoEnglish -> {
+                        SpeakerStatus.Unavailable(SpeakerUnavailable.NO_ENGLISH)
+                    }
+
                     is SpeechAvailability.Ready -> {
                         answer.session
                             ?.also { session = it }
@@ -235,9 +244,13 @@ internal class TurnSpeaker(
     ) {
         val open = session
         when {
-            open == null || mutableStatus.value !is SpeakerStatus.Ready -> record(label, PromptOutcome.NOT_READY)
+            open == null || mutableStatus.value !is SpeakerStatus.Ready -> {
+                record(label, PromptOutcome.NOT_READY)
+            }
 
-            !holdFocus() -> record(label, PromptOutcome.NO_SOUND)
+            !holdFocus() -> {
+                record(label, PromptOutcome.NO_SOUND)
+            }
 
             else -> {
                 val sequence = ++promptCount

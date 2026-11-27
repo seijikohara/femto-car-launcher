@@ -224,6 +224,7 @@ class NavigationSectionTest {
         const val NEXT_AFTER = "Show the turn after next"
         const val STRAIGHT = "Show \"Continue straight\""
         const val SPOKEN = "Spoken prompts"
-        const val SPOKEN_DESC = "Say each turn before it comes, in English, through this device's text-to-speech engine."
+        const val SPOKEN_DESC =
+            "Say each turn before it comes, in English, through this device's text-to-speech engine."
     }
 }

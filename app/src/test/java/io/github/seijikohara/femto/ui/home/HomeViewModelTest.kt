@@ -1880,8 +1880,7 @@ class HomeViewModelTest {
 
     // The prompts lead by the fix's speed: at 10 m/s the final one is due within 60 m, and the left turn at the halfway
     // point of the route lies about 40 m ahead of this fix.
-    private fun insideTheFinalLead(): Location =
-        fakeLocation(latitude = 0.0, longitude = 0.0996403, speedMps = 10f)
+    private fun insideTheFinalLead(): Location = fakeLocation(latitude = 0.0, longitude = 0.0996403, speedMps = 10f)
 
     @Test
     fun `a fix inside the final lead speaks the final prompt once and opens the engine`() =

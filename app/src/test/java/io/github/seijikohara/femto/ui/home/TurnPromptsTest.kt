@@ -152,7 +152,10 @@ class TurnPromptsTest {
         val atTurn = TurnPromptMemory().at(turn(pointIndex = 5, meters = 60.0))
         assertEquals(
             TurnPromptStage.FINAL,
-            atTurn.memory.at(arrive(meters = 40.0)).prompt?.stage,
+            atTurn.memory
+                .at(arrive(meters = 40.0))
+                .prompt
+                ?.stage,
         )
     }
 
