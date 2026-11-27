@@ -103,6 +103,15 @@ internal class TurnSpeaker(
     /** The last prompt handed to the speaker and how it went; null before the first. */
     val lastPrompt: StateFlow<SpokenPrompt?> = mutableLastPrompt.asStateFlow()
 
+    private val mutableCannotSpeak = MutableStateFlow(false)
+
+    /**
+     * Whether this device is known to be unable to speak: no engine is installed, or an opening or the settings' question
+     * found none with an English voice, or the engine did not start. False until known otherwise, and a close does not
+     * reset it, unlike [status], which falls back to Closed: the turn card's control reads this one.
+     */
+    val cannotSpeak: StateFlow<Boolean> = mutableCannotSpeak.asStateFlow()
+
     private val commands = Channel<Command>(Channel.UNLIMITED)
 
     // Everything below is touched only by the coroutine that reads [commands].
@@ -123,6 +132,8 @@ internal class TurnSpeaker(
     // After the fields above: the coroutine may start on another thread before the constructor returns.
     init {
         scope.launch { for (command in commands) handleSafely(command) }
+        // A device with no engine is known at once, without starting anything, so its card never offers the control.
+        commands.trySend(Command.CheckInstalled)
     }
 
     /** Start opening the engine; does nothing while it is opening or open. */
@@ -144,9 +155,12 @@ internal class TurnSpeaker(
     }
 
     /** Ask the engines without keeping one open: for Settings. */
-    suspend fun availability(): SpeechAvailability = speechAvailabilityOf(speechEngines(engines))
+    suspend fun availability(): SpeechAvailability =
+        speechAvailabilityOf(speechEngines(engines)).also { mutableCannotSpeak.value = it !is SpeechAvailability.Ready }
 
     private sealed interface Command {
+        data object CheckInstalled : Command
+
         data object Open : Command
 
         class Say(
@@ -183,17 +197,36 @@ internal class TurnSpeaker(
 
     private fun handle(command: Command) =
         when (command) {
-            Command.Open -> startOpening()
+            Command.CheckInstalled -> {
+                checkInstalled()
+            }
 
-            is Command.Say -> speak(command.text, command.label)
+            Command.Open -> {
+                startOpening()
+            }
+
+            is Command.Say -> {
+                speak(command.text, command.label)
+            }
 
             // The dashboard sends one, when it had opened the engine; a speaker already closed has nothing to do.
-            Command.Close -> shutDownUnlessClosed()
+            Command.Close -> {
+                shutDownUnlessClosed()
+            }
 
-            is Command.Opened -> finishOpening(command)
+            is Command.Opened -> {
+                finishOpening(command)
+            }
 
-            is Command.Ended -> finishPrompt(command.sequence, command.played)
+            is Command.Ended -> {
+                finishPrompt(command.sequence, command.played)
+            }
         }
+
+    // Off the main thread: the command coroutine runs in the speaker's own scope.
+    private fun checkInstalled() {
+        if (engines.installed().isEmpty()) mutableCannotSpeak.value = true
+    }
 
     private fun startOpening() {
         if (mutableStatus.value is SpeakerStatus.Closed || mutableStatus.value is SpeakerStatus.Unavailable) {
@@ -251,7 +284,7 @@ internal class TurnSpeaker(
             answer.session?.close()
         } else {
             opening = null
-            mutableStatus.value =
+            val next =
                 when (answer.availability) {
                     null -> {
                         SpeakerStatus.Unavailable(SpeakerUnavailable.DID_NOT_START)
@@ -272,6 +305,8 @@ internal class TurnSpeaker(
                             ?: SpeakerStatus.Unavailable(SpeakerUnavailable.DID_NOT_START)
                     }
                 }
+            mutableStatus.value = next
+            mutableCannotSpeak.value = next is SpeakerStatus.Unavailable
         }
     }
 

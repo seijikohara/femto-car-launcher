@@ -2259,6 +2259,36 @@ class HomeViewModelTest {
             )
         }
 
+    // The speaker's status falls back to Closed with the dashboard left; the flow the card reads does not.
+    @Test
+    fun `the control stays off the card across a close and a reopen while the speaker cannot speak`() =
+        runTest {
+            val viewModel =
+                routeViewModel(
+                    location = beforeTheTurn(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    voiceUnavailableFlow = MutableStateFlow(true),
+                )
+            val first = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val before = viewModel.uiState.value.activeRoute
+                ?.turnCard
+            first.cancel()
+            advanceUntilIdle()
+
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            assertEquals(
+                Pair(null, null),
+                Pair(
+                    before?.spoken,
+                    viewModel.uiState.value.activeRoute
+                        ?.turnCard
+                        ?.spoken,
+                ),
+            )
+        }
+
     @Test
     fun `a tap on the card writes the opposite of the value it shows`() =
         runTest {

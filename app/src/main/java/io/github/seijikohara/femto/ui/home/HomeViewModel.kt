@@ -71,7 +71,6 @@ import io.github.seijikohara.femto.data.update.UpdateState
 import io.github.seijikohara.femto.data.update.offersUpdate
 import io.github.seijikohara.femto.data.update.promptedFor
 import io.github.seijikohara.femto.data.update.skipped
-import io.github.seijikohara.femto.data.voice.SpeakerStatus
 import io.github.seijikohara.femto.data.voice.TurnSpeaker
 import io.github.seijikohara.femto.data.weather.MetNorwayApi
 import io.github.seijikohara.femto.data.weather.WeatherRepository
@@ -1099,7 +1098,7 @@ internal class HomeViewModelFactory(
             // Only in a build with routing, so any other never creates the speaker.
             voiceUnavailableFlow =
                 if (routingEnabled) {
-                    TurnSpeaker.get(application).status.map { it is SpeakerStatus.Unavailable }
+                    TurnSpeaker.get(application).cannotSpeak
                 } else {
                     flowOf(false)
                 },
