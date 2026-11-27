@@ -413,10 +413,10 @@ internal class HomeViewModel(
 
     // Run for each emission of the route as the dashboard shows it. Voice is wanted while a route is followed, the
     // stored settings are read (with the speed unit), and both the turn card and its spoken prompts are on; then the
-    // engine is opened once for the follow, and a prompt that has come due is spoken. Otherwise the engine is closed,
-    // and the planner's memory stays, so a turn that shows again after a hide is not announced a second time.
-    // A close is sent only once the settings and the unit are read and a route is followed, or when the engine was opened, so a
-    // build without routing, which never has a route, never creates the speaker.
+    // engine is opened once for the follow, and a prompt that has come due is spoken. When voice stops being wanted
+    // (a setting off, the route gone) after this view model opened the engine, the engine is closed once; the planner's
+    // memory stays, so a turn that shows again after a hide is not announced a second time. Nothing is sent while
+    // voice was never opened, so a build without routing, and a route that never spoke, never create the speaker.
     private fun stepTurnVoice(
         route: FollowedRoute?,
         card: TurnCardState?,
@@ -434,7 +434,7 @@ internal class HomeViewModel(
                 .also { promptMemory = it.memory }
                 .prompt
                 ?.let { prompt -> speakTurnPrompt(turnPromptText(prompt, unit), prompt.label()) }
-        } else if (voiceOpen || (route != null && stored != null && unit != null)) {
+        } else if (voiceOpen) {
             voiceOpen = false
             closeTurnVoice()
         }

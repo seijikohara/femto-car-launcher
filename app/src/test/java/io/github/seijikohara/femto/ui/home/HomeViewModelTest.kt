@@ -1908,7 +1908,7 @@ class HomeViewModelTest {
         }
 
     @Test
-    fun `with spoken prompts off nothing is spoken and the engine is closed`() =
+    fun `with spoken prompts off nothing is spoken and the engine is neither opened nor closed`() =
         runTest {
             val voice = RecordedVoice()
             val viewModel =
@@ -1921,7 +1921,33 @@ class HomeViewModelTest {
                 )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
-            assertEquals<Any>(Triple(emptyList<Any>(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
+            assertEquals<Any>(Triple(emptyList<Any>(), 0, 0), Triple(voice.spoken, voice.opens, voice.closes))
+        }
+
+    // The close belongs to the engine this view model opened: once, when voice stops being wanted, and never again
+    // while it stays unwanted.
+    @Test
+    fun `switching spoken prompts or the turn card off while the engine is open closes it once`() =
+        runTest {
+            val settings = MutableStateFlow(NavigationSettings.Default)
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = settings,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val whileOn = Pair(voice.opens, voice.closes)
+
+            settings.value = settings.value.copy(spokenPrompts = false)
+            val afterTheFirstOff = voice.closes
+            settings.value = settings.value.copy(turnCard = false)
+            settings.value = settings.value.copy(turnCardNextAfter = false)
+
+            assertEquals(Triple(Pair(1, 0), 1, 1), Triple(whileOn, afterTheFirstOff, voice.closes))
         }
 
     @Test
@@ -1938,7 +1964,7 @@ class HomeViewModelTest {
                 )
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
 
-            assertEquals<Any>(Triple(emptyList<Any>(), 0, true), Triple(voice.spoken, voice.opens, voice.closes > 0))
+            assertEquals<Any>(Triple(emptyList<Any>(), 0, 0), Triple(voice.spoken, voice.opens, voice.closes))
         }
 
     @Test
