@@ -47,12 +47,37 @@ class RegionCatalogTest {
             catalog.regionOrNull("dolnoslaskie")?.name,
         )
 
+    // The host keeps every extract in a directory named after its region, and at the time of writing the Shortbread
+    // files beside that directory. The index names the extract only, so the catalogue names both places.
     @Test
-    fun `the file url is the Shortbread file next to the extract`() =
+    fun `an extract in its region's own directory names the file inside it and the one beside it`() {
+        val kanto = catalog.regionOrNull("kanto")
+
+        assertEquals("https://download.geofabrik.de/asia/japan/kanto/kanto-shortbread-1.0.mbtiles", kanto?.fileUrl)
+        assertEquals("https://download.geofabrik.de/asia/japan/kanto-shortbread-1.0.mbtiles", kanto?.alternateFileUrl)
+    }
+
+    @Test
+    fun `a top-level region's other place is the host's root`() =
         assertEquals(
-            "https://download.geofabrik.de/asia/japan/kanto-shortbread-1.0.mbtiles",
-            catalog.regionOrNull("kanto")?.fileUrl,
+            "https://download.geofabrik.de/asia-shortbread-1.0.mbtiles",
+            catalog.regionOrNull("asia")?.alternateFileUrl,
         )
+
+    @Test
+    fun `an extract beside its siblings names one place only`() {
+        val region =
+            catalogOf(feature(id = "a", pbf = "https://download.geofabrik.de/asia/japan/a-latest.osm.pbf"))
+                .regionOrNull("a")
+
+        assertEquals("https://download.geofabrik.de/asia/japan/a-shortbread-1.0.mbtiles", region?.fileUrl)
+        assertNull(region?.alternateFileUrl)
+    }
+
+    // A file at the host's root has no directory above it to be beside.
+    @Test
+    fun `an extract at the host's root names one place only`() =
+        assertNull(catalogOf(feature(id = "a")).regionOrNull("a")?.alternateFileUrl)
 
     @Test
     fun `the size comes from the snapshot`() {

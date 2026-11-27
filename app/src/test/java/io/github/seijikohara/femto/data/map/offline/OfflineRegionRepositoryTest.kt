@@ -56,6 +56,7 @@ class OfflineRegionRepositoryTest {
     private val monaco = catalog.region("monaco")
     private val berlin = catalog.region("berlin")
     private val kanto = catalog.region("kanto")
+    private val kantoBeside = requireNotNull(kanto.alternateFileUrl)
     private val monacoFile = RemoteFile(sizeBytes = 1_728_512L, etag = "\"monaco-1\"", lastModifiedEpochMs = DATA_DATE)
     private val berlinFile = RemoteFile(sizeBytes = 49_217_536L, etag = "\"berlin-1\"", lastModifiedEpochMs = DATA_DATE)
     private val kantoFile = RemoteFile(sizeBytes = 862_351_360L, etag = "\"kanto-1\"", lastModifiedEpochMs = DATA_DATE)
@@ -796,10 +797,63 @@ class OfflineRegionRepositoryTest {
         runTest {
             val repository = repository()
             feed.probeAnswers[kanto.fileUrl] = ProbeResult.Gone
+            feed.probeAnswers[kantoBeside] = ProbeResult.Gone
             feed.probeAnswers[berlin.fileUrl] = ProbeResult.Unavailable
 
             assertEquals(RegionOffer.Unavailable(kanto, Reason.GONE), repository.offer(kanto))
             assertEquals(RegionOffer.Unavailable(berlin, Reason.NETWORK), repository.offer(berlin))
+        }
+
+    // The host keeps a region's file inside the region's own directory or beside it, and the index does not say
+    // which: on 2026-11-27 every file was beside it, and "Add region" failed for every region.
+    @Test
+    fun `a file that is not inside the region's directory is found beside it`() =
+        runTest {
+            feed.probeAnswers[kanto.fileUrl] = ProbeResult.Gone
+            feed.probeAnswers[kantoBeside] = ProbeResult.Found(kantoFile)
+
+            val offer = assertIs<RegionOffer.Ready>(repository().offer(kanto))
+
+            assertEquals(kantoBeside, offer.fileUrl)
+            assertEquals(listOf(kanto.fileUrl, kantoBeside), feed.probedUrls)
+        }
+
+    @Test
+    fun `a download fetches the file from the place that answered`() =
+        runTest {
+            feed.probeAnswers[kanto.fileUrl] = ProbeResult.Gone
+            feed.probeAnswers[kantoBeside] = ProbeResult.Found(kantoFile)
+            val repository = repository()
+            val offer = assertIs<RegionOffer.Ready>(repository.offer(kanto))
+
+            repository.start(offer)
+            runCurrent()
+
+            assertEquals(listOf(kantoBeside), feed.downloads.map { it.url })
+        }
+
+    @Test
+    fun `a file inside the region's directory is taken without asking for the other place`() =
+        runTest {
+            feed.probeAnswers[kanto.fileUrl] = ProbeResult.Found(kantoFile)
+            feed.probeAnswers[kantoBeside] = ProbeResult.Found(kantoFile.copy(etag = "\"kanto-old\""))
+
+            val offer = assertIs<RegionOffer.Ready>(repository().offer(kanto))
+
+            assertEquals(kanto.fileUrl, offer.fileUrl)
+            assertEquals(listOf(kanto.fileUrl), feed.probedUrls)
+        }
+
+    // No answer says nothing about where the file is: asking the other place would turn a network failure into
+    // "no map file".
+    @Test
+    fun `a place that does not answer ends the offer without asking the other`() =
+        runTest {
+            feed.probeAnswers[kanto.fileUrl] = ProbeResult.Unavailable
+            feed.probeAnswers[kantoBeside] = ProbeResult.Found(kantoFile)
+
+            assertEquals(RegionOffer.Unavailable(kanto, Reason.NETWORK), repository().offer(kanto))
+            assertEquals(listOf(kanto.fileUrl), feed.probedUrls)
         }
 
     @Test
