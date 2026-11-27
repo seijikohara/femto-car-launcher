@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Effective date: 2026-11-26**
+**Effective date: 2026-11-27**
 
 Femto Car Launcher ("the app") is an Android home launcher. This policy explains what data the app accesses, why, and who receives it. The app does **not** contain advertising or analytics software development kits (SDKs), and does **not** sell personal data.
 
@@ -12,6 +12,7 @@ Femto Car Launcher ("the app") is an Android home launcher. This policy explains
 | **Recorded trip track** (position, speed, bearing, altitude) | Draw the trip flythrough and export a GPS Exchange Format (GPX) file when you ask for one | No — stored on the device only, and excluded from backup (see "Backup") |
 | **Saved places** (a name with a search text or a position) | Hand a destination to your navigation app in one tap | No — stored on the device only, and excluded from backup (see "Backup") |
 | **Route previews** (in builds that offer them) | Draw the route to a destination on the map, with the distance left and the arrival time | The route and its start and end positions: no, computed on the device and kept on the device only, excluded from backup (see "Backup"). A search text you route to goes to the device's geocoder (see "Third parties") |
+| **Spoken turn prompts** (in builds that offer route previews) | Say the next turn aloud while a route is on the map | The text of each prompt, a manoeuvre and a distance such as "In 300 metres, turn left", goes to the device's text-to-speech engine (see below); the app stores no prompt |
 | **Calendar events** (read only) | Show upcoming events on the dashboard | No |
 | **Microphone** | Voice assistant input, dictating a destination in the destination panel, and the optional music spectrum visualization | The app does not store or transmit audio; the device's speech recognizer handles voice input (see below) |
 | **Installed apps** (launcher app list) | Show and launch installed apps | No |
@@ -55,6 +56,8 @@ The app contacts the following services, each governed by its own privacy policy
 - **App updates** — the app checks GitHub (`github.com`) for a small update-availability file published beside each release; GitHub redirects the actual file to `release-assets.githubusercontent.com`. The automatic check runs at most once a day while the app is running, and only while **Settings → Updates → Check automatically** is on. Tapping **Check for updates**, **Update to …** or **Retry** there, or **Update** on the dashboard's update prompt, checks again right away, regardless of **Check automatically** or the daily limit. **Update to …** and **Retry** also check again before downloading, in case a newer build shipped since the last check. Each check sends only the request information any web request carries: the device's IP address and a User-Agent naming the app, its version, and the project's web address. The update file itself, about 45 MB, downloads only when you tap **Update to …**, **Retry**, or the prompt's **Update**.
 
 Voice input uses the device's built-in speech recognizer. On devices with Google services, the recognizer may transmit audio to Google for recognition, outside the app's control.
+
+Spoken turn prompts (in builds that offer route previews) use the device's text-to-speech engine, an app of its own that came with the device or was installed later. The text of a prompt is a manoeuvre and a distance, such as "In 300 metres, turn left", and never a place, a street, or a position. The app hands that text to the engine, and nothing else. The app picks an English voice that works without a network where the engine offers one; what the engine does with the text beyond that, including whether it sends the text to a server, is outside the app's control. **Settings → Navigation → Spoken prompts** switches the prompts off.
 
 ## What the app does not do
 
