@@ -54,6 +54,7 @@ import io.github.seijikohara.femto.data.routing.NavigationPreferences
 import io.github.seijikohara.femto.data.routing.NavigationSettings
 import io.github.seijikohara.femto.data.routing.RerouteStatus
 import io.github.seijikohara.femto.data.routing.Rerouter
+import io.github.seijikohara.femto.data.routing.Route
 import io.github.seijikohara.femto.data.routing.RouteFix
 import io.github.seijikohara.femto.data.routing.RoutePersistence
 import io.github.seijikohara.femto.data.routing.RoutePoint
@@ -271,6 +272,7 @@ internal class HomeViewModel(
 
     // The follows started so far; read and written only where flatMapLatest starts one, one after another.
     private var followCount = 0
+    private var followKey: Pair<Long, Route>? = null
 
     // The active route while routing is offered here, else none: a switch to
     // the Google backend hides it, and a switch back shows it again. Its
@@ -307,9 +309,19 @@ internal class HomeViewModel(
             .distinctUntilChangedBy { it?.session to it?.route }
             .flatMapLatest { active ->
                 active?.let { shown ->
-                    // Counts the follows, so the prompt planner tells a turn of this one from the same point of
-                    // another (a reroute's line, a new route): a point index alone repeats between them.
-                    val followId = ++followCount
+                    // Numbers the follows, so the prompt planner tells a turn of this one from the same point of
+                    // another (a reroute's line, a new route): a point index alone repeats between them. The same
+                    // route keeps its number when the collection restarts (the dashboard left for longer than the
+                    // grace and reopened): the turns it already announced stay announced.
+                    val followId =
+                        (shown.session to shown.route).let { key ->
+                            if (key == followKey) {
+                                followCount
+                            } else {
+                                followKey = key
+                                ++followCount
+                            }
+                        }
                     combine(
                         shown.route
                             .followFlow(routeFixes)

@@ -53,6 +53,7 @@ import io.github.seijikohara.femto.testfixtures.fakeTripState
 import io.github.seijikohara.femto.testfixtures.fakeUpdateManifest
 import io.github.seijikohara.femto.testfixtures.fakeWeatherSnapshot
 import io.github.seijikohara.femto.ui.home.components.AppsBarShortcut
+import io.github.seijikohara.femto.ui.locale.SpeedUnit
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -1885,7 +1886,8 @@ class HomeViewModelTest {
     // and close the voice with it, which the tests below that watch the voice stay open would read as a close.
     private val stillOpenSettings = MutableStateFlow(NavigationSettings.Default)
 
-    private fun insideTheFinalLead(): Location = fakeLocation(latitude = 0.0, longitude = 0.0996403, speedMps = 10f)
+    private fun insideTheFinalLead(): Location =
+        fakeLocation(latitude = 0.0, longitude = NEAR_TURN_LONGITUDE, speedMps = 10f)
 
     @Test
     fun `a fix inside the final lead speaks the final prompt once and opens the engine`() =
@@ -2068,6 +2070,139 @@ class HomeViewModelTest {
 
             assertEquals<Any>(Triple(0, 0, emptyList<Any>()), Triple(voice.opens, voice.closes, voice.spoken))
         }
+
+    // The dashboard left for longer than the grace and reopened: the follow starts again on the same route, which must
+    // not forget the turns it announced.
+    @Test
+    fun `the collection ending and starting again on the same route speaks no prompt twice`() =
+        runTest {
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = stillOpenSettings,
+                    voice = voice,
+                )
+            val first = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            first.cancel()
+            advanceUntilIdle()
+
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+
+            // Opened again for the second collection, and the one prompt was spoken once.
+            assertEquals(Pair(1, 2), Pair(voice.spoken.size, voice.opens))
+        }
+
+    @Test
+    fun `a reroute, a new route of the same session, gets prompts of its own`() =
+        runTest {
+            val active = MutableStateFlow<ActiveRoute?>(activeRouteOf(TURNING_ROUTE))
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    activeRouteFlow = active,
+                    navigationSettingsFlow = stillOpenSettings,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val beforeTheReroute = voice.spoken.size
+
+            active.value =
+                active.value?.copy(route = TURNING_ROUTE.copy(distanceMeters = TURNING_ROUTE.distanceMeters + 1))
+
+            assertEquals(Pair(1, 2), Pair(beforeTheReroute, voice.spoken.size))
+        }
+
+    @Test
+    fun `nothing is spoken before the speed unit is read`() =
+        runTest {
+            val unit = MutableSharedFlow<SpeedUnit>()
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = stillOpenSettings,
+                    speedUnitFlow = unit,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val beforeTheRead = Pair(voice.spoken.size, voice.opens)
+
+            unit.emit(SpeedUnit.KILOMETERS_PER_HOUR)
+
+            assertEquals(Pair(Pair(0, 0), 1), Pair(beforeTheRead, voice.spoken.size))
+        }
+
+    // The vehicle lies along the line within the final lead of the turn while the watch says it is off the route:
+    // the card is hidden, and so is the voice, until it is back on it.
+    @Test
+    fun `nothing is spoken while the vehicle is off the route, and the prompt comes once it is back`() =
+        runTest {
+            val location = MutableStateFlow<Location?>(null)
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    locationFlow = location,
+                    available = true,
+                    route = TURNING_ROUTE,
+                    navigationSettingsFlow = stillOpenSettings,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            location.value = fixAt(ROUTE_LONGITUDE, latitude = 0.0, second = 0)
+            (1..6).forEach { second -> location.value = fixAt(ROUTE_LONGITUDE, OFF_ROUTE_LATITUDE, second) }
+            location.value = fixAt(NEAR_TURN_LONGITUDE, OFF_ROUTE_LATITUDE, second = 7)
+            location.value = fixAt(NEAR_TURN_LONGITUDE, OFF_ROUTE_LATITUDE, second = 8)
+            val whileOff = voice.spoken.toList()
+
+            (9..12).forEach { second -> location.value = fixAt(NEAR_TURN_LONGITUDE, latitude = 0.0, second = second) }
+
+            assertEquals(Pair(emptyList<Pair<String, String>>(), 1), Pair(whileOff, voice.spoken.size))
+        }
+
+    @Test
+    fun `nothing is spoken while a reroute's status shows, and the prompt comes once it is gone`() =
+        runTest {
+            val active =
+                MutableStateFlow<ActiveRoute?>(activeRouteOf(TURNING_ROUTE).copy(reroute = RerouteStatus.REROUTING))
+            val voice = RecordedVoice()
+            val viewModel =
+                routeViewModel(
+                    location = insideTheFinalLead(),
+                    available = true,
+                    activeRouteFlow = active,
+                    navigationSettingsFlow = stillOpenSettings,
+                    voice = voice,
+                )
+            backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.collect {} }
+            val whileRerouting = voice.spoken.toList()
+
+            active.value = active.value?.copy(reroute = RerouteStatus.NONE)
+
+            assertEquals(Pair(emptyList<Pair<String, String>>(), 1), Pair(whileRerouting, voice.spoken.size))
+        }
+
+    // A fix at [longitude] and [latitude], [second] seconds into the boot clock, at 10 m/s heading east.
+    private fun fixAt(
+        longitude: Double,
+        latitude: Double,
+        second: Int,
+    ): Location =
+        fakeLocation(
+            latitude = latitude,
+            longitude = longitude,
+            speedMps = 10f,
+            elapsedRealtimeNanos = second * 1_000_000_000L,
+            bearingDeg = EAST,
+            accuracyM = FIX_ACCURACY_M,
+            provider = TEST_PROVIDER,
+        )
 
     // --- The route kept across a restart ---------------------------------------
 
@@ -2357,6 +2492,7 @@ class HomeViewModelTest {
         nowElapsedRealtimeNanos: () -> Long = SystemClock::elapsedRealtimeNanos,
         navigationSettingsFlow: Flow<NavigationSettings> = flowOf(NavigationSettings.Default),
         voice: RecordedVoice = RecordedVoice(),
+        speedUnitFlow: Flow<SpeedUnit> = flowOf(SpeedUnit.KILOMETERS_PER_HOUR),
     ): HomeViewModel =
         HomeViewModel(
             locationFlow = locationFlow,
@@ -2377,6 +2513,7 @@ class HomeViewModelTest {
             onGpsFix = onGpsFix,
             nowElapsedRealtimeNanos = nowElapsedRealtimeNanos,
             navigationSettingsFlow = navigationSettingsFlow,
+            speedUnitFlow = speedUnitFlow,
             // The stage names the prompt: the sentences are the text tests' business.
             turnPromptText = { prompt, _ -> prompt.stage.name },
             openTurnVoice = { voice.opens++ },
@@ -2456,6 +2593,9 @@ class HomeViewModelTest {
 
         // A quarter of the way along the equator route, and about 110 m north of it.
         const val ROUTE_LONGITUDE = 0.05
+
+        // About 40 m before the turn at the equator route's halfway point.
+        const val NEAR_TURN_LONGITUDE = 0.0996403
         const val OFF_ROUTE_LATITUDE = 0.001
         const val EAST = 90f
         const val FIX_ACCURACY_M = 5f
