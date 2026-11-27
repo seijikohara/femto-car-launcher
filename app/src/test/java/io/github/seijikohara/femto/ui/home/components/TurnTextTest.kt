@@ -1,6 +1,8 @@
 package io.github.seijikohara.femto.ui.home.components
 
+import android.content.Context
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.core.app.ApplicationProvider
 import io.github.seijikohara.femto.data.routing.TurnKind
 import io.github.seijikohara.femto.ui.home.TurnManeuver
 import org.junit.Rule
@@ -28,6 +30,13 @@ class TurnTextTest {
     @Config(qualifiers = "ar-rEG")
     fun `under a native-digit locale the texts are the same English sentences with ASCII digits`() {
         assertEquals(EXPECTED.values.toList(), texts())
+    }
+
+    // The spoken sentences read the lines through the resources, with no composition to read them in.
+    @Test
+    fun `the lines read from the resources are the card's own`() {
+        val resources = ApplicationProvider.getApplicationContext<Context>().resources
+        assertEquals(EXPECTED.values.toList(), EXPECTED.keys.map { turnText(it, resources) })
     }
 
     @Test
