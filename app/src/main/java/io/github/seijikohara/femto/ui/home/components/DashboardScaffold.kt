@@ -1311,6 +1311,7 @@ internal object DashboardTags {
     const val VIDEO_PANEL = "dashboard-video-panel"
     const val ROUTE_CHOICE = "dashboard-route-choice"
     const val TURN_CARD = "dashboard-turn-card"
+    const val TURN_CARD_VOICE = "dashboard-turn-card-voice"
 }
 
 // Where the video window sits, as insets from the top corner on the side

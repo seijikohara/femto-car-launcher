@@ -14,12 +14,15 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -30,6 +33,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Volume2
@@ -74,9 +78,13 @@ import io.github.seijikohara.femto.ui.theme.unitLabel
  * reader. With it null the card has no control, no click and no speaker. The speaker is drawn over the card's box,
  * inside the end padding (see [VoiceGlyphSize]), so it moves no form's measured size and no content.
  *
- * The tap target is the card itself: at least [TurnCardCompactMinWidth] wide and 56 dp tall at the compact forms'
- * least, which is 8 dp under [FemtoDimens.MinTouchTarget]. A larger target would need a larger layout, which would
- * change the sizes [TurnCardSizes] measures and the dashboard places the card by.
+ * The tap target is the card, and its size is not changed for the control. A card shorter than
+ * [FemtoDimens.MinTouchTarget] (the compact form without the turn after next is 56 dp tall) gets a tap area grown to
+ * the floor around it: a touch up to 4 dp beyond its top or bottom edge counts ([MinTouchTargetViewConfiguration]).
+ * Compose measures that floor in the window's density, not the Display size's, so a card the Display size has made
+ * larger needs none. The full form (88 dp or more) and the compact form with the turn after next (64 dp) reach the
+ * floor themselves. Checked on the card alone; on the dashboard the same touch beyond the edge did not reach the card in
+ * a test (TurnCardTouchTest), for a cause not found.
  */
 @Composable
 internal fun TurnCard(
@@ -99,37 +107,44 @@ internal fun TurnCard(
         spoken?.let { on ->
             stringResource(if (on) R.string.turn_card_voice_on else R.string.turn_card_voice_off)
         }
-    Box(
-        modifier =
-            modifier
-                .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
-                // After the chrome, so the press ripple is clipped to the card's shape, as the video window's is.
-                .then(
-                    if (spoken != null) {
-                        Modifier
-                            .clip(MaterialTheme.shapes.large)
-                            .toggleable(value = spoken, role = Role.Switch, onValueChange = { onToggleVoice() })
-                    } else {
-                        Modifier
+    // The tap area grows to the floor around a card shorter than it, for the card with the control only: Compose
+    // widens the hit area of a node smaller than the view configuration's minimum touch target size, and the layout
+    // stays as it is. Without the control the card has no tap area and keeps the platform's configuration.
+    val viewConfiguration = LocalViewConfiguration.current
+    val touchTarget = remember(viewConfiguration) { MinTouchTargetViewConfiguration(viewConfiguration) }
+    CompositionLocalProvider(LocalViewConfiguration provides if (spoken != null) touchTarget else viewConfiguration) {
+        Box(
+            modifier =
+                modifier
+                    .glassChrome(MaterialTheme.shapes.large, hazeState, glassConfig)
+                    // After the chrome, so the press ripple is clipped to the card's shape, as the video window's is.
+                    .then(
+                        if (spoken != null) {
+                            Modifier
+                                .clip(MaterialTheme.shapes.large)
+                                .toggleable(value = spoken, role = Role.Switch, onValueChange = { onToggleVoice() })
+                        } else {
+                            Modifier
+                        },
+                    ).semantics(mergeDescendants = true) {
+                        contentDescription = description
+                        voiceState?.let { stateDescription = it }
                     },
-                ).semantics(mergeDescendants = true) {
-                    contentDescription = description
-                    voiceState?.let { stateDescription = it }
-                },
-    ) {
-        TurnCardBody(TurnCardContent(state = state, value = value, unit = unit, text = text), form)
-        spoken?.let { on ->
-            FemtoIcon(
-                imageVector = if (on) Lucide.Volume2 else Lucide.VolumeX,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier =
-                    Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = VoiceGlyphEndInset)
-                        .size(VoiceGlyphSize)
-                        .testTag(TURN_CARD_VOICE_TAG),
-            )
+        ) {
+            TurnCardBody(TurnCardContent(state = state, value = value, unit = unit, text = text), form)
+            spoken?.let { on ->
+                FemtoIcon(
+                    imageVector = if (on) Lucide.Volume2 else Lucide.VolumeX,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier =
+                        Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = VoiceGlyphEndInset)
+                            .size(VoiceGlyphSize)
+                            .testTag(DashboardTags.TURN_CARD_VOICE),
+                )
+            }
         }
     }
 }
@@ -421,9 +436,6 @@ private fun ThenColumn(
  * spans 21 to 35 dp. A larger glyph would need more than the padding, and the content would have to give way.
  */
 private val VoiceGlyphSize = 14.dp
-
-/** The speaker's test tag: it has no semantics of its own, the card's switch carries the state. */
-internal const val TURN_CARD_VOICE_TAG = "turn-card-voice"
 private val VoiceGlyphEndInset = 1.dp
 
 /** The turn's arrow, at the size of a tap target so it reads at a glance; the arrows' golden grid draws it too. */
@@ -465,6 +477,15 @@ internal val TurnCardMaxWidth = 420.dp
  * wider face. The form is measured besides, so a longer text that would not fit leaves the card out rather than cut.
  */
 internal val TurnCardCompactMinWidth = 200.dp
+
+// The platform's configuration with the automotive floor as its minimum touch target: Compose widens the hit area of
+// a pointer input node smaller than this to it, around the node and without a larger layout.
+private class MinTouchTargetViewConfiguration(
+    base: ViewConfiguration,
+) : ViewConfiguration by base {
+    override val minimumTouchTargetSize: DpSize =
+        DpSize(FemtoDimens.MinTouchTarget, FemtoDimens.MinTouchTarget)
+}
 
 @PreviewLightDark
 @PreviewTextStress
