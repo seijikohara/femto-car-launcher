@@ -141,7 +141,11 @@ internal fun BoxScope.ExposedMapRegion(
                     verticalBias = -1f,
                 ),
             ).fillMaxWidth((1f - mapConfig.rightSafeFraction - mapConfig.leftSafeFraction).coerceIn(0f, 1f))
-            .fillMaxHeight(1f - mapConfig.bottomSafeFraction)
+            // The bottom reserve passes one half where the map raises the marker over tall
+            // bottom overlays, which can leave a fifth of the map or less: too little for the
+            // placeholder or the failure notice, which would spill under the clock or off the
+            // screen. They keep at least the upper half, as before the marker could rise.
+            .fillMaxHeight(1f - mapConfig.bottomSafeFraction.coerceAtMost(0.5f))
             // The safe fractions cover the floating cards and bottom overlays,
             // but the map controls (locate / zoom pill, compass) ride the
             // exposed region's driver-side edge, over the map. Inset the
