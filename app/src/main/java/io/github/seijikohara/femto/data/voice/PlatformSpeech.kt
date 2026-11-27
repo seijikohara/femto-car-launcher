@@ -24,6 +24,11 @@ private val GuidanceAttributes: AudioAttributes =
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
 
+// How long a session start waits for the engine. Nothing waits on an opening, and a cold engine's process starts
+// and sets itself up first, which is slow under load: 3.8 s was measured on an emulator while a route computed, so the
+// diagnostics probe's 10 s bound for a question is too tight for a start that has no one waiting.
+private const val SESSION_START_TIMEOUT_MS = 30_000L
+
 /** The [SpeechSessions] over the platform's `TextToSpeech`. */
 internal class PlatformSpeechSessions(
     private val context: Context,
@@ -35,7 +40,7 @@ internal class PlatformSpeechSessions(
         var session: SpeechSession? = null
         try {
             session =
-                withTimeoutOrNull(ENGINE_ANSWER_TIMEOUT_MS) { started.await() }
+                withTimeoutOrNull(SESSION_START_TIMEOUT_MS) { started.await() }
                     ?.takeIf { it == TextToSpeech.SUCCESS }
                     // The calls below ask the engine's process, which is not for the main thread.
                     ?.let { withContext(Dispatchers.IO) { engine.prepareEnglishOrNull() } }

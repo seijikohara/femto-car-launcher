@@ -170,12 +170,12 @@ internal class TurnSpeaker(
         ) : Command
     }
 
-    // A failure here would end the launcher's process, which runs the home screen; speech is never worth that.
+    // A failure here would end the launcher's process, which runs the home screen; speech is never worth that. The
+    // handlers do not suspend, so a CancellationException here (java.util.concurrent's, from a platform call) is a
+    // failure like any other: rethrown, it would end the command loop for good.
     private fun handleSafely(command: Command) {
         try {
             handle(command)
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
             Log.w(TAG, "voice command failed: ${e.javaClass.simpleName}")
         }
@@ -187,7 +187,7 @@ internal class TurnSpeaker(
 
             is Command.Say -> speak(command.text, command.label)
 
-            // Sent at every fix while a route is followed with voice off, so a closed speaker has nothing to do.
+            // The dashboard sends one, when it had opened the engine; a speaker already closed has nothing to do.
             Command.Close -> shutDownUnlessClosed()
 
             is Command.Opened -> finishOpening(command)
@@ -199,15 +199,38 @@ internal class TurnSpeaker(
         if (mutableStatus.value is SpeakerStatus.Closed || mutableStatus.value is SpeakerStatus.Unavailable) {
             mutableStatus.value = SpeakerStatus.Opening
             val mine = ++generation
-            opening =
-                scope.launch {
-                    val availability = askOrNull { availability() }
-                    val opened =
-                        (availability as? SpeechAvailability.Ready)?.let { ready ->
-                            askOrNull { sessions.open(ready.enginePackage) }
-                        }
-                    commands.trySend(Command.Opened(mine, availability, opened))
-                }
+            opening = scope.launch { commands.trySend(openEngine(mine)) }
+        }
+    }
+
+    // The platform's default engine is tried first, on its own: the probe starts every engine and asks each, which
+    // took 8 s on an emulator under load, and a probe that runs out would make voice unavailable for the whole route.
+    // The probe runs only when the default gives no session (none, it did not start, or it has no English), and its
+    // answer names another engine to open, or says why none can.
+    private suspend fun openEngine(mine: Int): Command.Opened {
+        val installed = askOrNull { engines.installed() }
+        val default = askOrNull { engines.defaultOrNull() }
+        val viaDefault = default?.let { name -> askOrNull { sessions.open(name) } }
+        return when {
+            installed == null -> {
+                Command.Opened(mine, availability = null, session = null)
+            }
+
+            installed.isEmpty() -> {
+                Command.Opened(mine, SpeechAvailability.NoEngine, session = null)
+            }
+
+            default != null && viaDefault != null -> {
+                Command.Opened(mine, SpeechAvailability.Ready(default), viaDefault)
+            }
+
+            else -> {
+                val availability = askOrNull { availability() }
+                // An engine the probe finds with English that is the default one has been tried: not again.
+                val other = (availability as? SpeechAvailability.Ready)?.takeIf { it.enginePackage != default }
+                val opened = other?.let { ready -> askOrNull { sessions.open(ready.enginePackage) } }
+                Command.Opened(mine, availability, opened)
+            }
         }
     }
 
@@ -268,13 +291,15 @@ internal class TurnSpeaker(
 
             else -> {
                 val sequence = ++promptCount
-                playing = sequence
-                mutableLastPrompt.value = SpokenPrompt(label, outcome = null)
                 val accepted =
                     runCatching { open.speak(text) { played -> commands.trySend(Command.Ended(sequence, played)) } }
                         .onFailure { Log.w(TAG, "voice engine failed: ${it.javaClass.simpleName}") }
                         .getOrDefault(false)
                 if (accepted) {
+                    // The new prompt takes over the hold, and its bound, only once the engine has taken it. Its end
+                    // cannot be handled before this returns: it queues behind this command.
+                    playing = sequence
+                    mutableLastPrompt.value = SpokenPrompt(label, outcome = null)
                     playingBound?.cancel()
                     playingBound =
                         scope.launch {
@@ -282,8 +307,9 @@ internal class TurnSpeaker(
                             commands.trySend(Command.Ended(sequence, played = false))
                         }
                 } else {
-                    playing = null
-                    releaseFocus()
+                    // An earlier prompt may still be speaking: its hold stays as it was, and the sound goes back
+                    // only when nothing else holds it.
+                    if (playing == null) releaseFocus()
                     record(label, PromptOutcome.ENGINE_REFUSED)
                 }
             }
@@ -299,10 +325,14 @@ internal class TurnSpeaker(
             playing = null
             playingBound?.cancel()
             releaseFocus()
-            mutableLastPrompt.update {
-                it?.copy(outcome = if (played) PromptOutcome.PLAYED else PromptOutcome.CUT_SHORT)
-            }
+            endLastPrompt(if (played) PromptOutcome.PLAYED else PromptOutcome.CUT_SHORT)
         }
+    }
+
+    // Give the last prompt its [outcome] while it still shows as playing; one that was refused or dropped since keeps
+    // its own.
+    private fun endLastPrompt(outcome: PromptOutcome) {
+        mutableLastPrompt.update { last -> last?.takeIf { it.outcome == null }?.copy(outcome = outcome) ?: last }
     }
 
     private fun shutDownUnlessClosed() {
@@ -315,6 +345,7 @@ internal class TurnSpeaker(
         opening = null
         session?.let { open -> runCatching { open.close() } }
         session = null
+        if (playing != null) endLastPrompt(PromptOutcome.CUT_SHORT)
         playing = null
         playingBound?.cancel()
         playingBound = null

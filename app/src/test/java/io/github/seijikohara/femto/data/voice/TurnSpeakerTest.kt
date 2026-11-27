@@ -389,6 +389,280 @@ class TurnSpeakerTest {
             )
         }
 
+    // --- Opening: the default engine first, the probe only when it gives no session ---
+
+    @Test
+    fun `the default engine opens without the probe asking any engine`() =
+        runTest {
+            val port = FakeSpeechEnginePort(english, default = ENGINE)
+            val sessions = FakeSpeechSessions()
+            val speaker = speaker(port = port, sessions = sessions)
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals<Any>(
+                Triple(SpeakerStatus.Ready(ENGINE), listOf(ENGINE), emptyList<String>()),
+                Triple(speaker.status.value, sessions.opened, port.asked),
+            )
+        }
+
+    @Test
+    fun `a default engine without English falls back to another engine that has it`() =
+        runTest {
+            val port =
+                FakeSpeechEnginePort(
+                    mapOf(DEFAULT_ENGINE to EnglishVoice.NOT_SUPPORTED, ENGINE to EnglishVoice.AVAILABLE),
+                    default = DEFAULT_ENGINE,
+                )
+            val sessions = FakeSpeechSessions(answers = mapOf(DEFAULT_ENGINE to null))
+            val speaker = speaker(port = port, sessions = sessions)
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals<Any>(
+                Pair(SpeakerStatus.Ready(ENGINE), listOf(DEFAULT_ENGINE, ENGINE)),
+                Pair(speaker.status.value, sessions.opened),
+            )
+        }
+
+    @Test
+    fun `a device with no engine installed starts nothing`() =
+        runTest {
+            val port = FakeSpeechEnginePort(answers = emptyMap())
+            val sessions = FakeSpeechSessions()
+            val speaker = speaker(port = port, sessions = sessions)
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals<Any>(
+                Triple(
+                    SpeakerStatus.Unavailable(SpeakerUnavailable.NO_ENGINE),
+                    emptyList<String>(),
+                    emptyList<String>(),
+                ),
+                Triple(speaker.status.value, sessions.opened, port.asked),
+            )
+        }
+
+    @Test
+    fun `a default engine with English that does not open is not opened again`() =
+        runTest {
+            val sessions = FakeSpeechSessions(session = null)
+            val speaker = speaker(port = FakeSpeechEnginePort(english, default = ENGINE), sessions = sessions)
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals<Any>(
+                Pair(SpeakerStatus.Unavailable(SpeakerUnavailable.DID_NOT_START), listOf(ENGINE)),
+                Pair(speaker.status.value, sessions.opened),
+            )
+        }
+
+    @Test
+    fun `a default engine without English and no other cannot speak`() =
+        runTest {
+            val port = FakeSpeechEnginePort(mapOf(ENGINE to EnglishVoice.NOT_SUPPORTED), default = ENGINE)
+            val speaker = speaker(port = port, sessions = FakeSpeechSessions(session = null))
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals(SpeakerStatus.Unavailable(SpeakerUnavailable.NO_ENGLISH), speaker.status.value)
+        }
+
+    // --- A speaker that closes or is refused while a prompt plays ---
+
+    @Test
+    fun `a prompt that was playing when the speaker closed is recorded as cut short`() =
+        runTest {
+            val speaker = speaker()
+            speaker.open()
+            runCurrent()
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+
+            speaker.close()
+            runCurrent()
+
+            assertEquals(SpokenPrompt("final at 80 m", PromptOutcome.CUT_SHORT), speaker.lastPrompt.value)
+        }
+
+    // The refused prompt never reached the engine, so the earlier one is still speaking and still holds the sound.
+    @Test
+    fun `a refusal while an earlier prompt plays leaves its hold as it was`() =
+        runTest {
+            val session = FakeSpeechSession()
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(session), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("In 300 metres, turn left.", label = "advance at 300 m")
+            runCurrent()
+            session.accepts = false
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+            val afterTheRefusal = Pair(focus.requests, focus.releases)
+
+            session.end(0, played = true)
+            runCurrent()
+
+            assertEquals(
+                Pair(Pair(1, 0), 1),
+                Pair(afterTheRefusal, focus.releases),
+            )
+        }
+
+    @Test
+    fun `a refusal while an earlier prompt plays keeps its bound`() =
+        runTest {
+            val session = FakeSpeechSession()
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(session), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("In 300 metres, turn left.", label = "advance at 300 m")
+            runCurrent()
+            session.accepts = false
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+
+            advanceTimeBy(PROMPT_BOUND_MS + 1)
+            runCurrent()
+
+            assertEquals(1, focus.releases)
+        }
+
+    @Test
+    fun `a refusal with nothing playing gives the sound back`() =
+        runTest {
+            val session = FakeSpeechSession()
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(session), focus = focus)
+            speaker.open()
+            runCurrent()
+            session.accepts = false
+
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+
+            assertEquals(
+                Pair(1, SpokenPrompt("final at 80 m", PromptOutcome.ENGINE_REFUSED)),
+                Pair(focus.releases, speaker.lastPrompt.value),
+            )
+        }
+
+    // --- Engines that throw: the command loop survives every one of them ---
+
+    @Test
+    fun `an engine that throws on opening did not start, and a later opening works`() =
+        runTest {
+            val sessions = FakeSpeechSessions().apply { throwing = true }
+            val speaker = speaker(sessions = sessions)
+            speaker.open()
+            runCurrent()
+            val afterTheThrow = speaker.status.value
+            sessions.throwing = false
+
+            speaker.open()
+            runCurrent()
+
+            assertEquals(
+                Pair(SpeakerStatus.Unavailable(SpeakerUnavailable.DID_NOT_START), SpeakerStatus.Ready(ENGINE)),
+                Pair(afterTheThrow, speaker.status.value),
+            )
+        }
+
+    @Test
+    fun `a session that throws on a prompt refuses it, gives the sound back, and a later prompt plays`() =
+        runTest {
+            val session = FakeSpeechSession().apply { throwOnSpeak = true }
+            val focus = FakeSoundFocus()
+            val speaker = speaker(sessions = FakeSpeechSessions(session), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+            val afterTheThrow = Triple(speaker.lastPrompt.value, focus.requests, focus.releases)
+            session.throwOnSpeak = false
+
+            speaker.say("Turn right.", label = "final at 70 m")
+            runCurrent()
+
+            assertEquals<Any>(
+                Pair(
+                    Triple(SpokenPrompt("final at 80 m", PromptOutcome.ENGINE_REFUSED), 1, 1),
+                    Pair(SpokenPrompt("final at 70 m", outcome = null), listOf("Turn right.")),
+                ),
+                Pair(afterTheThrow, Pair(speaker.lastPrompt.value, session.spoken)),
+            )
+        }
+
+    @Test
+    fun `a sound request that throws drops the prompt, and a later prompt plays`() =
+        runTest {
+            val session = FakeSpeechSession()
+            val focus = FakeSoundFocus().apply { throwOnRequest = true }
+            val speaker = speaker(sessions = FakeSpeechSessions(session), focus = focus)
+            speaker.open()
+            runCurrent()
+            speaker.say("Turn left.", label = "final at 80 m")
+            runCurrent()
+            val afterTheThrow = Pair(speaker.lastPrompt.value, session.spoken.toList())
+            focus.throwOnRequest = false
+
+            speaker.say("Turn right.", label = "final at 70 m")
+            runCurrent()
+
+            assertEquals<Any>(
+                Pair(
+                    Pair(SpokenPrompt("final at 80 m", PromptOutcome.NO_SOUND), emptyList<String>()),
+                    listOf("Turn right."),
+                ),
+                Pair(afterTheThrow, session.spoken),
+            )
+        }
+
+    @Test
+    fun `a speaker opened, closed and opened again ends ready, and the first opening's late session is closed`() =
+        runTest {
+            val first = FakeSpeechSession()
+            val second = FakeSpeechSession()
+            val secondGate = CompletableDeferred<Unit>()
+            val speaker =
+                speaker(sessions = FakeQueuedSessions(listOf(first, second), listOf(CompletableDeferred(), secondGate)))
+            speaker.open()
+            runCurrent()
+            speaker.close()
+            runCurrent()
+            speaker.open()
+            runCurrent()
+
+            secondGate.complete(Unit)
+            runCurrent()
+
+            assertEquals(
+                Triple(SpeakerStatus.Ready(ENGINE), true, false),
+                Triple(speaker.status.value, first.closed, second.closed),
+            )
+        }
+
+    @Test
+    fun `closing an unavailable speaker leaves it closed`() =
+        runTest {
+            val speaker = speaker(sessions = FakeSpeechSessions(session = null))
+            speaker.open()
+            runCurrent()
+
+            speaker.close()
+            runCurrent()
+
+            assertEquals(SpeakerStatus.Closed, speaker.status.value)
+        }
+
     private fun TestScope.speaker(
         port: SpeechEnginePort = FakeSpeechEnginePort(english),
         sessions: SpeechSessions = FakeSpeechSessions(),
@@ -399,11 +673,18 @@ class TurnSpeakerTest {
     private class FakeSpeechSessions(
         private val session: SpeechSession? = FakeSpeechSession(),
         private val gate: CompletableDeferred<Unit>? = null,
+        // What a named engine opens to instead of [session].
+        private val answers: Map<String, SpeechSession?> = emptyMap(),
     ) : SpeechSessions {
         val opened = mutableListOf<String>()
 
+        // Whether opening fails with an exception, as a platform call can.
+        var throwing = false
+
         override suspend fun open(enginePackage: String): SpeechSession? {
             opened += enginePackage
+            check(!throwing) { "engine failed" }
+            if (enginePackage in answers) return answers[enginePackage]
             // An engine mid-start cannot be interrupted: its session arrives even for an opening cancelled since.
             try {
                 gate?.await()
@@ -414,23 +695,46 @@ class TurnSpeakerTest {
         }
     }
 
+    /** Opens to a session per call, in order, each only once its gate (if any) is completed. */
+    private class FakeQueuedSessions(
+        private val sessions: List<FakeSpeechSession>,
+        private val gates: List<CompletableDeferred<Unit>?>,
+    ) : SpeechSessions {
+        private var calls = 0
+
+        override suspend fun open(enginePackage: String): SpeechSession? {
+            val index = calls++
+            try {
+                gates[index]?.await()
+            } catch (e: CancellationException) {
+                // An engine mid-start cannot be interrupted: its session arrives for an opening cancelled since.
+            }
+            return sessions[index]
+        }
+    }
+
     private class FakeSpeechSession(
-        private val accepts: Boolean = true,
+        var accepts: Boolean = true,
     ) : SpeechSession {
         val spoken = mutableListOf<String>()
         var closed = false
+
+        // Whether a request fails with an exception, as a platform call can.
+        var throwOnSpeak = false
         private val ends = mutableListOf<(Boolean) -> Unit>()
 
         override fun speak(
             text: String,
             onEnd: (played: Boolean) -> Unit,
-        ): Boolean =
-            accepts.also {
+        ): Boolean {
+            check(!throwOnSpeak) { "engine failed" }
+            return accepts.also {
                 if (it) {
                     spoken += text
                     ends += onEnd
                 }
             }
+        }
 
         override fun close() {
             closed = true
@@ -449,7 +753,13 @@ class TurnSpeakerTest {
         var requests = 0
         var releases = 0
 
-        override fun request(): Boolean = grant.also { requests++ }
+        // Whether a request fails with an exception, as a platform call can.
+        var throwOnRequest = false
+
+        override fun request(): Boolean {
+            check(!throwOnRequest) { "focus failed" }
+            return grant.also { requests++ }
+        }
 
         override fun release() {
             releases++
@@ -458,6 +768,7 @@ class TurnSpeakerTest {
 
     private companion object {
         const val ENGINE = "com.example.tts"
+        const val DEFAULT_ENGINE = "com.example.default"
 
         // The speaker's own bound on a prompt, as its tests see it: a prompt of a few seconds has long ended by then.
         const val PROMPT_BOUND_MS = 15_000L
