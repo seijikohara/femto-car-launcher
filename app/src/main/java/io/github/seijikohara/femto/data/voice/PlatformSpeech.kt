@@ -52,24 +52,30 @@ internal class PlatformSpeechSessions(
 // The engine set up to speak English as guidance, or null when it has no English voice after all.
 private fun TextToSpeech.prepareEnglishOrNull(): SpeechSession? =
     takeIf { setLanguage(Locale.ENGLISH) >= TextToSpeech.LANG_AVAILABLE }?.let { engine ->
-        engine.offlineEnglishVoiceOrNull()?.let { engine.setVoice(it) }
+        engine.otherOfflineEnglishVoiceOrNull()?.let { engine.setVoice(it) }
         engine.setAudioAttributes(GuidanceAttributes)
         PlatformSpeechSession(engine)
     }
 
-// A voice that speaks English without a network and has its data on the device, preferring the one the engine chose
-// for English (which setLanguage has just made current); null leaves the engine's own choice in place.
-private fun TextToSpeech.offlineEnglishVoiceOrNull(): Voice? =
-    voices
-        .orEmpty()
-        .filter { voice ->
-            voice.locale.language == Locale.ENGLISH.language &&
-                !voice.isNetworkConnectionRequired &&
-                TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features.orEmpty()
-        }.let { usable ->
-            val current = voice?.locale
-            usable.firstOrNull { it.locale == current } ?: usable.firstOrNull()
+// Whether [this] speaks English without a network and has its data on the device.
+private fun Voice.isOfflineEnglish(): Boolean =
+    locale.language == Locale.ENGLISH.language &&
+        !isNetworkConnectionRequired &&
+        TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in features.orEmpty()
+
+// The voice to switch to, or null to keep the engine's own: setLanguage has just made the engine's choice for English
+// current, and a choice that already is an offline English voice stays, since another voice would change the speaker
+// for no reason. Otherwise an offline English voice of the current voice's locale, else the first one.
+private fun TextToSpeech.otherOfflineEnglishVoiceOrNull(): Voice? =
+    voice.let { current ->
+        if (current != null && current.isOfflineEnglish()) {
+            null
+        } else {
+            voices.orEmpty().filter { it.isOfflineEnglish() }.let { usable ->
+                usable.firstOrNull { it.locale == current?.locale } ?: usable.firstOrNull()
+            }
         }
+    }
 
 private class PlatformSpeechSession(
     private val engine: TextToSpeech,
