@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -80,6 +81,7 @@ class TurnCardLayoutTest {
     private var fontScale by mutableFloatStateOf(1f)
     private var videoOn by mutableStateOf(false)
     private var uiState by mutableStateOf(LONGEST_TURN_STATE)
+    private var markerPos by mutableIntStateOf(MapConfig().markerPos)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
@@ -120,6 +122,24 @@ class TurnCardLayoutTest {
                 UiScale.entries.flatMap { scale ->
                     uiScale = scale
                     each(DashboardGeometries.all) { case -> shownFailures(case) }
+                }
+            },
+        )
+    }
+
+    // The card's bound comes from where the marker may sit, not from the Marker position setting: at the top and at the
+    // bottom of its range the card still ends above the chevron.
+    @Test
+    fun `at every display size and marker position the card shows only clear of the chevron`() {
+        setDashboard()
+
+        assertEquals(
+            emptyList(),
+            listOf(0, 100).flatMap { position ->
+                markerPos = position
+                UiScale.entries.flatMap { scale ->
+                    uiScale = scale
+                    each(DashboardGeometries.all) { case -> shownFailures("$case markerPos $position") }
                 }
             },
         )
@@ -249,7 +269,7 @@ class TurnCardLayoutTest {
                             showClockSeconds = true,
                             speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                             temperatureUnit = TemperatureUnit.CELSIUS,
-                            mapConfig = MapConfig(),
+                            mapConfig = MapConfig(markerPos = markerPos),
                             panels = PanelVisibility(),
                             glassConfig = GlassConfig(),
                             onAction = {},

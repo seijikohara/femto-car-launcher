@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -41,8 +42,9 @@ import kotlin.test.assertTrue
  * Where the video window sits across the dashboard geometry matrix
  * ([DashboardGeometries]) on both driver sides: never over the compass, the
  * map control column, the clock, the speed readout, the cards or the vehicle's
- * chevron at the default marker position, which the map raises above the
- * middle where the bottom overlays reach past it, and in the upper half of the
+ * chevron at the default marker position and both ends of its range, which
+ * the map raises above the middle where the bottom overlays reach past it,
+ * and in the upper half of the
  * screen, clear of the map credit in the bottom corner. Each geometry is laid
  * out at its own size inside one window larger than all of them.
  */
@@ -55,6 +57,7 @@ class VideoWindowLayoutTest {
 
     private var geometry by mutableStateOf(DashboardGeometries.all.first())
     private var driverSide by mutableStateOf(DriverSide.RIGHT)
+    private var markerPos by mutableIntStateOf(MapConfig().markerPos)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
@@ -70,7 +73,7 @@ class VideoWindowLayoutTest {
                         showClockSeconds = true,
                         speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                         temperatureUnit = TemperatureUnit.CELSIUS,
-                        mapConfig = MapConfig(),
+                        mapConfig = MapConfig(markerPos = markerPos),
                         panels = PanelVisibility(),
                         glassConfig = GlassConfig(),
                         onAction = {},
@@ -87,12 +90,15 @@ class VideoWindowLayoutTest {
             }
         }
         val failures =
-            DashboardGeometries.all.flatMap { candidate ->
-                DriverSide.entries.flatMap { side ->
-                    geometry = candidate
-                    driverSide = side
-                    rule.waitForIdle()
-                    layoutFailures(candidate, side)
+            MARKER_POSITIONS.flatMap { position ->
+                markerPos = position
+                DashboardGeometries.all.flatMap { candidate ->
+                    DriverSide.entries.flatMap { side ->
+                        geometry = candidate
+                        driverSide = side
+                        rule.waitForIdle()
+                        layoutFailures(candidate, side)
+                    }
                 }
             }
         assertEquals(emptyList(), failures)
@@ -104,7 +110,7 @@ class VideoWindowLayoutTest {
         geometry: DashboardGeometry,
         side: DriverSide,
     ): List<String> {
-        val case = "${geometry.id} ${side.name}"
+        val case = "${geometry.id} ${side.name} markerPos $markerPos"
         val window = bounds(DashboardTags.VIDEO_WINDOW)
         val overlaps =
             listOf(
@@ -138,5 +144,10 @@ class VideoWindowLayoutTest {
         // Falsifiability guard for the helper the matrix test leans on.
         assertTrue(DpRect(0.dp, 0.dp, 10.dp, 10.dp).overlaps(DpRect(9.dp, 9.dp, 20.dp, 20.dp)))
         assertTrue(!DpRect(0.dp, 0.dp, 10.dp, 10.dp).overlaps(DpRect(10.dp, 0.dp, 20.dp, 10.dp)))
+    }
+
+    private companion object {
+        // The default Marker position and both ends of its range.
+        val MARKER_POSITIONS = listOf(MapConfig().markerPos, 0, 100)
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -48,9 +49,9 @@ import kotlin.test.assertEquals
 /**
  * Where the route choice card sits across the dashboard geometry matrix ([DashboardGeometries]) on both driver sides,
  * at its widest content (three routes, one over an hour): never over the compass, the map control column, the clock,
- * the speed readout, the cards or the vehicle's chevron at the default marker position, inside the screen, with every
- * tile whole inside the card and a full tap target, and no line of a tile cut short. Each geometry is laid out at its
- * own size inside one window larger than all of them, as in VideoWindowLayoutTest.
+ * the speed readout, the cards or the vehicle's chevron at the default marker position and both ends of its range,
+ * inside the screen, with every tile whole inside the card and a full tap target, and no line of a tile cut short. Each
+ * geometry is laid out at its own size inside one window larger than all of them, as in VideoWindowLayoutTest.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -61,6 +62,7 @@ class RouteChoiceLayoutTest {
 
     private var geometry by mutableStateOf(DashboardGeometries.all.first())
     private var driverSide by mutableStateOf(DriverSide.RIGHT)
+    private var markerPos by mutableIntStateOf(MapConfig().markerPos)
 
     // The map placement the dashboard hands the map, which puts the chevron.
     private var mapConfig = MapConfig()
@@ -76,7 +78,7 @@ class RouteChoiceLayoutTest {
                         showClockSeconds = true,
                         speedUnit = SpeedUnit.KILOMETERS_PER_HOUR,
                         temperatureUnit = TemperatureUnit.CELSIUS,
-                        mapConfig = MapConfig(),
+                        mapConfig = MapConfig(markerPos = markerPos),
                         panels = PanelVisibility(),
                         glassConfig = GlassConfig(),
                         onAction = {},
@@ -92,12 +94,15 @@ class RouteChoiceLayoutTest {
             }
         }
         val failures =
-            DashboardGeometries.all.flatMap { candidate ->
-                DriverSide.entries.flatMap { side ->
-                    geometry = candidate
-                    driverSide = side
-                    rule.waitForIdle()
-                    layoutFailures(candidate, side)
+            MARKER_POSITIONS.flatMap { position ->
+                markerPos = position
+                DashboardGeometries.all.flatMap { candidate ->
+                    DriverSide.entries.flatMap { side ->
+                        geometry = candidate
+                        driverSide = side
+                        rule.waitForIdle()
+                        layoutFailures(candidate, side)
+                    }
                 }
             }
         assertEquals(emptyList(), failures)
@@ -109,7 +114,7 @@ class RouteChoiceLayoutTest {
         geometry: DashboardGeometry,
         side: DriverSide,
     ): List<String> {
-        val case = "${geometry.id} ${side.name}"
+        val case = "${geometry.id} ${side.name} markerPos $markerPos"
         val card = bounds(DashboardTags.ROUTE_CHOICE)
         val chevron = selfMarkerChevronBounds(mapConfig, geometry.widthDp.dp, geometry.heightDp.dp)
         val tiles = (1..3).map { rule.onNodeWithText("Route $it").getUnclippedBoundsInRoot() }
@@ -190,4 +195,9 @@ class RouteChoiceLayoutTest {
 
     private fun DpRect.contains(other: DpRect): Boolean =
         other.left >= left && other.right <= right && other.top >= top && other.bottom <= bottom
+
+    private companion object {
+        // The default Marker position and both ends of its range: the card's bound must not depend on the setting.
+        val MARKER_POSITIONS = listOf(MapConfig().markerPos, 0, 100)
+    }
 }
